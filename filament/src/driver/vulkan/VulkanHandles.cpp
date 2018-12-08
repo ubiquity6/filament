@@ -498,6 +498,9 @@ void VulkanTexture::update2DImage(const PixelBufferDescriptor& data, uint32_t wi
     void* mapped;
     vmaMapMemory(mContext.allocator, stage->memory, &mapped);
     memcpy(mapped, cpuData, numBytes);
+    if (miplevel > 0 && width > 128) {
+        memset(mapped, 0x7f, numBytes); // CONCLUSION: THESE BYTES ARE PROBABLY FINE, BUT THEY ARE NOT REACHING THE GPU.
+    }
     vmaUnmapMemory(mContext.allocator, stage->memory);
     vmaFlushAllocation(mContext.allocator, stage->memory, 0, numBytes);
 
@@ -509,7 +512,7 @@ void VulkanTexture::update2DImage(const PixelBufferDescriptor& data, uint32_t wi
         transitionImageLayout(cmd, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, miplevel);
         getSwapContext(mContext).pendingWork.emplace_back([this, stage] (VkCommandBuffer) {
-            mStagePool.releaseStage(stage);
+            // mStagePool.releaseStage(stage);
         });
     };
 
@@ -517,6 +520,7 @@ void VulkanTexture::update2DImage(const PixelBufferDescriptor& data, uint32_t wi
     if (mContext.cmdbuffer) {
         copyToDevice(mContext.cmdbuffer);
     } else {
+        printf("\tacquired %d bytes for miplevel %d\n", numBytes, miplevel);
         mContext.pendingWork.emplace_back(copyToDevice);
     }
 }
@@ -565,7 +569,8 @@ void VulkanTexture::transitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.image = image;
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = miplevel;
-    barrier.subresourceRange.levelCount = 1;
+    // printf("transitioning level %d\n", miplevel);
+    barrier.subresourceRange.levelCount = 1; // should we be doing these individually?
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = this->target == SamplerType::SAMPLER_CUBEMAP ? 6 : 1;
     VkPipelineStageFlags sourceStage;
@@ -611,13 +616,14 @@ void VulkanTexture::copyBufferToImage(VkCommandBuffer cmd, VkBuffer buffer, VkIm
     }
     VkBufferImageCopy region = {};
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel = miplevel;
+    region.imageSubresource.mipLevel = miplevel; // hmm, this is: "the mipmap level to copy from" which seems wrong
     region.imageSubresource.layerCount = 1;
     region.imageExtent = {
         .width = width >> miplevel,
         .height = height >> miplevel,
         .depth = 1,
     };
+    printf("\tcopying for miplevel %d (%d x %d)\n", miplevel, region.imageExtent.width, region.imageExtent.height);
     vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
 

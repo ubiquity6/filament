@@ -103,13 +103,13 @@ function(add_ktxfiles SOURCE TARGET EXTRA_ARGS)
     set(KTX_FILES ${KTX_FILES} ${target_path} PARENT_SCOPE)
     add_custom_command(
         OUTPUT ${target_path}
-        COMMAND mipgen --strip-alpha ${EXTRA_ARGS} ${source_path} ${target_path}
+        COMMAND mipgen ${EXTRA_ARGS} ${source_path} ${target_path}
         MAIN_DEPENDENCY ${source_path}
         DEPENDS mipgen)
 endfunction()
 
-add_ktxfiles("assets/models/monkey/albedo.png" "albedo_s3tc.ktx" "--compression=s3tc_rgb_dxt1")
-add_ktxfiles("assets/models/monkey/normal.png" "normal.ktx" "--kernel=NORMALS;--linear")
+add_ktxfiles("assets/models/monkey/albedo.png" "albedo_s3tc.ktx" "--add-alpha")
+add_ktxfiles("assets/models/monkey/normal.png" "normal.ktx" "--kernel=NORMALS;--linear;--strip-alpha")
 add_ktxfiles("assets/models/monkey/roughness.png" "roughness.ktx" "--grayscale")
 add_ktxfiles("assets/models/monkey/metallic.png" "metallic.ktx" "--grayscale")
 add_ktxfiles("assets/models/monkey/ao.png" "ao.ktx" "--grayscale")
