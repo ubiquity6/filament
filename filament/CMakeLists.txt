@@ -46,6 +46,8 @@ set(SRCS
         src/components/LightManager.cpp
         src/components/RenderableManager.cpp
         src/components/TransformManager.cpp
+        src/driver/noop/NoopDriver.cpp
+        src/driver/noop/PlatformNoop.cpp
         src/driver/opengl/gl_headers.cpp
         src/driver/opengl/OpenGLBlitter.cpp
         src/driver/opengl/GLUtils.cpp
@@ -71,6 +73,7 @@ set(SRCS
         src/Engine.cpp
         src/Exposure.cpp
         src/Fence.cpp
+        src/fg/FrameGraph.cpp
         src/FrameInfo.cpp
         src/FrameSkipper.cpp
         src/Froxelizer.cpp
@@ -137,9 +140,8 @@ set(PRIVATE_HDRS
         src/driver/Handle.h
         src/driver/Program.h
         src/driver/SamplerBuffer.h
-        src/driver/noop/NoopDriver.cpp
-        src/driver/noop/PlatformNoop.cpp
         src/FilamentAPI-impl.h
+        src/fg/FrameGraph.h
         src/FrameInfo.h
         src/Intersections.h
         src/PostProcessManager.h
