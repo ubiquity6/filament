@@ -32,7 +32,7 @@ TEST(FrameGraphTest, SimpleRenderPass) {
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
             [&](FrameGraphBuilder& builder, RenderPassData& data) {
-                data.output = builder.createTexture("renderTarget", {});
+                data.output = builder.createTexture("renderTarget", FrameGraphBuilder::WRITE, {});
                 EXPECT_TRUE(data.output.isValid());
                 EXPECT_TRUE(fg.isValid(data.output));
             },
@@ -61,7 +61,7 @@ TEST(FrameGraphTest, SimpleRenderAndPostProcessPasses) {
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
             [&](FrameGraphBuilder& builder, RenderPassData& data) {
-                data.output = builder.createTexture("renderTarget", {});
+                data.output = builder.createTexture("renderTarget", FrameGraphBuilder::WRITE, {});
                 EXPECT_TRUE(data.output.isValid());
                 EXPECT_TRUE(fg.isValid(data.output));
             },
@@ -96,7 +96,10 @@ TEST(FrameGraphTest, SimpleRenderAndPostProcessPasses) {
 
     fg.compile();
 
+    //fg.export_graphviz(utils::slog.d);
+
     fg.execute();
+
 
     EXPECT_TRUE(renderPassExecuted);
     EXPECT_TRUE(postProcessPassExecuted);
@@ -117,7 +120,7 @@ TEST(FrameGraphTest, SimplePassCulling) {
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
             [&](FrameGraphBuilder& builder, RenderPassData& data) {
-                data.output = builder.createTexture("renderTarget", {});
+                data.output = builder.createTexture("renderTarget", FrameGraphBuilder::WRITE, {});
             },
             [&renderPassExecuted](FrameGraphPassResources const& resources, RenderPassData const& data) {
                 renderPassExecuted = true;
@@ -132,7 +135,7 @@ TEST(FrameGraphTest, SimplePassCulling) {
     auto& postProcessPass = fg.addPass<PostProcessPassData>("PostProcess",
             [&](FrameGraphBuilder& builder, PostProcessPassData& data) {
                 data.input = builder.read(renderPass.getData().output);
-                data.output = builder.createTexture("postprocess-renderTarget", {});
+                data.output = builder.createTexture("postprocess-renderTarget", FrameGraphBuilder::WRITE, {});
             },
             [&postProcessPassExecuted](FrameGraphPassResources const& resources, PostProcessPassData const& data) {
                 postProcessPassExecuted = true;
@@ -147,7 +150,7 @@ TEST(FrameGraphTest, SimplePassCulling) {
     auto& culledPass = fg.addPass<CulledPassData>("CulledPass",
             [&](FrameGraphBuilder& builder, CulledPassData& data) {
                 data.input = builder.read(renderPass.getData().output);
-                data.output = builder.createTexture("unused-rendertarget", {});
+                data.output = builder.createTexture("unused-rendertarget", FrameGraphBuilder::WRITE, {});
             },
             [&culledPassExecuted](FrameGraphPassResources const& resources, CulledPassData const& data) {
                 culledPassExecuted = true;
@@ -161,7 +164,11 @@ TEST(FrameGraphTest, SimplePassCulling) {
     EXPECT_TRUE(fg.isValid(culledPass.getData().input));
     EXPECT_TRUE(fg.isValid(culledPass.getData().output));
 
+    //fg.export_graphviz(utils::slog.d);
+
     fg.compile();
+
+    //fg.export_graphviz(utils::slog.d);
 
     fg.execute();
 
@@ -169,7 +176,6 @@ TEST(FrameGraphTest, SimplePassCulling) {
     EXPECT_TRUE(postProcessPassExecuted);
     EXPECT_FALSE(culledPassExecuted);
 }
-
 
 
 TEST(FrameGraphTest, BadGraph) {
@@ -200,7 +206,7 @@ TEST(FrameGraphTest, BadGraph) {
 
     auto& R0 = fg.addPass<R0Data>("R1",
             [&](FrameGraphBuilder& builder, R0Data& data) {
-                data.output = builder.createTexture("A", {});
+                data.output = builder.createTexture("A", FrameGraphBuilder::WRITE, {});
             },
             [&](FrameGraphPassResources const&, R0Data const&) {
                 R0exec = true;
@@ -240,5 +246,92 @@ TEST(FrameGraphTest, BadGraph) {
     EXPECT_TRUE(R0exec);
     EXPECT_TRUE(R1exec);
     EXPECT_FALSE(R2exec);
+}
+
+TEST(FrameGraphTest, ComplexGraph) {
+
+    FrameGraph fg;
+
+    struct DepthPassData {
+        FrameGraphResourceHandle output;
+    };
+    auto& depthPass = fg.addPass<DepthPassData>("Depth pass",
+            [&](FrameGraphBuilder& builder, DepthPassData& data) {
+                data.output = builder.createTexture("Depth Buffer", FrameGraphBuilder::WRITE, {});
+            },
+            [&](FrameGraphPassResources const&, DepthPassData const&) {
+            });
+
+
+
+    // buggy pass
+    struct BuffyPassData {
+        FrameGraphResourceHandle input;
+        FrameGraphResourceHandle output;
+    };
+    auto& buggyPass = fg.addPass<BuffyPassData>("Bug",
+            [&](FrameGraphBuilder& builder, BuffyPassData& data) {
+                data.input = builder.read(depthPass.getData().output);
+                data.output = builder.createTexture("Buggy output", FrameGraphBuilder::WRITE, {});
+            },
+            [&](FrameGraphPassResources const&, BuffyPassData const&) {
+            });
+    fg.present(buggyPass.getData().output);
+
+
+
+    struct GBufferPassData {
+        FrameGraphResourceHandle input;
+        FrameGraphResourceHandle output;
+        FrameGraphResourceHandle gbuffers[3];
+    };
+    auto& gbufferPass = fg.addPass<GBufferPassData>("Gbuffer pass",
+            [&](FrameGraphBuilder& builder, GBufferPassData& data) {
+                data.input = builder.read(depthPass.getData().output);
+                data.output = builder.write(data.input);
+                data.gbuffers[0] = builder.createTexture("Gbuffer 1", FrameGraphBuilder::WRITE, {});
+                data.gbuffers[1] = builder.createTexture("Gbuffer 2", FrameGraphBuilder::WRITE, {});
+                data.gbuffers[2] = builder.createTexture("Gbuffer 3", FrameGraphBuilder::WRITE, {});
+            },
+            [&](FrameGraphPassResources const&, GBufferPassData const&) {
+            });
+
+
+    struct LightingPassData {
+        FrameGraphResourceHandle input[4];
+        FrameGraphResourceHandle output;
+    };
+    auto& lightingPass = fg.addPass<LightingPassData>("Lighting pass",
+            [&](FrameGraphBuilder& builder, LightingPassData& data) {
+                data.input[0] = builder.read(gbufferPass.getData().output);
+                data.input[1] = builder.read(gbufferPass.getData().gbuffers[0]);
+                data.input[2] = builder.read(gbufferPass.getData().gbuffers[1]);
+                data.input[3] = builder.read(gbufferPass.getData().gbuffers[2]);
+                data.output = builder.createTexture("Lighting buffer", FrameGraphBuilder::WRITE, {});
+            },
+            [&](FrameGraphPassResources const&, LightingPassData const&) {
+            });
+
+
+    struct ConvolutionPassData {
+        FrameGraphResourceHandle input;
+        FrameGraphResourceHandle output;
+    };
+    auto& convolutionPass = fg.addPass<ConvolutionPassData>("Convolution",
+            [&](FrameGraphBuilder& builder, ConvolutionPassData& data) {
+                data.input = builder.createTexture("Cubemap", FrameGraphBuilder::READ, {});
+                data.output = builder.createTexture("Reflection probe", FrameGraphBuilder::WRITE, {});
+            },
+            [&](FrameGraphPassResources const&, ConvolutionPassData const&) {
+            });
+
+    fg.present(lightingPass.getData().output);
+
+
+    fg.compile();
+
+    fg.export_graphviz(utils::slog.d);
+
+    fg.execute();
 }
 

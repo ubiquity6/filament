@@ -46,6 +46,7 @@ set(SRCS
         src/components/LightManager.cpp
         src/components/RenderableManager.cpp
         src/components/TransformManager.cpp
+        src/fg/FrameGraph.cpp
         src/driver/noop/NoopDriver.cpp
         src/driver/noop/PlatformNoop.cpp
         src/driver/opengl/gl_headers.cpp
@@ -73,7 +74,6 @@ set(SRCS
         src/Engine.cpp
         src/Exposure.cpp
         src/Fence.cpp
-        src/fg/FrameGraph.cpp
         src/FrameInfo.cpp
         src/FrameSkipper.cpp
         src/Froxelizer.cpp
@@ -103,6 +103,8 @@ set(PRIVATE_HDRS
         src/components/LightManager.h
         src/components/RenderableManager.h
         src/components/TransformManager.h
+        src/fg/FrameGraph.h
+        src/fg/FrameGraphResourceHandle.h
         src/details/Allocators.h
         src/details/Camera.h
         src/details/Culler.h
@@ -141,7 +143,6 @@ set(PRIVATE_HDRS
         src/driver/Program.h
         src/driver/SamplerBuffer.h
         src/FilamentAPI-impl.h
-        src/fg/FrameGraph.h
         src/FrameInfo.h
         src/Intersections.h
         src/PostProcessManager.h
