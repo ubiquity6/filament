@@ -104,7 +104,7 @@ set(PRIVATE_HDRS
         src/components/RenderableManager.h
         src/components/TransformManager.h
         src/fg/FrameGraph.h
-        src/fg/FrameGraphResourceHandle.h
+        src/fg/FrameGraphResource.h
         src/details/Allocators.h
         src/details/Camera.h
         src/details/Culler.h

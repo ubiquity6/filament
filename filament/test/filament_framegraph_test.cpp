@@ -27,7 +27,7 @@ TEST(FrameGraphTest, SimpleRenderPass) {
     bool renderPassExecuted = false;
 
     struct RenderPassData {
-        FrameGraphResourceHandle output;
+        FrameGraphResource output;
     };
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
@@ -56,7 +56,7 @@ TEST(FrameGraphTest, SimpleRenderAndPostProcessPasses) {
     bool postProcessPassExecuted = false;
 
     struct RenderPassData {
-        FrameGraphResourceHandle output;
+        FrameGraphResource output;
     };
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
@@ -71,8 +71,8 @@ TEST(FrameGraphTest, SimpleRenderAndPostProcessPasses) {
 
 
     struct PostProcessPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
 
     auto& postProcessPass = fg.addPass<PostProcessPassData>("PostProcess",
@@ -96,7 +96,7 @@ TEST(FrameGraphTest, SimpleRenderAndPostProcessPasses) {
 
     fg.compile();
 
-    //fg.export_graphviz(utils::slog.d);
+    fg.export_graphviz(utils::slog.d);
 
     fg.execute();
 
@@ -115,7 +115,7 @@ TEST(FrameGraphTest, SimplePassCulling) {
     bool culledPassExecuted = false;
 
     struct RenderPassData {
-        FrameGraphResourceHandle output;
+        FrameGraphResource output;
     };
 
     auto& renderPass = fg.addPass<RenderPassData>("Render",
@@ -128,8 +128,8 @@ TEST(FrameGraphTest, SimplePassCulling) {
 
 
     struct PostProcessPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
 
     auto& postProcessPass = fg.addPass<PostProcessPassData>("PostProcess",
@@ -143,8 +143,8 @@ TEST(FrameGraphTest, SimplePassCulling) {
 
 
     struct CulledPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
 
     auto& culledPass = fg.addPass<CulledPassData>("CulledPass",
@@ -201,7 +201,7 @@ TEST(FrameGraphTest, BadGraph) {
     bool R2exec = false;
 
     struct R0Data {
-        FrameGraphResourceHandle output;
+        FrameGraphResource output;
     };
 
     auto& R0 = fg.addPass<R0Data>("R1",
@@ -214,8 +214,8 @@ TEST(FrameGraphTest, BadGraph) {
 
 
     struct RData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
 
     auto& R1 = fg.addPass<RData>("R1",
@@ -253,7 +253,7 @@ TEST(FrameGraphTest, ComplexGraph) {
     FrameGraph fg;
 
     struct DepthPassData {
-        FrameGraphResourceHandle output;
+        FrameGraphResource output;
     };
     auto& depthPass = fg.addPass<DepthPassData>("Depth pass",
             [&](FrameGraphBuilder& builder, DepthPassData& data) {
@@ -266,8 +266,8 @@ TEST(FrameGraphTest, ComplexGraph) {
 
     // buggy pass
     struct BuffyPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
     auto& buggyPass = fg.addPass<BuffyPassData>("Bug",
             [&](FrameGraphBuilder& builder, BuffyPassData& data) {
@@ -281,9 +281,9 @@ TEST(FrameGraphTest, ComplexGraph) {
 
 
     struct GBufferPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
-        FrameGraphResourceHandle gbuffers[3];
+        FrameGraphResource input;
+        FrameGraphResource output;
+        FrameGraphResource gbuffers[3];
     };
     auto& gbufferPass = fg.addPass<GBufferPassData>("Gbuffer pass",
             [&](FrameGraphBuilder& builder, GBufferPassData& data) {
@@ -298,8 +298,8 @@ TEST(FrameGraphTest, ComplexGraph) {
 
 
     struct LightingPassData {
-        FrameGraphResourceHandle input[4];
-        FrameGraphResourceHandle output;
+        FrameGraphResource input[4];
+        FrameGraphResource output;
     };
     auto& lightingPass = fg.addPass<LightingPassData>("Lighting pass",
             [&](FrameGraphBuilder& builder, LightingPassData& data) {
@@ -314,12 +314,12 @@ TEST(FrameGraphTest, ComplexGraph) {
 
 
     struct ConvolutionPassData {
-        FrameGraphResourceHandle input;
-        FrameGraphResourceHandle output;
+        FrameGraphResource input;
+        FrameGraphResource output;
     };
     auto& convolutionPass = fg.addPass<ConvolutionPassData>("Convolution",
             [&](FrameGraphBuilder& builder, ConvolutionPassData& data) {
-                data.input = builder.createTexture("Cubemap", FrameGraphBuilder::READ, {});
+                data.input = builder.read(gbufferPass.getData().gbuffers[2]); //builder.createTexture("Cubemap", FrameGraphBuilder::READ, {});
                 data.output = builder.createTexture("Reflection probe", FrameGraphBuilder::WRITE, {});
             },
             [&](FrameGraphPassResources const&, ConvolutionPassData const&) {
@@ -327,11 +327,45 @@ TEST(FrameGraphTest, ComplexGraph) {
 
     fg.present(lightingPass.getData().output);
 
+    fg.moveResource(convolutionPass.getData().output, lightingPass.getData().output);
 
     fg.compile();
 
-    //fg.export_graphviz(utils::slog.d);
+    fg.export_graphviz(utils::slog.d);
 
     fg.execute();
 }
 
+TEST(FrameGraphTest, MoveResource) {
+
+    FrameGraph fg;
+
+    struct RenderPassData {
+        FrameGraphResource input;
+        FrameGraphResource output;
+    };
+
+    auto& renderPass = fg.addPass<RenderPassData>("Render",
+            [&](FrameGraphBuilder& builder, RenderPassData& data) {
+                data.input = builder.createTexture("render-inout", FrameGraphBuilder::READ, {});
+                data.output = builder.write(data.input);
+            },
+            [](FrameGraphPassResources const& resources, RenderPassData const& data) {
+            });
+    fg.present(renderPass.getData().output);
+
+    auto& debugPass = fg.addPass<RenderPassData>("Debug",
+            [&](FrameGraphBuilder& builder, RenderPassData& data) {
+                data.input = builder.createTexture("debug-inout", FrameGraphBuilder::READ, {});
+                data.output = builder.write(data.input);
+            },
+            [](FrameGraphPassResources const& resources, RenderPassData const& data) {
+            });
+    fg.present(debugPass.getData().output);
+
+    fg.moveResource(renderPass.getData().output, debugPass.getData().input);
+
+    fg.compile();
+    fg.export_graphviz(utils::slog.d);
+    fg.execute();
+}

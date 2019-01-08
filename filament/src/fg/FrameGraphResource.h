@@ -24,17 +24,17 @@
 namespace filament {
 
 /*
- * A handle do a FrameGraph resource.
+ * A FrameGraph resource.
  *
  * This is used to represent a virtual resource.
  */
 
-struct FrameGraphResourceHandle {
+struct FrameGraphResource {
     static constexpr uint16_t UNINITIALIZED = std::numeric_limits<uint16_t>::max();
-    // index to the resource (resource id)
+    // index to the resource handle
     uint16_t index = UNINITIALIZED;
-    // version of the resource we are representing. when this version doesn't match the
-    // resource version, this handle has become invalid.
+    // version of the resource when it was created. When this version doesn't match the
+    // resource handle's version, this resource has become invalid.
     uint16_t version = 0;
     bool isValid() const noexcept { return index != UNINITIALIZED; }
 };

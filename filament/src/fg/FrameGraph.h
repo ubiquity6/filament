@@ -18,7 +18,7 @@
 #define TNT_FILAMENT_FRAMEGRAPH_H
 
 
-#include "FrameGraphResourceHandle.h"
+#include "FrameGraphResource.h"
 
 #include <utils/Log.h>
 
@@ -37,7 +37,7 @@ namespace filament {
 class FrameGraph;
 class FrameGraphBuilder;
 class FrameGraphPassBase;
-class FrameGraphResource;
+class FrameGraphResourceHandle;
 class FrameGraphPassResources;
 
 // ------------------------------------------------------------------------------------------------
@@ -45,7 +45,7 @@ class FrameGraphPassResources;
 class FrameGraphPassBase {
 public:
     // TODO: use something less heavy than a std::vector<>
-    using ResourceList = std::vector<FrameGraphResourceHandle>;
+    using ResourceList = std::vector<FrameGraphResource>;
 
     FrameGraphPassBase(FrameGraphPassBase const&) = delete;
     FrameGraphPassBase& operator = (FrameGraphPassBase const&) = delete;
@@ -55,8 +55,8 @@ public:
     uint32_t getId() const noexcept { return mId; }
 
     // for FrameGraphBuilder
-    void read(FrameGraphResource const& resource);
-    void write(FrameGraphResource const& resource);
+    void read(FrameGraphResourceHandle const& resource);
+    void write(FrameGraphResourceHandle& resource);
 
 protected:
     FrameGraphPassBase(const char* name, uint32_t id) noexcept;
@@ -69,8 +69,9 @@ private:
     const char* mName = nullptr;            // our name
     uint32_t mId = 0;                       // a unique id (only for debugging)
 
-    // resources we're reading from
-    ResourceList mReads;                    // set by the builder
+    // set by the builder
+    ResourceList mReads;                    // resources we're reading from
+    ResourceList mWrites;                   // resources we're writing to
 
     // computed during compile()
     std::vector<uint16_t> mDevirtualize;    // resources we need to create before executing
@@ -101,45 +102,56 @@ private:
 
 // ------------------------------------------------------------------------------------------------
 
-class FrameGraphResource {
+class FrameGraphResourceHandle {
 public:
     struct TextureDesc {
         // TODO: descriptor for textures and render targets
     };
 
-    FrameGraphResource(const char* name, uint16_t index) noexcept : mName(name), mId{ index, 0 } {}
+    FrameGraphResourceHandle(const char* name, uint16_t index) noexcept : mName(name), mIndex(index) {}
 
     // disallow copy ctor
-    FrameGraphResource(FrameGraphResource const&) = delete;
-    FrameGraphResource& operator = (FrameGraphResource const&) = delete;
+    FrameGraphResourceHandle(FrameGraphResourceHandle const&) = delete;
+    FrameGraphResourceHandle& operator = (FrameGraphResourceHandle const&) = delete;
 
     // but allow moves
-    FrameGraphResource(FrameGraphResource&&) noexcept = default;
-    FrameGraphResource& operator = (FrameGraphResource&&) noexcept = default;
+    FrameGraphResourceHandle(FrameGraphResourceHandle&&) noexcept = default;
+    FrameGraphResourceHandle& operator = (FrameGraphResourceHandle&&) noexcept = default;
 
 
     const char* getName() const noexcept { return mName; }
 
     // a unique id for this resource
-    uint16_t getId() const noexcept { return mId.index; }
-    uint16_t getVersion() const noexcept { return mId.version; }
+    uint16_t getIndex() const noexcept { return mIndex; }
+    uint16_t getVersion() const noexcept { return mVersion; }
 
 private:
     friend class FrameGraphPassBase;
     friend class FrameGraph;
     friend class FrameGraphBuilder;
 
+    // each time we modify the resource, we increase its version number
+    void write() noexcept { mVersion++; }
+
     // constants
     const char* mName = nullptr;
-    FrameGraphResourceHandle mId;
+    uint16_t mIndex;
+    uint16_t mVersion = 0;
 
-    // set by the builder
-    mutable std::vector<FrameGraphPassBase*> mWriters;
+    struct Resource {
+        explicit Resource(const char* name) noexcept : name(name) { }
+        // constants
+        const char* const name;                 // for debugging
+        // computed during compile()
+        FrameGraphPassBase* writer = nullptr;   // last writer to this resource
+        FrameGraphPassBase* first = nullptr;    // pass that needs to instantiate the resource
+        FrameGraphPassBase* last = nullptr;     // pass that can destroy the resource
+        uint32_t writerCount = 0;               // # of passes writing to this resource
+        uint32_t readerCount = 0;               // # of passes reading from this resource
+    };
 
-    // computed during compile()
-    FrameGraphPassBase* mFirst = nullptr;
-    FrameGraphPassBase* mLast = nullptr;
-    uint32_t mRefCount = 0;
+    // set during compile()
+    Resource* mSubResource = nullptr;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -160,21 +172,21 @@ public:
     enum CreateFlags : uint32_t {
         UNKNOWN, READ, WRITE
     };
-    FrameGraphResourceHandle createTexture(
+    FrameGraphResource createTexture(
             const char* name,
             CreateFlags flags,
-            FrameGraphResource::TextureDesc const& desc) noexcept;
+            FrameGraphResourceHandle::TextureDesc const& desc) noexcept;
 
     // read from a resource (i.e. add a reference to that resource)
-    FrameGraphResourceHandle read(FrameGraphResourceHandle const& input /*, read-flags*/);
+    FrameGraphResource read(FrameGraphResource const& input /*, read-flags*/);
 
     // write to a resource (i.e. add a reference to the pass that's doing the writing))
-    FrameGraphResourceHandle write(FrameGraphResourceHandle const& output  /*, write-flags*/);
+    FrameGraphResource write(FrameGraphResource const& output  /*, write-flags*/);
 
 private:
     FrameGraph& mFrameGraph;
     FrameGraphPassBase* mPass;
-    FrameGraphResource* getResource(FrameGraphResourceHandle handle);
+    FrameGraphResourceHandle* getResource(FrameGraphResource handle);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -206,9 +218,11 @@ public:
         return *pass;
     }
 
-    void present(FrameGraphResourceHandle input);
+    void moveResource(FrameGraphResource from, FrameGraphResource to);
 
-    bool isValid(FrameGraphResourceHandle handle) const noexcept ;
+    void present(FrameGraphResource input);
+
+    bool isValid(FrameGraphResource handle) const noexcept ;
 
     FrameGraph& compile() noexcept;
     void execute() noexcept;
@@ -220,13 +234,20 @@ private:
 
     FrameGraphPassResources mResources;
 
-    FrameGraphResource& createResource(const char* name);
+    FrameGraphResourceHandle& createResource(const char* name);
 
     // list of frame graph passes
     std::vector<std::unique_ptr<FrameGraphPassBase>> mFrameGraphPasses;
 
     // frame graph concrete resources
-    std::vector<FrameGraphResource> mResourceRegistry;
+    std::vector<FrameGraphResourceHandle> mResourceHandles;
+
+    std::vector<FrameGraphResourceHandle::Resource> mResourceRegistry;
+
+    struct Alias {
+        FrameGraphResource from, to;
+    };
+    std::vector<Alias> mAliases;
 };
 
 

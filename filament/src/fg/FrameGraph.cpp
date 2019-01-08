@@ -29,13 +29,16 @@ FrameGraphPassBase::FrameGraphPassBase(const char* name, uint32_t id) noexcept
 
 FrameGraphPassBase::~FrameGraphPassBase() = default;
 
-void FrameGraphPassBase::read(FrameGraphResource const& resource) {
+void FrameGraphPassBase::read(FrameGraphResourceHandle const& resource) {
     // just record that we're reading from this resource (at the given version)
-    mReads.push_back({ resource.getId(), resource.getVersion() });
+    mReads.push_back({ resource.getIndex(), resource.getVersion() });
 }
 
-void FrameGraphPassBase::write(FrameGraphResource const& resource) {
-    resource.mWriters.push_back(this);
+void FrameGraphPassBase::write(FrameGraphResourceHandle& resource) {
+    // invalidate existing handles to this resource
+    resource.write();
+    // record the write
+    mWrites.push_back({ resource.getIndex(), resource.getVersion() });
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -44,9 +47,9 @@ FrameGraphBuilder::FrameGraphBuilder(FrameGraph& fg, FrameGraphPassBase* pass) n
     : mFrameGraph(fg), mPass(pass) {
 }
 
-FrameGraphResource* FrameGraphBuilder::getResource(FrameGraphResourceHandle input) {
+FrameGraphResourceHandle* FrameGraphBuilder::getResource(FrameGraphResource input) {
     FrameGraph& frameGraph = mFrameGraph;
-    auto& registry = frameGraph.mResourceRegistry;
+    auto& registry = frameGraph.mResourceHandles;
 
     if (!ASSERT_POSTCONDITION_NON_FATAL(input.isValid(),
             "using an uninitialized resource handle")) {
@@ -58,17 +61,17 @@ FrameGraphResource* FrameGraphBuilder::getResource(FrameGraphResourceHandle inpu
 
     if (!ASSERT_POSTCONDITION_NON_FATAL(input.version == resource.getVersion(),
             "using an invalid resource handle (version=%u) for resource=\"%s\" (id=%u, version=%u)",
-            input.version, resource.getName(), resource.getId(), resource.getVersion())) {
+            input.version, resource.getName(), resource.getIndex(), resource.getVersion())) {
         return nullptr;
     }
 
     return &resource;
 }
 
-FrameGraphResourceHandle FrameGraphBuilder::createTexture(
-        const char* name, CreateFlags flags, FrameGraphResource::TextureDesc const& desc) noexcept {
+FrameGraphResource FrameGraphBuilder::createTexture(
+        const char* name, CreateFlags flags, FrameGraphResourceHandle::TextureDesc const& desc) noexcept {
     FrameGraph& frameGraph = mFrameGraph;
-    FrameGraphResource& resource = frameGraph.createResource(name);
+    FrameGraphResourceHandle& resource = frameGraph.createResource(name);
     switch (flags) {
         case UNKNOWN:
             // we just create a resource, but we don't use it in this pass
@@ -77,16 +80,14 @@ FrameGraphResourceHandle FrameGraphBuilder::createTexture(
             mPass->read(resource);
             break;
         case WRITE:
-            // since we're writing to this resource, we increase its version
-            resource.mId.version = 1;
             mPass->write(resource);
             break;
     }
-    return { resource.getId(), resource.getVersion() };
+    return { resource.getIndex(), resource.getVersion() };
 }
 
-FrameGraphResourceHandle FrameGraphBuilder::read(FrameGraphResourceHandle const& input) {
-    FrameGraphResource* resource = getResource(input);
+FrameGraphResource FrameGraphBuilder::read(FrameGraphResource const& input) {
+    FrameGraphResourceHandle* resource = getResource(input);
     if (!resource) {
         return {};
     }
@@ -94,11 +95,12 @@ FrameGraphResourceHandle FrameGraphBuilder::read(FrameGraphResourceHandle const&
     return input;
 }
 
-FrameGraphResourceHandle FrameGraphBuilder::write(FrameGraphResourceHandle const& output) {
-    FrameGraphResource* resource = getResource(output);
+FrameGraphResource FrameGraphBuilder::write(FrameGraphResource const& output) {
+    FrameGraphResourceHandle* resource = getResource(output);
     if (!resource) {
         return {};
     }
+
     mPass->write(*resource);
 
     /*
@@ -115,9 +117,7 @@ FrameGraphResourceHandle FrameGraphBuilder::write(FrameGraphResourceHandle const
      *
      */
 
-    // rename handle
-    resource->mId.version++; // this invalidates previous handles
-    return { resource->getId(), resource->getVersion() };
+    return { resource->getIndex(), resource->getVersion() };
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -126,15 +126,20 @@ FrameGraph::FrameGraph() = default;
 
 FrameGraph::~FrameGraph() = default;
 
-bool FrameGraph::isValid(FrameGraphResourceHandle handle) const noexcept {
+bool FrameGraph::isValid(FrameGraphResource handle) const noexcept {
     if (!handle.isValid()) return false;
-    auto const& registry = mResourceRegistry;
+    auto const& registry = mResourceHandles;
     assert(handle.index < registry.size());
     auto& resource = registry[handle.index];
     return handle.version == resource.getVersion();
 }
 
-void FrameGraph::present(FrameGraphResourceHandle input) {
+void FrameGraph::moveResource(FrameGraphResource from, FrameGraphResource to) {
+    // FIXME: what checks need to happen?
+    mAliases.push_back({from, to});
+}
+
+void FrameGraph::present(FrameGraphResource input) {
     struct Dummy {
     };
     addPass<Dummy>("Present",
@@ -145,94 +150,100 @@ void FrameGraph::present(FrameGraphResourceHandle input) {
             });
 }
 
-FrameGraphResource& FrameGraph::createResource(const char* name) {
-    auto& registry = mResourceRegistry;
+FrameGraphResourceHandle& FrameGraph::createResource(const char* name) {
+    auto& registry = mResourceHandles;
     uint16_t id = (uint16_t)registry.size();
     registry.emplace_back(name, id);
     return registry.back();
 }
 
 FrameGraph& FrameGraph::compile() noexcept {
-    auto& registry = mResourceRegistry;
+    auto& registry = mResourceHandles;
+    mResourceRegistry.reserve(registry.size());
 
-    // compute passes reference counts (i.e. resources we're writing to)
-    for (FrameGraphResource& resource : registry) {
-        for (FrameGraphPassBase* writer : resource.mWriters) {
-            writer->mRefCount++;
-        }
+    // create the sub-resources
+    for (FrameGraphResourceHandle& resource : registry) {
+        mResourceRegistry.emplace_back(resource.getName());
+        resource.mSubResource = &mResourceRegistry.back();
     }
 
-    // compute resources reference counts (i.e. resources we're reading from), and first/last users
+    // remap them
+    for (auto alias : mAliases) {
+        registry[alias.to.index].mSubResource = registry[alias.from.index].mSubResource;
+    }
+
     for (auto const& pass : mFrameGraphPasses) {
+        // compute passes reference counts (i.e. resources we're writing to)
+        pass->mRefCount = (uint32_t)pass->mWrites.size();
+
+        // compute resources reference counts (i.e. resources we're reading from), and first/last users
         for (auto handle : pass->mReads) {
-            FrameGraphResource& resource = registry[handle.index];
+            FrameGraphResourceHandle::Resource* subResource = registry[handle.index].mSubResource;
 
             // add a reference for each pass that reads from this resource
-            resource.mRefCount++;
+            subResource->readerCount++;
 
             // figure out which is the first pass to need this resource
-            resource.mFirst = resource.mFirst ? resource.mFirst : pass.get();
+            subResource->first = subResource->first ? subResource->first : pass.get();
 
             // figure out which is the last pass to need this resource
-            resource.mLast = pass.get();
+            subResource->last = pass.get();
+        }
+
+        // set the writers
+        for (auto handle : pass->mWrites) {
+            FrameGraphResourceHandle::Resource* subResource = registry[handle.index].mSubResource;
+            subResource->writer = pass.get();
+            subResource->writerCount++;
         }
     }
 
-    std::vector<FrameGraphResource*> stack;
+    // cull passes and resources...
+    std::vector<FrameGraphResourceHandle::Resource*> stack;
     stack.reserve(registry.size());
-    for (FrameGraphResource& resource : registry) {
-        if (resource.mRefCount == 0) {
+    for (auto& resource : mResourceRegistry) {
+        if (resource.readerCount == 0) {
             stack.push_back(&resource);
         }
     }
 
     while (!stack.empty()) {
-        FrameGraphResource const* const pResource = stack.back();
+        FrameGraphResourceHandle::Resource const* const pSubResource = stack.back();
         stack.pop_back();
 
         // by construction, this resource cannot have more than one producer because
         // - two unrelated passes can't write in the same resource
         // - passes that read + write into the resource imply that the refcount is not null
 
-        assert(pResource->mWriters.size() <= 1);
+        assert(pSubResource->writerCount <= 1);
 
         // if a resource doesn't have a writer and is not imported, then we the graph is not
         // set correctly. For now we ignore this.
-        if (pResource->mWriters.empty()) {
-            slog.d << "resource \"" << pResource->getName() << "\" is never written!" << io::endl;
+        if (!pSubResource->writer) {
+            slog.d << "resource \"" << pSubResource->name << "\" is never written!" << io::endl;
             continue; // TODO: this shouldn't happen in a valid graph
         }
 
-        FrameGraphPassBase* const writer = pResource->mWriters.back();
+        FrameGraphPassBase* const writer = pSubResource->writer;
         assert(writer->mRefCount >= 1);
         if (--writer->mRefCount == 0) {
             // this pass is culled
             auto const& reads = writer->mReads;
             for (auto id : reads) {
-                FrameGraphResource& r = registry[id.index];
-                if (--r.mRefCount == 0) {
-                    stack.push_back(&r);
+                FrameGraphResourceHandle::Resource* r = registry[id.index].mSubResource;
+                if (--r->readerCount == 0) {
+                    stack.push_back(r);
                 }
             }
         }
     }
 
-    for (FrameGraphResource& resource : registry) {
-        if (resource.mWriters.empty()) continue; // TODO: this shouldn't happen in a valid graph
-        FrameGraphPassBase* const writer = resource.mWriters.back();
-        if (writer->mRefCount) {
-            if (resource.mRefCount == 0) {
-                // we have a resource with a ref-count of zero, written to by an active (non-culled)
-                // pass. Is this allowable? This would happen for instance if a pass were to write
-                // in two buffers, but only one of them when consumed. The pass couldn't be
-                // discarded, but the unused resource would have to be created.
-                // TODO: should we allow this?
-            } else {
-                assert(resource.mFirst);
-                assert(resource.mLast);
-                resource.mFirst->mDevirtualize.push_back(resource.getId());
-                resource.mLast->mDestroy.push_back(resource.getId());
-            }
+    for (size_t index = 0, c = mResourceRegistry.size() ; index < c ; index++) {
+        auto& resource = mResourceRegistry[index];
+        assert(!resource.first == !resource.last);
+        if (resource.readerCount && resource.first && resource.last) {
+            resource.first->mDevirtualize.push_back((uint16_t)index);
+            resource.last->mDestroy.push_back((uint16_t)index);
         }
     }
 
@@ -241,26 +252,24 @@ FrameGraph& FrameGraph::compile() noexcept {
 
 void FrameGraph::execute() noexcept {
     auto const& resources = mResources;
-    auto& registry = mResourceRegistry;
     for (auto& pass : mFrameGraphPasses) {
         if (!pass->mRefCount) continue;
 
         for (size_t id : pass->mDevirtualize) {
             // TODO: create concrete resources
-            FrameGraphResource& resource = registry[id];
         }
 
         pass->execute(resources);
 
         for (uint32_t id : pass->mDestroy) {
             // TODO: delete concrete resources
-            FrameGraphResource& resource = registry[id];
         }
     }
 
     // reset the frame graph state
     mFrameGraphPasses.clear();
-    mResourceRegistry.clear();
+    mResourceHandles.clear();
+    mAliases.clear();
 }
 
 void FrameGraph::export_graphviz(utils::io::ostream& out) {
@@ -271,9 +280,11 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     out << "bgcolor = black\n";
     out << "node [shape=rectangle, fontname=\"helvetica\", fontsize=10]\n\n";
 
-    auto const& registry = mResourceRegistry;
+    auto const& registry = mResourceHandles;
+    auto const& frameGraphPasses = mFrameGraphPasses;
 
-    for (auto const& pass : mFrameGraphPasses) {
+    // declare passes
+    for (auto const& pass : frameGraphPasses) {
         if (removeCulled && !pass->mRefCount) continue;
         out << "\"P" << pass->getId() << "\" [label=\"" << pass->getName()
                << "\\nrefs: " << pass->mRefCount
@@ -282,43 +293,48 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
                << (pass->mRefCount ? "darkorange" : "darkorange4") << "]\n";
     }
 
+    // declare resources nodes
     out << "\n";
     for (auto const& resource : registry) {
-        if (removeCulled && !resource.mRefCount) continue;
-        for (size_t i = 0; i <= resource.getVersion(); i++) {
-            out << "\"R" << resource.getId() << "_" << i << "\""
-                   "[label=\"" << resource.getName() << "\\n(version: " << i << ")"
-                   "\\nid:" << resource.getId() <<
-                   "\\nrefs:" << resource.mRefCount
+        auto subresource = registry[resource.getIndex()].mSubResource;
+        if (removeCulled && !subresource->readerCount) continue;
+        for (size_t version = 0; version <= resource.getVersion(); version++) {
+            out << "\"R" << resource.getIndex() << "_" << version << "\""
+                   "[label=\"" << resource.getName() << "\\n(version: " << version << ")"
+                   "\\nid:" << resource.getIndex() <<
+                   "\\nrefs:" << subresource->readerCount
                    <<"\""
                    ", style=filled, fillcolor="
-                   << (resource.mRefCount ? "skyblue" : "skyblue4") << "]\n";
+                   << (subresource->readerCount ? "skyblue" : "skyblue4") << "]\n";
         }
     }
 
+    // connect passes to resources
     out << "\n";
-    for (auto const& resource : registry) {
-        if (removeCulled && !resource.mRefCount) continue;
-        auto const& writers = resource.mWriters;
-        size_t version = 1;
-        for (auto const& writer : writers) {
-            if (removeCulled && !writer->mRefCount) continue;
-            out << "P" << writer->getId() << " -> { ";
-            out << "R" << resource.getId() << "_" << version++ << " ";
-            out << "} [color=red2]\n";
+    for (auto const& pass : frameGraphPasses) {
+        if (removeCulled && !pass->mRefCount) continue;
+        out << "P" << pass->getId() << " -> { ";
+        for (auto const& writer : pass->mWrites) {
+            auto resource = registry[writer.index].mSubResource;
+            if (removeCulled && !resource->readerCount) continue;
+            out << "R" << writer.index << "_" << writer.version << " ";
         }
+        out << "} [color=red2]\n";
     }
 
+    // connect resources to passes
     out << "\n";
     for (auto const& resource : registry) {
-        if (removeCulled && !resource.mRefCount) continue;
-        for (size_t i = 0; i <= resource.getVersion(); i++) {
-            out << "R" << resource.getId() << "_" << i << " -> { ";
+        auto subresource = registry[resource.getIndex()].mSubResource;
+        if (removeCulled && !subresource->readerCount) continue;
+        for (size_t version = 0; version <= resource.getVersion(); version++) {
+            out << "R" << resource.getIndex() << "_" << version << " -> { ";
+
             // who reads us...
-            for (auto const& pass : mFrameGraphPasses) {
+            for (auto const& pass : frameGraphPasses) {
                 if (removeCulled && !pass->mRefCount) continue;
-                for (auto const& pass_id : pass->mReads) {
-                    if (pass_id.index == resource.getId() && pass_id.version == i ) {
+                for (auto const& read : pass->mReads) {
+                    if (read.index == resource.getIndex() && read.version == version ) {
                         out << "P" << pass->getId() << " ";
                     }
                 }
@@ -326,6 +342,17 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
             out << "} [color=lightgreen]\n";
         }
     }
+
+    // aliases...
+    if (!mAliases.empty()) {
+        out << "\n";
+        for (auto const& alias : mAliases) {
+            out << "R" << alias.from.index << "_" << alias.from.version << " -> ";
+            out << "R" << alias.to.index << "_" << alias.to.version;
+            out << "[color=yellow, style=dashed]\n";
+        }
+    }
+
     out << "}" << utils::io::endl;
 }
 
