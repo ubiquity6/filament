@@ -157,9 +157,9 @@ public:
     FrameGraphBuilder& operator = (FrameGraphBuilder const&) = delete;
 
     // create a resource
-    using CreateFlags = uint32_t;
-    static constexpr CreateFlags READ = 0x1;
-    static constexpr CreateFlags WRITE = 0x2;
+    enum CreateFlags : uint32_t {
+        UNKNOWN, READ, WRITE
+    };
     FrameGraphResourceHandle createTexture(
             const char* name,
             CreateFlags flags,

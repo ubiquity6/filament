@@ -69,8 +69,19 @@ FrameGraphResourceHandle FrameGraphBuilder::createTexture(
         const char* name, CreateFlags flags, FrameGraphResource::TextureDesc const& desc) noexcept {
     FrameGraph& frameGraph = mFrameGraph;
     FrameGraphResource& resource = frameGraph.createResource(name);
-    if (flags & READ)   mPass->read(resource);
-    if (flags & WRITE)  mPass->write(resource);
+    switch (flags) {
+        case UNKNOWN:
+            // we just create a resource, but we don't use it in this pass
+            break;
+        case READ:
+            mPass->read(resource);
+            break;
+        case WRITE:
+            // since we're writing to this resource, we increase its version
+            resource.mId.version = 1;
+            mPass->write(resource);
+            break;
+    }
     return { resource.getId(), resource.getVersion() };
 }
 
@@ -289,7 +300,7 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     for (auto const& resource : registry) {
         if (removeCulled && !resource.mRefCount) continue;
         auto const& writers = resource.mWriters;
-        size_t version = 0;
+        size_t version = 1;
         for (auto const& writer : writers) {
             if (removeCulled && !writer->mRefCount) continue;
             out << "P" << writer->getId() << " -> { ";

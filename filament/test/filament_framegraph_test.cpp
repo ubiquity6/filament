@@ -330,7 +330,7 @@ TEST(FrameGraphTest, ComplexGraph) {
 
     fg.compile();
 
-    fg.export_graphviz(utils::slog.d);
+    //fg.export_graphviz(utils::slog.d);
 
     fg.execute();
 }
