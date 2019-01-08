@@ -79,8 +79,9 @@ add_library(filament-jni SHARED
         #filament-js
         src/main/cpp/filament-js/jsbindings.cpp
         src/main/cpp/filament-js/jsenums.cpp
-        src/main/cpp/filament-js/bind.cpp
-        src/main/cpp/filament-js/val.cpp
+        src/main/cpp/embind/bind_impl.cpp
+        src/main/cpp/embind/val_impl.cpp
+        src/main/cpp/embind/bind.cpp
 )
 
 target_link_libraries(filament-jni

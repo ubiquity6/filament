@@ -4,6 +4,8 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/bind.h>
 
+#include <android/log.h>
+
 using namespace emscripten;
 using namespace emscripten::internal;
 
@@ -17,30 +19,44 @@ void _embind_fatal_error(
 
 void _embind_register_void(
         TYPEID voidType,
-        const char *name) {}
+        const char *name) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void %s", name);
+}
 
 void _embind_register_bool(
         TYPEID boolType,
         const char *name,
         size_t size,
         bool trueValue,
-        bool falseValue) {}
+        bool falseValue) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool %s", name);
+
+}
 
 void _embind_register_integer(
         TYPEID integerType,
         const char *name,
         size_t size,
         long minRange,
-        unsigned long maxRange) {}
+        unsigned long maxRange) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer %s", name);
+
+}
 
 void _embind_register_float(
         TYPEID floatType,
         const char *name,
-        size_t size) {}
+        size_t size) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float %s", name);
+
+}
 
 void _embind_register_std_string(
         TYPEID stringType,
-        const char *name) {}
+        const char *name) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string %s", name);
+
+}
 
 void _embind_register_std_wstring(
         TYPEID stringType,
@@ -62,7 +78,11 @@ void _embind_register_function(
         const TYPEID argTypes[],
         const char *signature,
         GenericFunction invoker,
-        GenericFunction function) {}
+        GenericFunction function) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_function %s", name);
+
+}
 
 void _embind_register_value_array(
         TYPEID tupleType,
@@ -120,7 +140,11 @@ void _embind_register_class(
         GenericFunction downcast,
         const char *className,
         const char *destructorSignature,
-        GenericFunction destructor) {}
+        GenericFunction destructor) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+
+}
 
 void _embind_register_class_constructor(
         TYPEID classType,
@@ -128,7 +152,10 @@ void _embind_register_class_constructor(
         const TYPEID argTypes[],
         const char *invokerSignature,
         GenericFunction invoker,
-        GenericFunction constructor) {}
+        GenericFunction constructor) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor %u", classType);
+
+}
 
 void _embind_register_class_function(
         TYPEID classType,
@@ -138,7 +165,10 @@ void _embind_register_class_function(
         const char *invokerSignature,
         GenericFunction invoker,
         void *context,
-        unsigned isPureVirtual) {}
+        unsigned isPureVirtual) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s", methodName);
+
+}
 
 void _embind_register_class_property(
         TYPEID classType,
