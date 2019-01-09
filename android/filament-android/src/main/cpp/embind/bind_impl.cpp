@@ -5,12 +5,50 @@
 #include <emscripten/bind.h>
 
 #include <android/log.h>
+#include "bind_impl.h"
 
 using namespace emscripten;
 using namespace emscripten::internal;
 
+
+#include <jni.h>
+#include <JavaScriptCore/JSContextRef.h>
+#include <JavaScriptCore/JSObjectRef.h>
+#include <JavaScriptCore/JSValueRef.h>
+
+
+// create a list of lamdas to lazy-bind to the javascript context once it becomes available.
+std::vector<std::function<void(JSGlobalContextRef)>>& lazy_bind() {
+    static std::vector<std::function<void(JSGlobalContextRef)>> lazy_bind_list;
+    return lazy_bind_list;
+}
+
+
+
+#define JNI_METHOD(return_type, method_name)                                   \
+  extern "C" JNIEXPORT return_type JNICALL                                     \
+      Java_com_google_android_filament_js_Bind_##method_name
+
+JNI_METHOD(void, BindToContext)
+(JNIEnv* env,
+ jclass jcls,
+ jlong jsCtxPtr) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "BindToContext");
+
+    JSGlobalContextRef jsCtx = (JSGlobalContextRef) (intptr_t) jsCtxPtr;
+
+    for(auto k = lazy_bind().begin(); k< lazy_bind().end(); ++k) {
+        (*k)(jsCtx);
+    }
+
+}
+
+
 // Implemented in JavaScript.  Don't call these directly.
 extern "C" {
+
+
 void _embind_fatal_error(
         const char *name,
         const char *payload) {
@@ -20,7 +58,11 @@ void _embind_fatal_error(
 void _embind_register_void(
         TYPEID voidType,
         const char *name) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void %s", name);
+//    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void lazy %u, %u", lazy_bind().size(), &lazy_bind());
+
+    lazy_bind().push_back([voidType,name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void %s", name);
+    });
 }
 
 void _embind_register_bool(
@@ -29,7 +71,10 @@ void _embind_register_bool(
         size_t size,
         bool trueValue,
         bool falseValue) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool %s", name);
+    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool lazy %u", lazy_bind().size());
+    lazy_bind().push_back([boolType,name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool %s", name);
+    });
 
 }
 
@@ -39,7 +84,10 @@ void _embind_register_integer(
         size_t size,
         long minRange,
         unsigned long maxRange) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer %s", name);
+    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer lazy %u", lazy_bind().size());
+    lazy_bind().push_back([integerType,name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer %s", name);
+    });
 
 }
 
@@ -47,14 +95,20 @@ void _embind_register_float(
         TYPEID floatType,
         const char *name,
         size_t size) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float %s", name);
+    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float lazy %u", lazy_bind().size());
+    lazy_bind().push_back([floatType,name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float %s", name);
+    });
 
 }
 
 void _embind_register_std_string(
         TYPEID stringType,
         const char *name) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string %s", name);
+    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string lazy %u", lazy_bind().size());
+    lazy_bind().push_back([stringType,name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string %s", name);
+    });
 
 }
 
@@ -80,8 +134,9 @@ void _embind_register_function(
         GenericFunction invoker,
         GenericFunction function) {
 
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_function %s", name);
-
+    lazy_bind().push_back([name](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_function %s", name);
+    });
 }
 
 void _embind_register_value_array(
@@ -142,7 +197,10 @@ void _embind_register_class(
         const char *destructorSignature,
         GenericFunction destructor) {
 
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class lazy %u, %u", lazy_bind().size(), &lazy_bind());
+    lazy_bind().push_back([className](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+    });
 
 }
 
@@ -153,7 +211,10 @@ void _embind_register_class_constructor(
         const char *invokerSignature,
         GenericFunction invoker,
         GenericFunction constructor) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor %u", classType);
+    lazy_bind().push_back([classType](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor %u",
+                            classType);
+    });
 
 }
 
@@ -166,8 +227,11 @@ void _embind_register_class_function(
         GenericFunction invoker,
         void *context,
         unsigned isPureVirtual) {
-    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s", methodName);
+    lazy_bind().push_back([methodName](JSGlobalContextRef context) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s",
+                            methodName);
 
+    });
 }
 
 void _embind_register_class_property(

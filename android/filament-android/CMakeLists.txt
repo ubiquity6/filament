@@ -34,7 +34,9 @@ set_target_properties(image PROPERTIES IMPORTED_LOCATION
 
 
 include_directories(${FILAMENT_DIR}/include
-        ${EMSDK}/emscripten/1.38.11/system/include)
+        ${EMSDK}/emscripten/1.38.11/system/include
+        src/main/include
+        )
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-stack-protector")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables")
