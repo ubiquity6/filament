@@ -7,7 +7,7 @@
  */
 
 import React, {Component} from 'react';
-import {Platform, StyleSheet, Text, View} from 'react-native';
+import {Platform, StyleSheet, Text, View, Button, Alert} from 'react-native';
 import RCTFilamentView from './FilamentView';
 
 const instructions = Platform.select({
@@ -26,6 +26,12 @@ export default class App extends Component<Props> {
         <Text style={styles.instructions}>To get started, edit App.js</Text>
         <Text style={styles.instructions}>{instructions}</Text>
         <RCTFilamentView></RCTFilamentView>
+        <Button
+          onPress={() => {
+            console.log(Filament);
+          }}
+          title="Press Me"
+        />
       </View>
     );
   }

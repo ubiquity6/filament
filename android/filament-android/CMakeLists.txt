@@ -98,6 +98,7 @@ target_link_libraries(filament-jni
       android
       jnigraphics
         image
+        /Users/ncoderre/extern/filament/android/samples/helloreact/android/app/build/intermediates/transforms/mergeJniLibs/debug/0/lib/armeabi-v7a/libjsc.so
 )
 
 option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)
