@@ -16,13 +16,19 @@ using namespace emscripten::internal;
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSValueRef.h>
 
+#include "EXJSUtils.h"
+
 
 // create a list of lamdas to lazy-bind to the javascript context once it becomes available.
-std::vector<std::function<void(JSGlobalContextRef)>>& lazy_bind() {
-    static std::vector<std::function<void(JSGlobalContextRef)>> lazy_bind_list;
+std::vector<std::function<void(JSGlobalContextRef, JSObjectRef)>>& lazy_bind() {
+    static std::vector<std::function<void(JSGlobalContextRef, JSObjectRef)>> lazy_bind_list;
     return lazy_bind_list;
 }
 
+std::map<TYPEID, std::string>& typenames() {
+    static std::map<TYPEID, std::string> m;
+    return m;
+};
 
 
 #define JNI_METHOD(return_type, method_name)                                   \
@@ -38,8 +44,12 @@ JNI_METHOD(void, BindToContext)
 
     JSGlobalContextRef jsCtx = (JSGlobalContextRef) (intptr_t) jsCtxPtr;
 
+    auto jsGlobal = JSContextGetGlobalObject(jsCtx);
+    auto jsNamespace = JSObjectMake(jsCtx, nullptr, nullptr);
+    EXJSObjectSetValueWithUTF8CStringName(jsCtx, jsGlobal, "Filament", jsNamespace);
+
     for(auto k = lazy_bind().begin(); k< lazy_bind().end(); ++k) {
-        (*k)(jsCtx);
+        (*k)(jsCtx, jsNamespace);
     }
 
 }
@@ -60,7 +70,9 @@ void _embind_register_void(
         const char *name) {
 //    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void lazy %u, %u", lazy_bind().size(), &lazy_bind());
 
-    lazy_bind().push_back([voidType,name](JSGlobalContextRef context) {
+    typenames()[voidType] = std::string(name);
+
+    lazy_bind().push_back([voidType,name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_void %s", name);
     });
 }
@@ -71,8 +83,11 @@ void _embind_register_bool(
         size_t size,
         bool trueValue,
         bool falseValue) {
+
+    typenames()[boolType] = std::string(name);
+
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool lazy %u", lazy_bind().size());
-    lazy_bind().push_back([boolType,name](JSGlobalContextRef context) {
+    lazy_bind().push_back([boolType,name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_bool %s", name);
     });
 
@@ -84,8 +99,11 @@ void _embind_register_integer(
         size_t size,
         long minRange,
         unsigned long maxRange) {
+    typenames()[integerType] = std::string(name);
+
+
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer lazy %u", lazy_bind().size());
-    lazy_bind().push_back([integerType,name](JSGlobalContextRef context) {
+    lazy_bind().push_back([integerType,name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_integer %s", name);
     });
 
@@ -95,8 +113,10 @@ void _embind_register_float(
         TYPEID floatType,
         const char *name,
         size_t size) {
+    typenames()[floatType] = std::string(name);
+
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float lazy %u", lazy_bind().size());
-    lazy_bind().push_back([floatType,name](JSGlobalContextRef context) {
+    lazy_bind().push_back([floatType,name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_float %s", name);
     });
 
@@ -105,8 +125,9 @@ void _embind_register_float(
 void _embind_register_std_string(
         TYPEID stringType,
         const char *name) {
+    typenames()[stringType] = std::string(name);
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string lazy %u", lazy_bind().size());
-    lazy_bind().push_back([stringType,name](JSGlobalContextRef context) {
+    lazy_bind().push_back([stringType,name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_std_string %s", name);
     });
 
@@ -134,7 +155,7 @@ void _embind_register_function(
         GenericFunction invoker,
         GenericFunction function) {
 
-    lazy_bind().push_back([name](JSGlobalContextRef context) {
+    lazy_bind().push_back([name](JSGlobalContextRef context, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_function %s", name);
     });
 }
@@ -196,10 +217,16 @@ void _embind_register_class(
         const char *className,
         const char *destructorSignature,
         GenericFunction destructor) {
+    typenames()[classType] = std::string(className);
 
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class lazy %u, %u", lazy_bind().size(), &lazy_bind());
-    lazy_bind().push_back([className](JSGlobalContextRef context) {
+    lazy_bind().push_back([className](JSGlobalContextRef jsCtx, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+
+        // todo: we shouldn't be creating a object, we should be creating a function? wait for createConstructor call?
+        auto jsClassObject = JSObjectMake(jsCtx, nullptr, nullptr);
+        EXJSObjectSetValueWithUTF8CStringName(jsCtx, ns, className, jsClassObject);
+
     });
 
 }
@@ -211,9 +238,11 @@ void _embind_register_class_constructor(
         const char *invokerSignature,
         GenericFunction invoker,
         GenericFunction constructor) {
-    lazy_bind().push_back([classType](JSGlobalContextRef context) {
-        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor %u",
-                            classType);
+    lazy_bind().push_back([classType](JSGlobalContextRef context, JSObjectRef ns) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor for %s",
+                            typenames()[classType].c_str());
+
+
     });
 
 }
@@ -227,9 +256,17 @@ void _embind_register_class_function(
         GenericFunction invoker,
         void *context,
         unsigned isPureVirtual) {
-    lazy_bind().push_back([methodName](JSGlobalContextRef context) {
-        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s",
-                            methodName);
+    lazy_bind().push_back([methodName, classType](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+        auto classname = typenames()[classType].c_str();
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s::%s",
+                            typenames()[classType].c_str(), methodName);
+
+        auto jsClassObject = (JSObjectRef) EXJSObjectGetPropertyNamed(jsCtx, ns, classname);
+        // todo: make a function, not an object.
+        auto jsFunction = JSObjectMake(jsCtx, nullptr, nullptr);
+
+        EXJSObjectSetValueWithUTF8CStringName(jsCtx, ns, methodName, jsFunction);
+
 
     });
 }
