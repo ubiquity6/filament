@@ -1,0 +1,5 @@
+rootProject.name = 'helloreact'
+
+includeBuild '../../../filament-android'
+
+include ':app'

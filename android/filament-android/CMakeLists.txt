@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.4.1)
 
 set(FILAMENT_DIR ${FILAMENT_DIST_DIR})
+set(EMSDK /Users/ncoderre/extern/emsdk)
+set(EXTERNAL ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 
 add_library(filament STATIC IMPORTED)
 set_target_properties(filament PROPERTIES IMPORTED_LOCATION
@@ -26,11 +28,18 @@ add_library(smol-v STATIC IMPORTED)
 set_target_properties(smol-v PROPERTIES IMPORTED_LOCATION
         ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libsmol-v.a)
 
+add_library(image STATIC IMPORTED)
+set_target_properties(image PROPERTIES IMPORTED_LOCATION
+        ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libimage.a)
 
-include_directories(${FILAMENT_DIR}/include)
+
+include_directories(${FILAMENT_DIR}/include
+        ${EMSDK}/emscripten/1.38.11/system/include
+        src/main/include
+        )
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-stack-protector")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-rtti")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math -ffp-contract=fast")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fvisibility-inlines-hidden")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fvisibility=hidden")
@@ -39,6 +48,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fomit-frame-pointer -ff
 set(CMAKE_SHARED_LINKER_FLAGS" ${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
 set(CMAKE_SHARED_LINKER_FLAGS" ${CMAKE_SHARED_LINKER_FLAGS} -Wl,-Bsymbolic-functions")
 set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -Wl,--version-script=${CMAKE_SOURCE_DIR}/libfilament-jni.map")
+
 
 add_library(filament-jni SHARED
       src/main/cpp/Camera.cpp
@@ -68,6 +78,13 @@ add_library(filament-jni SHARED
       src/main/cpp/CallbackUtils.cpp
       src/main/cpp/Filament.cpp
       src/main/cpp/NioUtils.cpp
+        #filament-js
+        src/main/cpp/filament-js/jsbindings.cpp
+        src/main/cpp/filament-js/jsenums.cpp
+        src/main/cpp/embind/bind_impl.cpp
+        src/main/cpp/embind/val_impl.cpp
+        src/main/cpp/embind/bind.cpp
+        src/main/cpp/embind/EXJSUtils.cpp
 )
 
 target_link_libraries(filament-jni
@@ -80,6 +97,8 @@ target_link_libraries(filament-jni
       EGL
       android
       jnigraphics
+        image
+        /Users/ncoderre/extern/filament/android/samples/helloreact/android/app/build/intermediates/transforms/mergeJniLibs/debug/0/lib/armeabi-v7a/libjsc.so
 )
 
 option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)
@@ -87,3 +106,5 @@ option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)
 if (FILAMENT_SUPPORTS_VULKAN)
     target_link_libraries(filament-jni bluevk smol-v)
 endif()
+
+
