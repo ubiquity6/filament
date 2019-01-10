@@ -29,6 +29,8 @@ export default class App extends Component<Props> {
         <Button
           onPress={() => {
             console.log(Filament);
+
+            Filament.Engine.destroyView(5);
           }}
           title="Press Me"
         />

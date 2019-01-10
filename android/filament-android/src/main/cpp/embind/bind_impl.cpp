@@ -30,6 +30,17 @@ std::map<TYPEID, std::string>& typenames() {
     return m;
 };
 
+//typedef JSValueRef
+//(*JSObjectCallAsFunctionCallback) (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception);
+
+
+// memory of bound functions.
+typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> FunctionContext;
+
+std::map<JSObjectRef, FunctionContext>& boundFunctions() {
+    static std::map<JSObjectRef, FunctionContext> m;
+    return m;
+};
 
 #define JNI_METHOD(return_type, method_name)                                   \
   extern "C" JNIEXPORT return_type JNICALL                                     \
@@ -225,6 +236,7 @@ void _embind_register_class(
 
         // todo: we shouldn't be creating a object, we should be creating a function? wait for createConstructor call?
         auto jsClassObject = JSObjectMake(jsCtx, nullptr, nullptr);
+
         EXJSObjectSetValueWithUTF8CStringName(jsCtx, ns, className, jsClassObject);
 
     });
@@ -247,6 +259,32 @@ void _embind_register_class_constructor(
 
 }
 
+
+typedef void (*AFunc)(int);
+
+JSValueRef GenericObjectCall (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "GenericObjectCall %u", argumentCount);
+
+    auto functionContext = boundFunctions()[function];
+    return functionContext(ctx, function, thisObject, argumentCount, arguments, exception);
+}
+
+
+
+void EXJSObjectSetFunctionWithUTF8CStringNameAndFunctionContext(JSContextRef ctx,
+                                              JSObjectRef obj,
+                                              const char *name,
+                                              JSObjectCallAsFunctionCallback func,
+                                                            const FunctionContext& data) {
+    JSStringRef jsName = JSStringCreateWithUTF8CString(name);
+    JSObjectRef jsFunction = JSObjectMakeFunctionWithCallback(ctx, jsName, func);
+//    JSObjectSetPrivate(jsFunction, data);
+    boundFunctions()[jsFunction] = data;
+    JSObjectSetProperty(ctx, obj, jsName, jsFunction, 0, NULL);
+    JSStringRelease(jsName);
+}
+
 void _embind_register_class_function(
         TYPEID classType,
         const char *methodName,
@@ -256,17 +294,24 @@ void _embind_register_class_function(
         GenericFunction invoker,
         void *context,
         unsigned isPureVirtual) {
-    lazy_bind().push_back([methodName, classType](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+    lazy_bind().push_back([methodName, classType, invoker, argCount, argTypes, context, invokerSignature](JSGlobalContextRef jsCtx, JSObjectRef ns) {
         auto classname = typenames()[classType].c_str();
-        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s::%s",
-                            typenames()[classType].c_str(), methodName);
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s::%s &%u sig %s",
+                            typenames()[classType].c_str(), methodName, invoker, invokerSignature);
 
         auto jsClassObject = (JSObjectRef) EXJSObjectGetPropertyNamed(jsCtx, ns, classname);
-        // todo: make a function, not an object.
-        auto jsFunction = JSObjectMake(jsCtx, nullptr, nullptr);
 
-        EXJSObjectSetValueWithUTF8CStringName(jsCtx, ns, methodName, jsFunction);
+        FunctionContext fctx = [argCount, argTypes, invoker, context, invokerSignature] (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+            __android_log_print(ANDROID_LOG_INFO, "bind", "Closure called");
 
+            // here you got to call
+            // invoker(context, (args...))
+            // the args is the hard part. you need to convert arguments, given argTypes into the right things, and use that for the args. cleverness is required.
+            return (JSObjectRef)nullptr;
+        };
+
+
+        EXJSObjectSetFunctionWithUTF8CStringNameAndFunctionContext(jsCtx, jsClassObject, methodName, GenericObjectCall, fctx);
 
     });
 }
