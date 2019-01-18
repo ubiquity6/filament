@@ -15,6 +15,7 @@ using namespace emscripten::internal;
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSValueRef.h>
+#include <string>
 
 #include "EXJSUtils.h"
 
@@ -30,17 +31,123 @@ std::map<TYPEID, std::string>& typenames() {
     return m;
 };
 
-//typedef JSValueRef
-//(*JSObjectCallAsFunctionCallback) (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception);
 
-
-// memory of bound functions.
 typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> FunctionContext;
+typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception)> GetterContext;
+typedef std::function<JSObjectRef (JSContextRef ctx, JSObjectRef constructor, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> ConstructorContext;
+
 
 std::map<JSObjectRef, FunctionContext>& boundFunctions() {
     static std::map<JSObjectRef, FunctionContext> m;
     return m;
 };
+
+std::map<JSObjectRef, ConstructorContext>& boundConstructors() {
+    static std::map<JSObjectRef, ConstructorContext> m;
+    return m;
+};
+
+struct ClassDescription {
+    std::string name;
+    std::map<std::string, FunctionContext> methods;
+    std::map<std::string, GetterContext> getters;
+    ConstructorContext constructorContext;
+};
+
+
+std::map<TYPEID, ClassDescription>& classes() {
+    static std::map<TYPEID, ClassDescription> m;
+    return m;
+}
+
+std::map<JSObjectRef , ClassDescription>& registeredClasses() {
+    static std::map<JSObjectRef, ClassDescription> m;
+    return m;
+}
+
+
+typedef void* NativeObject;
+typedef void (*MethodInvokerVV)(GenericFunction function, NativeObject thisObject);
+typedef int (*MethodInvokerIV)(GenericFunction function, NativeObject thisObject);
+typedef void (*MethodInvokerVI)(GenericFunction function, NativeObject thisObject, int);
+typedef int (*MethodInvokerII)(GenericFunction function, NativeObject thisObject, int);
+typedef void* (*ConstructorInvoker)(GenericFunction, int);
+
+
+//Helper for string conversion
+//todo: put it somewhere else
+
+char *JStr2CStr(JSContextRef ctx, JSStringRef jsStr, JSValueRef *exception) {
+    size_t nBytes = JSStringGetMaximumUTF8CStringSize(jsStr);
+    char *cStr = (char *) malloc(nBytes * sizeof(char));
+    JSStringGetUTF8CString(jsStr, cStr, nBytes);
+    return cStr;
+}
+
+JSObjectRef GenericConstructorCall(JSContextRef ctx, JSObjectRef jsObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    __android_log_print(ANDROID_LOG_INFO, "bind", "GenericConstructorCall %u", argumentCount);
+    ConstructorContext cc = boundConstructors()[jsObject];
+
+    return cc(ctx, jsObject, argumentCount, arguments, exception);
+
+}
+
+JSValueRef GenericGetter(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception)
+{
+    //todo: this lookup is really bad, make cache or something
+    auto name = std::string(JStr2CStr(ctx, propertyName, exception));
+    GetterContext gctx = registeredClasses()[object].getters[name];
+    return gctx(ctx, object, propertyName, exception);
+}
+
+JSValueRef GenericObjectCall (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "GenericObjectCall %u", argumentCount);
+
+    auto functionContext = boundFunctions()[function];
+    return functionContext(ctx, function, thisObject, argumentCount, arguments, exception);
+}
+
+void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
+{
+    ClassDescription cd = classes()[classType];
+    auto className = cd.name.c_str();
+
+    std::vector<JSStaticFunction> staticFunctions;
+    for (auto const& it : cd.methods) {
+        staticFunctions.push_back({it.first.c_str(), GenericObjectCall,  kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete});
+    }
+    staticFunctions.push_back({ 0, 0, 0 });
+
+    std::vector<JSStaticValue> staticValues;
+    for (auto const& it : cd.getters) {
+        staticValues.push_back({it.first.c_str(), GenericGetter, 0, kJSPropertyAttributeDontDelete});
+    }
+    staticValues.push_back({0, 0, 0, 0});
+
+    JSClassDefinition definition = kJSClassDefinitionEmpty;
+    definition.className = className;
+    definition.callAsConstructor = GenericConstructorCall;
+    definition.staticFunctions = staticFunctions.data();
+    definition.staticValues = staticValues.data();
+
+    auto jsClass = JSClassCreate(&definition);
+
+    auto jsClassObject = JSObjectMake(jsCtx, jsClass, nullptr);
+    boundConstructors()[jsClassObject] = cd.constructorContext;
+
+    for (auto const& it : cd.methods) {
+        JSObjectRef p = (JSObjectRef) JSObjectGetProperty(jsCtx, jsClassObject, JSStringCreateWithUTF8CString(it.first.c_str()), nullptr);
+        boundFunctions()[p] = it.second;
+    }
+
+    registeredClasses()[jsClassObject] = cd;
+
+    JSObjectSetProperty(jsCtx, ns, JSStringCreateWithUTF8CString(className), jsClassObject, kJSPropertyAttributeNone, nullptr);
+}
+
+
 
 #define JNI_METHOD(return_type, method_name)                                   \
   extern "C" JNIEXPORT return_type JNICALL                                     \
@@ -61,6 +168,15 @@ JNI_METHOD(void, BindToContext)
 
     for(auto k = lazy_bind().begin(); k< lazy_bind().end(); ++k) {
         (*k)(jsCtx, jsNamespace);
+    }
+
+    for (auto const& it : classes()) {
+        JSRegisterClass(it.first, jsCtx, jsNamespace);
+    }
+
+    for (auto const& it : typenames()) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "Mapped type: %s ", it.second.c_str());
+
     }
 
 }
@@ -228,20 +344,20 @@ void _embind_register_class(
         const char *className,
         const char *destructorSignature,
         GenericFunction destructor) {
+
+
     typenames()[classType] = std::string(className);
 
     //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class lazy %u, %u", lazy_bind().size(), &lazy_bind());
-    lazy_bind().push_back([className](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+    lazy_bind().push_back([className, classType](JSGlobalContextRef jsCtx, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
 
-        // todo: we shouldn't be creating a object, we should be creating a function? wait for createConstructor call?
-        auto jsClassObject = JSObjectMake(jsCtx, nullptr, nullptr);
-
-        EXJSObjectSetValueWithUTF8CStringName(jsCtx, ns, className, jsClassObject);
-
+        ClassDescription cd = {std::string(className)};
+        classes()[classType] = cd;
     });
 
 }
+
 
 void _embind_register_class_constructor(
         TYPEID classType,
@@ -250,10 +366,29 @@ void _embind_register_class_constructor(
         const char *invokerSignature,
         GenericFunction invoker,
         GenericFunction constructor) {
-    lazy_bind().push_back([classType](JSGlobalContextRef context, JSObjectRef ns) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "binding constructor");
+
+    lazy_bind().push_back([classType, argCount, argTypes, invoker, constructor, invokerSignature](JSGlobalContextRef jsCtx, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_constructor for %s",
                             typenames()[classType].c_str());
 
+        ConstructorContext cc = [argCount, argTypes, invoker, constructor, invokerSignature] (JSContextRef ctx, JSObjectRef jsObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+
+            __android_log_print(ANDROID_LOG_INFO, "bind", " Constructor called! invoker signature: %s", invokerSignature);
+
+            int val = (int)EXJSValueToNumberFast(ctx, arguments[0]);
+
+            ConstructorInvoker ci = reinterpret_cast<ConstructorInvoker>(invoker);
+
+            auto obj = ci(constructor, val);
+
+            JSObjectSetPrivate(jsObject, obj);
+
+            return jsObject;
+        };
+
+        classes()[classType].constructorContext = cc;
 
     });
 
@@ -262,28 +397,6 @@ void _embind_register_class_constructor(
 
 typedef void (*AFunc)(int);
 
-JSValueRef GenericObjectCall (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
-
-    __android_log_print(ANDROID_LOG_INFO, "bind", "GenericObjectCall %u", argumentCount);
-
-    auto functionContext = boundFunctions()[function];
-    return functionContext(ctx, function, thisObject, argumentCount, arguments, exception);
-}
-
-
-
-void EXJSObjectSetFunctionWithUTF8CStringNameAndFunctionContext(JSContextRef ctx,
-                                              JSObjectRef obj,
-                                              const char *name,
-                                              JSObjectCallAsFunctionCallback func,
-                                                            const FunctionContext& data) {
-    JSStringRef jsName = JSStringCreateWithUTF8CString(name);
-    JSObjectRef jsFunction = JSObjectMakeFunctionWithCallback(ctx, jsName, func);
-//    JSObjectSetPrivate(jsFunction, data);
-    boundFunctions()[jsFunction] = data;
-    JSObjectSetProperty(ctx, obj, jsName, jsFunction, 0, NULL);
-    JSStringRelease(jsName);
-}
 
 void _embind_register_class_function(
         TYPEID classType,
@@ -294,24 +407,60 @@ void _embind_register_class_function(
         GenericFunction invoker,
         void *context,
         unsigned isPureVirtual) {
-    lazy_bind().push_back([methodName, classType, invoker, argCount, argTypes, context, invokerSignature](JSGlobalContextRef jsCtx, JSObjectRef ns) {
-        auto classname = typenames()[classType].c_str();
-        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s::%s &%u sig %s",
-                            typenames()[classType].c_str(), methodName, invoker, invokerSignature);
 
-        auto jsClassObject = (JSObjectRef) EXJSObjectGetPropertyNamed(jsCtx, ns, classname);
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function ");
+
+    lazy_bind().push_back([methodName, classType, invoker, argCount, argTypes, context, invokerSignature](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+        auto classname = typenames()[classType];
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_function %s::%s sig %s",
+                            classname.c_str(), methodName, invokerSignature);
 
         FunctionContext fctx = [argCount, argTypes, invoker, context, invokerSignature] (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
-            __android_log_print(ANDROID_LOG_INFO, "bind", "Closure called");
+            __android_log_print(ANDROID_LOG_INFO, "bind", "_embind Closure called, invoker signature: %s", invokerSignature);
 
-            // here you got to call
-            // invoker(context, (args...))
-            // the args is the hard part. you need to convert arguments, given argTypes into the right things, and use that for the args. cleverness is required.
-            return (JSObjectRef)nullptr;
+            NativeObject no = JSObjectGetPrivate(thisObject);
+
+            int result;
+            if (argumentCount > 0) {
+                int val = (int) EXJSValueToNumberFast(ctx, arguments[0]);
+                auto mi = reinterpret_cast<MethodInvokerII>(invoker);
+                result = mi(context, no, val);
+            } else {
+                auto mi = reinterpret_cast<MethodInvokerIV>(invoker);
+                result = mi(context, no);
+            }
+
+            return JSValueMakeNumber(ctx, result);
         };
 
+        auto signature = typenames()[classType];
+        signature.append("::");
+        signature.append(methodName);
+        signature.append("(");
 
-        EXJSObjectSetFunctionWithUTF8CStringNameAndFunctionContext(jsCtx, jsClassObject, methodName, GenericObjectCall, fctx);
+
+
+
+        for (int i = 0; i<argCount; i++) {
+            auto typeId = argTypes[i];
+            auto info = reinterpret_cast<const std::type_info *>(typeId);
+            signature.append(info->name());
+            signature.append(",");
+
+
+            /*
+            if(typenames().contains(typeId)) {
+                signature += typenames()[typeId];
+                signature.append(",");
+            } else {
+                signature += std::string(typeId);
+                signature.append(",");
+            }*/
+
+        }
+
+        __android_log_print(ANDROID_LOG_INFO, "bind", "Actual Method signature: %s) provided signature: %s ", signature.c_str(), invokerSignature);
+        classes()[classType].methods[std::string(methodName)] = fctx;
 
     });
 }
@@ -326,7 +475,28 @@ void _embind_register_class_property(
         TYPEID setterArgumentType,
         const char *setterSignature,
         GenericFunction setter,
-        void *setterContext) {}
+        void *setterContext)
+{
+    lazy_bind().push_back([fieldName, classType, getterReturnType, setterArgumentType, getter, getterContext, setter, setterContext](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+        auto classname = typenames()[classType].c_str();
+        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_property %s::%s", classname, fieldName);
+
+        GetterContext gctx = [getter, getterContext](JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception) {
+            NativeObject no = JSObjectGetPrivate(object);
+            MethodInvokerIV mi = reinterpret_cast<MethodInvokerIV>(getter);
+            int result = mi(getterContext, no);
+            return JSValueMakeNumber(ctx, result);
+        };
+
+        classes()[classType].getters[std::string(fieldName)] = gctx;
+
+    });
+}
+
+
+typedef int (*StaticTest)(int);
+typedef void* (*StaticMethodTest)(StaticTest, int);
+
 
 void _embind_register_class_class_function(
         TYPEID classType,
@@ -335,7 +505,22 @@ void _embind_register_class_class_function(
         const TYPEID argTypes[],
         const char *invokerSignature,
         GenericFunction invoker,
-        GenericFunction method) {}
+        GenericFunction method) {
+
+    lazy_bind().push_back([methodName, classType, invoker, method, argCount, argTypes, invokerSignature](JSGlobalContextRef jsCtx, JSObjectRef ns) {
+        auto classname = typenames()[classType].c_str();
+        __android_log_print(ANDROID_LOG_INFO, "bind",
+                            "_embind_register_class_class_function %s::%s sig %s",
+                            typenames()[classType].c_str(), methodName, invokerSignature);
+
+        FunctionContext fctx = [argCount, argTypes, invoker, method, invokerSignature] (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+            __android_log_print(ANDROID_LOG_INFO, "bind", "Static closure called %s", invokerSignature);
+
+            return (JSObjectRef) nullptr;
+        };
+    });
+
+}
 
 void _embind_register_class_class_property(
         TYPEID classType,

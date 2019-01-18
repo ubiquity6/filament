@@ -269,13 +269,52 @@ value_array<flatmat3>("mat3")
     .element(index<3>()).element(index<4>()).element(index<5>())
     .element(index<6>()).element(index<7>()).element(index<8>());
 
+
+// TEST
+
+class Counter {
+    public:
+    int counter;
+
+    Counter(int init) {
+        counter = init;
+    }
+
+    int add(int value) {
+        counter += value;
+        return counter;
+    }
+
+    int increase() {
+        return ++counter;
+    }
+
+    int squareCounter() {
+        return counter * counter;
+    }
+};
+
+
+class_<Counter>("Counter")
+        .constructor<int>()
+        .function("increase", &Counter::increase)
+        .function("squareCounter", &Counter::squareCounter)
+        .function("add", &Counter::add)
+        .property("counter", &Counter::counter);
+
+// TEST
+
 // CORE FILAMENT CLASSES
 // ---------------------
 
 /// Engine ::core class:: Central manager and resource owner.
+
+
 class_<Engine>("Engine")
+
     .class_function("_create", (Engine* (*)()) [] { return Engine::create(); },
             allow_raw_pointers())
+
     /// destroy ::static method:: Destroys an engine instance and cleans up resources.
     /// engine ::argument:: the instance to destroy
     .class_function("destroy", (void (*)(Engine*)) []
@@ -934,10 +973,11 @@ class_<MeshReader::Mesh>("MeshReader$Mesh")
 
 */
 
+        /*
 function("decodePng", &decodePng);
 class_<DecodedPng>("DecodedPng")
     .property("width", &DecodedPng::width)
     .property("height", &DecodedPng::height)
-    .property("data", &DecodedPng::decoded_data);
+    .property("data", &DecodedPng::decoded_data);*/
 
 } // EMSCRIPTEN_BINDINGS

@@ -27,10 +27,25 @@ export default class App extends Component<Props> {
         <Text style={styles.instructions}>{instructions}</Text>
         <RCTFilamentView></RCTFilamentView>
         <Button
-          onPress={() => {
-            console.log(Filament);
+          onPress={() => {            
 
-            Filament.Engine.destroyView(5);
+            const c = new Filament.Counter(22);            
+            console.log('Counter 1 value after constructor: '+c.counter); 
+            console.log('Counter 1 value after increase: '+c.increase()); 
+            console.log('Counter 1 add 5: '+c.add(5)); 
+            console.log('Counter 1 value squared: '+c.squareCounter()); 
+            console.log('Counter 1 value: '+c.counter); 
+            const c2 = new Filament.Counter(42);            
+            console.log('Counter 2 value after constructor: '+c2.counter);             
+            console.log('Counter 2 value after increase: '+c2.increase()); 
+            console.log('Counter 2 add 5: '+c2.add(5)); 
+            console.log('Counter 2 value squared: '+c2.squareCounter());
+            console.log('Counter 2 value: '+c2.counter); 
+
+            /*
+            var testOutput = Filament.Engine.test();
+            console.log('Test testOutput ' + testOutput);*/
+            //var view = engine.createView();            
           }}
           title="Press Me"
         />
