@@ -74,6 +74,42 @@ typedef int (*MethodInvokerII)(GenericFunction function, NativeObject thisObject
 typedef void* (*ConstructorInvoker)(GenericFunction, int);
 
 
+template<typename T>
+struct JSArgReader {};
+
+template<>
+struct JSArgReader<int> {
+    static int read(JSContextRef ctx, JSValueRef jsValue) {
+        double result = JSValueToNumber(ctx, jsValue, nullptr);
+        __android_log_print(ANDROID_LOG_INFO, "bind", "MagicInvoker parameter: %f", result);
+        return (int) result;
+    }
+};
+
+template<>
+struct JSArgReader<double> {
+    static double read(JSContextRef ctx, JSValueRef jsValue) {
+        double result = JSValueToNumber(ctx, jsValue, nullptr);
+        __android_log_print(ANDROID_LOG_INFO, "bind", "MagicInvoker parameter: %f", result);
+        return result;
+    }
+};
+
+
+double stupidAdded(int p1, double p2) {
+    __android_log_print(ANDROID_LOG_INFO, "bind", "MagicInvoker Adder params: %d, %f", p1, p2);
+    return p2 + p1;
+}
+
+template<typename ... Args>
+void myInvoker(double (*f)(Args...args), JSContextRef ctx, JSValueRef jsargs[]) {
+    int index = 0;
+    double result = f(JSArgReader<Args>::read(ctx, jsargs[index++])...);
+    __android_log_print(ANDROID_LOG_INFO, "bind", "MagicInvoker result: %f", result);
+}
+
+
+
 //Helper for string conversion
 //todo: put it somewhere else
 
@@ -178,6 +214,12 @@ JNI_METHOD(void, BindToContext)
         __android_log_print(ANDROID_LOG_INFO, "bind", "Mapped type: %s ", it.second.c_str());
 
     }
+
+    JSValueRef v1 = JSValueMakeNumber(jsCtx, 8);
+    JSValueRef v2 = JSValueMakeNumber(jsCtx, 42);
+    JSValueRef args[] = {v1, v2};
+
+    myInvoker(&stupidAdded, jsCtx, args);
 
 }
 
