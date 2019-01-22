@@ -62,7 +62,7 @@
 #include <utils/EntityManager.h>
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
+#include "../embind/bind.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
