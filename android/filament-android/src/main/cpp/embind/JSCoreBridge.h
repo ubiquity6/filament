@@ -77,11 +77,15 @@ struct JSCMethod {
 };
 
 template<typename InstanceType, typename MemberType>
-struct JSCGetter {
+struct JSCField {
     typedef MemberType InstanceType::*MemberPointer;
 
-    static JSValueRef call(const MemberPointer &field, const InstanceType &ptr, JSContextRef ctx) {
+    static JSValueRef get(const MemberPointer &field, const InstanceType &ptr, JSContextRef ctx) {
         return JSCVal<MemberType>::write(ctx, ptr.*field);
+    }
+
+    static void set(const MemberPointer &field, InstanceType &ptr, JSContextRef ctx, JSValueRef value) {
+        ptr.*field = JSCVal<MemberType>::read(ctx, value);
     }
 };
 

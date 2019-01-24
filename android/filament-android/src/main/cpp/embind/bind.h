@@ -1334,7 +1334,7 @@ namespace emscripten {
         EMSCRIPTEN_ALWAYS_INLINE const class_& property(const char* fieldName, const FieldType ClassType::*field) const {
             using namespace internal;
 
-            auto getter = &JSCGetter<ClassType, FieldType>::call;
+            auto getter = &JSCField<ClassType, FieldType>::get;
             _embind_register_class_property(
                     TypeID<ClassType>::get(),
                     fieldName,
@@ -1353,8 +1353,8 @@ namespace emscripten {
         EMSCRIPTEN_ALWAYS_INLINE const class_& property(const char* fieldName, FieldType ClassType::*field) const {
             using namespace internal;
 
-            auto getter = &JSCGetter<ClassType, FieldType>::call;
-            auto setter = &MemberAccess<ClassType, FieldType>::template setWire<ClassType>;
+            auto getter = &JSCField<ClassType, FieldType>::get;
+            auto setter = &JSCField<ClassType, FieldType>::set;
             _embind_register_class_property(
                     TypeID<ClassType>::get(),
                     fieldName,
