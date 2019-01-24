@@ -341,13 +341,10 @@ void _embind_register_class(
 
     typenames()[classType] = std::string(className);
 
-    //__android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class lazy %u, %u", lazy_bind().size(), &lazy_bind());
-    lazy_bind().push_back([className, classType](JSGlobalContextRef jsCtx, JSObjectRef ns) {
-        __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
+    ClassDescription cd = {std::string(className)};
+    classes()[classType] = cd;
 
-        ClassDescription cd = {std::string(className)};
-        classes()[classType] = cd;
-    });
 }
 
 void _embind_register_class_constructor(
