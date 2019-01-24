@@ -29,6 +29,8 @@ export default class App extends Component<Props> {
         <Button
           onPress={() => {            
 
+            /*
+
             const c = new Filament.Counter(22);            
             console.log('Counter 1 value after constructor: '+c.counter); 
             console.log('Counter 1 value after increase: '+c.increase()); 
@@ -42,6 +44,28 @@ export default class App extends Component<Props> {
             console.log('Counter 2 value squared: '+c2.squareCounter());
             console.log('Counter 2 value: '+c2.counter); 
 
+            */
+
+            var c1 = new Filament.Counter(1);
+            var c2 = new Filament.Counter(2);
+            var c3 = new Filament.Counter(3);
+
+            console.log('c1: '+ c1.counter);
+            console.log('c2: '+ c2.counter);
+            console.log('c3: '+ c3.counter);
+
+            console.log('c1 + c1: ' + c1.plus(c1) );
+            console.log('c1 + c2: ' + c1.plus(c2) );
+            console.log('c1 + c3: ' + c1.plus(c3) );
+            
+            console.log('c2 + c1: ' + c2.plus(c1) );
+            console.log('c2 + c2: ' + c2.plus(c2) );
+            console.log('c2 + c3: ' + c2.plus(c3) );
+
+            console.log('c3 + c1: ' + c3.plus(c1) );
+            console.log('c3 + c2: ' + c3.plus(c2) );
+            console.log('c3 + c3: ' + c3.plus(c3) );
+            
             /*
             var testOutput = Filament.Engine.test();
             console.log('Test testOutput ' + testOutput);*/

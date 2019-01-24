@@ -61,7 +61,6 @@
 
 #include <utils/EntityManager.h>
 
-#include <emscripten.h>
 #include "../embind/bind.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -285,6 +284,10 @@ class Counter {
         return counter;
     }
 
+    int plus(Counter* c) {
+        return counter + c->counter;
+    }
+
     int increase() {
         return ++counter;
     }
@@ -300,6 +303,9 @@ class_<Counter>("Counter")
         .function("increase", &Counter::increase)
         .function("squareCounter", &Counter::squareCounter)
         .function("add", &Counter::add)
+        .function("plus", (int (*)(Counter*, Counter*)) []
+                      (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
+              allow_raw_pointers())
         .property("counter", &Counter::counter);
 
 // TEST
@@ -309,7 +315,7 @@ class_<Counter>("Counter")
 
 /// Engine ::core class:: Central manager and resource owner.
 
-
+/*
 class_<Engine>("Engine")
 
     .class_function("_create", (Engine* (*)()) [] { return Engine::create(); },
