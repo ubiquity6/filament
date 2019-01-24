@@ -52,19 +52,19 @@ struct ClassDescription {
 };
 
 
-std::map<TYPEID, ClassDescription>& classes() {
+std::map<TYPEID, ClassDescription>& classesByTypeId() {
     static std::map<TYPEID, ClassDescription> m;
     return m;
 }
 
-std::map<JSValueRef , ClassDescription>& registeredClasses() {
+std::map<JSValueRef , ClassDescription>& classesByPrototype() {
     static std::map<JSValueRef, ClassDescription> m;
     return m;
 }
 
 
 typedef void* NativeObject;
-typedef int (*MethodInvokerIV)(GenericFunction function, NativeObject thisObject);
+typedef JSValueRef (*GetterInvoker)(GenericFunction, NativeObject, JSContextRef);
 typedef JSObjectRef (*ConstructorInvoker)(GenericFunction, JSContextRef, JSClassRef, const JSValueRef jsargs[]);
 typedef JSValueRef (*GenericMethodInvoker)(GenericFunction, NativeObject, JSContextRef, const JSValueRef args[]);
 
@@ -83,7 +83,7 @@ JSObjectRef GenericConstructorCall(JSContextRef ctx, JSObjectRef jsObject, size_
 {
     __android_log_print(ANDROID_LOG_INFO, "bind", "GenericConstructorCall %u", argumentCount);
     auto prototype = JSObjectGetPrototype(ctx, jsObject);
-    ClassDescription cd = registeredClasses()[prototype];
+    ClassDescription cd = classesByPrototype()[prototype];
 
     return cd.constructorContext(ctx, cd.jsClassRef, jsObject, argumentCount, arguments, exception);
 }
@@ -93,7 +93,7 @@ JSValueRef GenericGetter(JSContextRef ctx, JSObjectRef object, JSStringRef prope
     //todo: this lookup is really bad, make cache or something
     auto prototype = JSObjectGetPrototype(ctx, object);
     auto name = std::string(JStr2CStr(ctx, propertyName, exception));
-    GetterContext gctx = registeredClasses()[prototype].getters[name];
+    GetterContext gctx = classesByPrototype()[prototype].getters[name];
     return gctx(ctx, object, propertyName, exception);
 }
 
@@ -107,7 +107,7 @@ JSValueRef GenericObjectCall (JSContextRef ctx, JSObjectRef function, JSObjectRe
 
 void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
 {
-    ClassDescription cd = classes()[classType];
+    ClassDescription cd = classesByTypeId()[classType];
     auto className = cd.name.c_str();
 
     std::vector<JSStaticFunction> staticFunctions;
@@ -140,7 +140,7 @@ void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
     }
 
     auto prototype = JSObjectGetPrototype(jsCtx, jsClassObject);
-    registeredClasses()[prototype] = cd;
+    classesByPrototype()[prototype] = cd;
 
     JSObjectSetProperty(jsCtx, ns, JSStringCreateWithUTF8CString(className), jsClassObject, kJSPropertyAttributeNone, nullptr);
 }
@@ -166,7 +166,7 @@ JNI_METHOD(void, BindToContext)
         (*k)(jsCtx, jsNamespace);
     }
 
-    for (auto const& it : classes()) {
+    for (auto const& it : classesByTypeId()) {
         JSRegisterClass(it.first, jsCtx, jsNamespace);
     }
 
@@ -343,7 +343,7 @@ void _embind_register_class(
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
     ClassDescription cd = {std::string(className)};
-    classes()[classType] = cd;
+    classesByTypeId()[classType] = cd;
 
 }
 
@@ -367,7 +367,7 @@ void _embind_register_class_constructor(
         return ci(constructor, ctx, jsClassRef, arguments);
     };
 
-    classes()[classType].constructorContext = cc;
+    classesByTypeId()[classType].constructorContext = cc;
 }
 
 
@@ -393,7 +393,7 @@ void _embind_register_class_function(
         return mi(context, no, ctx, arguments);
     };
 
-    classes()[classType].methods[std::string(methodName)] = fctx;
+    classesByTypeId()[classType].methods[std::string(methodName)] = fctx;
 }
 
 void _embind_register_class_property(
@@ -413,12 +413,11 @@ void _embind_register_class_property(
 
     GetterContext gctx = [getter, getterContext](JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception) {
         NativeObject no = JSObjectGetPrivate(object);
-        MethodInvokerIV mi = reinterpret_cast<MethodInvokerIV>(getter);
-        int result = mi(getterContext, no);
-        return JSValueMakeNumber(ctx, result);
+        GetterInvoker gi = reinterpret_cast<GetterInvoker>(getter);
+        return gi(getterContext, no, ctx);
     };
 
-    classes()[classType].getters[std::string(fieldName)] = gctx;
+    classesByTypeId()[classType].getters[std::string(fieldName)] = gctx;
 }
 
 void _embind_register_class_class_function(
