@@ -14,6 +14,7 @@
 #include <emscripten/val.h>
 #include <emscripten/wire.h>
 #include <android/log.h>
+#include "JSCoreBridge.h"
 
 namespace emscripten {
     enum class sharing_policy {
@@ -1186,7 +1187,8 @@ namespace emscripten {
 
             // TODO: allows all raw pointers... policies need a rethink
             typename WithPolicies<allow_raw_pointers, Policies...>::template ArgTypeList<ReturnType, Args...> args;
-            auto invoke = &Invoker<ReturnType, Args...>::invoke;
+            //auto invoke = &Invoker<ReturnType, Args...>::invoke;
+            auto invoke = &JSCConstructor<ReturnType, Args...>::call;
             _embind_register_class_constructor(
                     TypeID<ClassType>::get(),
                     args.getCount(),
@@ -1269,9 +1271,10 @@ namespace emscripten {
         EMSCRIPTEN_ALWAYS_INLINE const class_& function(const char* methodName, ReturnType (ClassType::*memberFunction)(Args...), Policies...) const {
             using namespace internal;
 
-            auto invoker = &MethodInvoker<decltype(memberFunction), ReturnType, ClassType*, Args...>::invoke;
+            //auto invoker = &MethodInvoker<decltype(memberFunction), ReturnType, ClassType*, Args...>::invoke;
+            auto invoker = &JSCMethod<ReturnType, ClassType, Args...>::call;
 
-            __android_log_print(ANDROID_LOG_INFO, "bind", "Class function binding modified ");
+            __android_log_print(ANDROID_LOG_INFO, "bind", "Class function binding modified: %s", methodName);
 
             typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, AllowedRawPointer<ClassType>, Args...> args;
             _embind_register_class_function(
@@ -1313,7 +1316,8 @@ namespace emscripten {
             using namespace internal;
 
             typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, ThisType, Args...> args;
-            auto invoke = &FunctionInvoker<decltype(function), ReturnType, ThisType, Args...>::invoke;
+            //auto invoke = &FunctionInvoker<decltype(function), ReturnType, ThisType, Args...>::invoke;
+            auto invoke = &JSCFunction<ReturnType, ThisType, Args...>::call;
             _embind_register_class_function(
                     TypeID<ClassType>::get(),
                     methodName,
