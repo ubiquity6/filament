@@ -303,9 +303,10 @@ class_<Counter>("Counter")
         .function("increase", &Counter::increase)
         .function("squareCounter", &Counter::squareCounter)
         .function("add", &Counter::add)
-        .function("plus", (int (*)(Counter*, Counter*)) []
+        .function("plus", &Counter::plus, allow_raw_pointers())
+        /*.function("plus", (int (*)(Counter*, Counter*)) []
                       (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
-              allow_raw_pointers())
+              allow_raw_pointers())*/
         .property("counter", &Counter::counter);
 
 // TEST
