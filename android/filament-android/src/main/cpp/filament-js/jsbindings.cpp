@@ -299,15 +299,15 @@ class Counter {
 
 
 class_<Counter>("Counter")
-        .constructor<int>()
-        .function("increase", &Counter::increase)
-        .function("squareCounter", &Counter::squareCounter)
-        .function("add", &Counter::add)
-        .function("plus", &Counter::plus, allow_raw_pointers())
-        /*.function("plus", (int (*)(Counter*, Counter*)) []
-                      (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
-              allow_raw_pointers())*/
-        .property("counter", &Counter::counter);
+            .constructor<int>()
+            .function("increase", &Counter::increase)
+            .function("squareCounter", &Counter::squareCounter)
+            .function("add", &Counter::add)
+            .function("plus", &Counter::plus, allow_raw_pointers())
+                    /*.function("plus", (int (*)(Counter*, Counter*)) []
+                                  (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
+                          allow_raw_pointers())*/
+            .property("counter", &Counter::counter);
 
 // TEST
 

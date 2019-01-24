@@ -50,6 +50,10 @@ export default class App extends Component<Props> {
             var c2 = new Filament.Counter(2);
             var c3 = new Filament.Counter(3);
 
+            c1.counter = 11;
+            c2.counter = 22;
+            c3.counter = 33;
+
             console.log('c1: '+ c1.counter);
             console.log('c2: '+ c2.counter);
             console.log('c3: '+ c3.counter);
