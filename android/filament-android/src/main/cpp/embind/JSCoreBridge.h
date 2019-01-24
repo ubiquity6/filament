@@ -67,13 +67,21 @@ struct JSCVal {
     }
 };
 
-
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCMethod {
     static JSValueRef call(ReturnType (ClassType::**method)(Args...), ClassType* thisObj, JSContextRef ctx, const JSValueRef jsargs[]) {
         int index = 0;
         auto result = (thisObj->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
         return JSCVal<ReturnType>::write(ctx, result);
+    }
+};
+
+template<typename InstanceType, typename MemberType>
+struct JSCGetter {
+    typedef MemberType InstanceType::*MemberPointer;
+
+    static JSValueRef call(const MemberPointer &field, const InstanceType &ptr, JSContextRef ctx) {
+        return JSCVal<MemberType>::write(ctx, ptr.*field);
     }
 };
 
@@ -95,6 +103,5 @@ struct JSCConstructor {
         return JSObjectMake(ctx, jsClass, obj);
     }
 };
-
 
 #endif //HELLOREACT_JSCOREBRIDGE_H
