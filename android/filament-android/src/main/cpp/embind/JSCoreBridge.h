@@ -10,8 +10,6 @@
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSValueRef.h>
 
-typedef void* NativeObject;
-
 template<typename T>
 struct JSCVal;
 
@@ -23,7 +21,8 @@ struct JSCVal<int> {
         return (int) result;
     }
 
-    static JSValueRef write(JSContextRef ctx, int value) {
+    static JSValueRef write(JSContextRef ctx, int value, JSClassRef jsClassRef) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %d", value);
         return JSValueMakeNumber(ctx, value);
     }
 };
@@ -36,7 +35,8 @@ struct JSCVal<int&&> {
         return (int) result;
     }
 
-    static JSValueRef write(JSContextRef ctx, int value) {
+    static JSValueRef write(JSContextRef ctx, int value, JSClassRef jsClassRef) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %d", value);
         return JSValueMakeNumber(ctx, value);
     }
 };
@@ -50,7 +50,8 @@ struct JSCVal<double> {
         return result;
     }
 
-    static JSValueRef write(JSContextRef ctx, double value) {
+    static JSValueRef write(JSContextRef ctx, double value, JSClassRef jsClassRef) {
+        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %f", value);
         return JSValueMakeNumber(ctx, value);
     }
 };
@@ -62,17 +63,29 @@ struct JSCVal {
         return (T) JSObjectGetPrivate((JSObjectRef)jsValue);
     }
 
-    static JSValueRef write(JSContextRef ctx, T value) {
-        return (JSValueRef) JSObjectMake(ctx, nullptr, value);
+    static JSValueRef write(JSContextRef ctx, T value, JSClassRef jsClassRef) {
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, value);
     }
 };
 
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCMethod {
-    static JSValueRef call(ReturnType (ClassType::**method)(Args...), ClassType* thisObj, JSContextRef ctx, const JSValueRef jsargs[]) {
+    static JSValueRef call(ReturnType (ClassType::**method)(Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
+        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
         int index = 0;
-        auto result = (thisObj->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
-        return JSCVal<ReturnType>::write(ctx, result);
+        auto result = (nativeObject->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
+        return JSCVal<ReturnType>::write(ctx, result, jsClassRef);
+
+    }
+};
+
+template<typename ClassType, typename... Args>
+struct JSCMethod<void, ClassType, Args...> {
+    static JSValueRef call(void (ClassType::**method)(Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
+        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+        int index = 0;
+        (nativeObject->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
+        return (JSValueRef) nullptr;
     }
 };
 
@@ -81,7 +94,7 @@ struct JSCField {
     typedef MemberType InstanceType::*MemberPointer;
 
     static JSValueRef get(const MemberPointer &field, const InstanceType &ptr, JSContextRef ctx) {
-        return JSCVal<MemberType>::write(ctx, ptr.*field);
+        return JSCVal<MemberType>::write(ctx, ptr.*field, nullptr);
     }
 
     static void set(const MemberPointer &field, InstanceType &ptr, JSContextRef ctx, JSValueRef value) {
@@ -92,10 +105,14 @@ struct JSCField {
 
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCFunction {
-    static JSValueRef call(ReturnType (**f)(ClassType* thisObj, Args...), ClassType* thisObj, JSContextRef ctx, const JSValueRef jsargs[]) {
+    static JSValueRef call(ReturnType (**f)(ClassType* thisObj, Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
+        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+
         int index = 0;
-        auto result = (**f)(thisObj, JSCVal<Args>::read(ctx, jsargs[index++])...);
-        return JSCVal<ReturnType>::write(ctx, result);
+        auto result = (**f)(nativeObject, JSCVal<Args>::read(ctx, jsargs[index++])...);
+
+        return JSCVal<ReturnType>::write(ctx, result, jsClassRef);
+
     }
 };
 
