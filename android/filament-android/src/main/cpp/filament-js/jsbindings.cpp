@@ -274,6 +274,7 @@ value_array<flatmat3>("mat3")
 class Counter {
     public:
     int counter;
+    double someDouble;
 
     Counter(int init) {
         counter = init;
@@ -288,26 +289,32 @@ class Counter {
         return counter + c->counter;
     }
 
-    int increase() {
-        return ++counter;
+    void increase() {
+        counter++;
     }
 
-    int squareCounter() {
-        return counter * counter;
+    double squareCounter() {
+        return counter * this->counter;
+    }
+
+    Counter* clone() {
+        return new Counter(counter);
     }
 };
 
 
-class_<Counter>("Counter")
+    class_<Counter>("Counter")
             .constructor<int>()
             .function("increase", &Counter::increase)
             .function("squareCounter", &Counter::squareCounter)
             .function("add", &Counter::add)
+            .function("clone", &Counter::clone, allow_raw_pointers())
             .function("plus", &Counter::plus, allow_raw_pointers())
                     /*.function("plus", (int (*)(Counter*, Counter*)) []
                                   (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
                           allow_raw_pointers())*/
-            .property("counter", &Counter::counter);
+            .property("counter", &Counter::counter)
+            .property("someDouble", &Counter::someDouble);
 
 // TEST
 

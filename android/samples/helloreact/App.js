@@ -17,6 +17,13 @@ const instructions = Platform.select({
     'Shake or press menu button for dev menu',
 });
 
+var testCounter = 0;
+function assert(condition, msgErr = '', msgOK = '')
+{  
+  console.log(`Test# ${testCounter}` + (condition ? ` passed ${msgOK}` : ` failed ${msgErr}`));
+  testCounter++;
+}
+
 type Props = {};
 export default class App extends Component<Props> {
   render() {
@@ -29,51 +36,106 @@ export default class App extends Component<Props> {
         <Button
           onPress={() => {            
 
-            /*
-
-            const c = new Filament.Counter(22);            
-            console.log('Counter 1 value after constructor: '+c.counter); 
-            console.log('Counter 1 value after increase: '+c.increase()); 
-            console.log('Counter 1 add 5: '+c.add(5)); 
-            console.log('Counter 1 value squared: '+c.squareCounter()); 
-            console.log('Counter 1 value: '+c.counter); 
-            const c2 = new Filament.Counter(42);            
-            console.log('Counter 2 value after constructor: '+c2.counter);             
-            console.log('Counter 2 value after increase: '+c2.increase()); 
-            console.log('Counter 2 add 5: '+c2.add(5)); 
-            console.log('Counter 2 value squared: '+c2.squareCounter());
-            console.log('Counter 2 value: '+c2.counter); 
-
-            */
+           console.log('Testing constructor bindings...');
 
             var c1 = new Filament.Counter(1);
             var c2 = new Filament.Counter(2);
             var c3 = new Filament.Counter(3);
+            assert(c1.counter == 1);
+            assert(c2.counter == 2);
+            assert(c3.counter == 3);
+
+            console.log('Testing int accessors...');
 
             c1.counter = 11;
             c2.counter = 22;
             c3.counter = 33;
+            assert(c1.counter == 11);
+            assert(c2.counter == 22);
+            assert(c3.counter == 33);
 
-            console.log('c1: '+ c1.counter);
-            console.log('c2: '+ c2.counter);
-            console.log('c3: '+ c3.counter);
+            c1.counter = 1;
+            c2.counter = 2;
+            c3.counter = 3;
+            assert(c1.counter == 1);
+            assert(c2.counter == 2);
+            assert(c3.counter == 3);
 
-            console.log('c1 + c1: ' + c1.plus(c1) );
-            console.log('c1 + c2: ' + c1.plus(c2) );
-            console.log('c1 + c3: ' + c1.plus(c3) );
+            console.log('Testing object passing...');
+
+            assert(c1.plus(c1) == 2);
+            assert(c1.plus(c2) == 3);
+            assert(c1.plus(c3) == 4);
+
+            assert(c2.plus(c1) == 3);
+            assert(c2.plus(c2) == 4);
+            assert(c2.plus(c3) == 5);
+
+            assert(c3.plus(c1) == 4);
+            assert(c3.plus(c2) == 5);
+            assert(c3.plus(c3) == 6);
+
+            console.log('Testing void methods...');
+
+            c1.increase();
+            c2.increase();
+            c3.increase();
+
+            assert(c1.counter == 2, `Condition ${c1.counter} == 2`);
+            assert(c2.counter == 3, `Condition ${c2.counter} == 3`);
+            assert(c3.counter == 4, `Condition ${c3.counter} == 4`);
+
+            console.log('Testing add function...');
+
+            c1.counter = 1;
+            c2.counter = 2;
+            c3.counter = 3;
+
+            c1.add(10);
+            c2.add(20);
+            c3.add(30);
+
+            assert(c1.counter == 11, `Condition ${c1.counter} == 11`);
+            assert(c2.counter == 22, `Condition ${c2.counter} == 22`);
+            assert(c3.counter == 33, `Condition ${c3.counter} == 33`);
+
+            console.log('Testing double accessors...');
+
+            c1.someDouble = 0.1;
+            c2.someDouble = 0.2;
+            c3.someDouble = 0.3;
+
+            assert(c1.someDouble == 0.1);
+            assert(c2.someDouble == 0.2);
+            assert(c3.someDouble == 0.3);
+
+            console.log('Testing double methods...');
+
+            c1.counter = 2;
+            c2.counter = 3;
+            c3.counter = 4;
             
-            console.log('c2 + c1: ' + c2.plus(c1) );
-            console.log('c2 + c2: ' + c2.plus(c2) );
-            console.log('c2 + c3: ' + c2.plus(c3) );
-
-            console.log('c3 + c1: ' + c3.plus(c1) );
-            console.log('c3 + c2: ' + c3.plus(c2) );
-            console.log('c3 + c3: ' + c3.plus(c3) );
+            assert(c1.squareCounter() == 4.0);
+            assert(c2.squareCounter() == 9.0);
+            assert(c3.squareCounter() == 16.0);      
             
-            /*
-            var testOutput = Filament.Engine.test();
-            console.log('Test testOutput ' + testOutput);*/
-            //var view = engine.createView();            
+            console.log('Testing object creation...');
+            var c1a = c1.clone();
+            var c2a = c2.clone();
+            var c3a = c3.clone();
+
+            assert(c3.counter == c3a.counter, `Condition ${c3.counter} == ${c3.counter}`);
+            assert(c2.counter == c2a.counter, `Condition ${c2.counter} == ${c2.counter}`);            
+            assert(c1.counter == c1a.counter, `Condition ${c1.counter} == ${c1.counter}`);
+
+            c1a.increase();
+            c2a.increase();
+            c3a.increase();
+
+            assert(c1.counter != c1a.counter, `Condition ${c1.counter} != ${c1.counter}`);
+            assert(c2.counter != c2a.counter, `Condition ${c2.counter} != ${c2.counter}`);
+            assert(c3.counter != c3a.counter, `Condition ${c3.counter} != ${c3.counter}`);
+
           }}
           title="Press Me"
         />
