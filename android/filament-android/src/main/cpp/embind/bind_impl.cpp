@@ -94,7 +94,7 @@ std::map<JSValueRef , ClassDescription*>& classesByPrototype() {
 }
 
 typedef void* NativeObject;
-typedef JSValueRef (*GetterInvoker)(GenericFunction, NativeObject, JSContextRef);
+typedef JSValueRef (*GetterInvoker)(GenericFunction, NativeObject, JSContextRef, JSClassRef);
 typedef void (*SetterInvoker)(GenericFunction, NativeObject, JSContextRef, JSValueRef);
 typedef JSObjectRef (*ConstructorInvoker)(GenericFunction, JSContextRef, JSClassRef, const JSValueRef jsargs[]);
 typedef JSValueRef (*GenericMethodInvoker)(GenericFunction, JSContextRef, JSObjectRef, JSClassRef, const JSValueRef args[]);
@@ -465,10 +465,17 @@ void _embind_register_class_property(
     auto classname = typenames()[classType].c_str();
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class_property %s::%s", classname, fieldName);
 
-    GetterContext gctx = [getter, getterContext](JSContextRef ctx, JSObjectRef object, JSValueRef* exception) {
+    GetterContext gctx = [getter, getterContext, getterReturnType, classname, fieldName](JSContextRef ctx, JSObjectRef object, JSValueRef* exception) {
         NativeObject no = JSObjectGetPrivate(object);
+
+        auto possibleReturnClassRef = classesByTypeId().count(getterReturnType) > 0
+                                      ? classesByTypeId()[getterReturnType]->jsClassRef
+                                      : nullptr;
+
+        __android_log_print(ANDROID_LOG_INFO, "bind", "Getter called %s::%s", classname, fieldName);
+
         GetterInvoker gi = reinterpret_cast<GetterInvoker>(getter);
-        return gi(getterContext, no, ctx);
+        return gi(getterContext, no, ctx, possibleReturnClassRef);
     };
 
 
