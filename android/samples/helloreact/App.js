@@ -124,17 +124,37 @@ export default class App extends Component<Props> {
             var c2a = c2.clone();
             var c3a = c3.clone();
 
-            assert(c3.counter == c3a.counter, `Condition ${c3.counter} == ${c3.counter}`);
-            assert(c2.counter == c2a.counter, `Condition ${c2.counter} == ${c2.counter}`);            
-            assert(c1.counter == c1a.counter, `Condition ${c1.counter} == ${c1.counter}`);
+            assert(c3.counter == c3a.counter, `Condition ${c3.counter} == ${c3a.counter}`);
+            assert(c2.counter == c2a.counter, `Condition ${c2.counter} == ${c2a.counter}`);            
+            assert(c1.counter == c1a.counter, `Condition ${c1.counter} == ${c1a.counter}`);
 
             c1a.increase();
             c2a.increase();
             c3a.increase();
 
-            assert(c1.counter != c1a.counter, `Condition ${c1.counter} != ${c1.counter}`);
-            assert(c2.counter != c2a.counter, `Condition ${c2.counter} != ${c2.counter}`);
-            assert(c3.counter != c3a.counter, `Condition ${c3.counter} != ${c3.counter}`);
+            assert(c1.counter != c1a.counter, `Condition ${c1.counter} != ${c1a.counter}`);
+            assert(c2.counter != c2a.counter, `Condition ${c2.counter} != ${c2a.counter}`);
+            assert(c3.counter != c3a.counter, `Condition ${c3.counter} != ${c3a.counter}`);
+            
+            console.log('Testing structures as properties...');
+
+            var kv1 = c1.kv;
+
+            assert(kv1.key == 1, `Condition ${kv1.key} == 1`);
+            assert(kv1.value == 2.0, `Condition ${kv1.value} == 2.0`);
+
+            assert(c1.kv.key == 1, `Condition ${c1.kv.key} == 1`);
+            assert(c1.kv.value == 2.0, `Condition ${c1.kv.value} == 2.0`);
+
+            kv1.key = 2;
+            kv1.value = 4.0;
+
+            assert(kv1.key == 2, `Condition ${kv1.key} == 2`);
+            assert(kv1.value == 4.0, `Condition ${kv1.value} == 4.0`);
+            assert(c1.kv.key == kv1.key, `Condition ${c1.kv.key} == ${kv1.key}`);
+            assert(c1.kv.value == kv1.value, `Condition ${c1.kv.value} == ${kv1.value}`);
+            assert(c2.kv.key != kv1.key, `Condition ${c2.kv.key} != ${kv1.key}`);
+            assert(c2.kv.value != kv1.value, `Condition ${c2.kv.value} != ${kv1.value}`);
 
           }}
           title="Press Me"

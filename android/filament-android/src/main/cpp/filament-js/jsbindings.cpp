@@ -271,10 +271,16 @@ value_array<flatmat3>("mat3")
 
 // TEST
 
+struct KeyValue {
+    int key;
+    double value;
+};
+
 class Counter {
     public:
-    int counter;
-    double someDouble;
+    int counter = 0;
+    double someDouble = 0.0;
+    KeyValue kv = {1, 2.0};
 
     Counter(int init) {
         counter = init;
@@ -302,6 +308,10 @@ class Counter {
     }
 };
 
+    class_<KeyValue>("KeyValue")
+            .property("key", &KeyValue::key)
+            .property("value", &KeyValue::value);
+
 
     class_<Counter>("Counter")
             .constructor<int>()
@@ -314,6 +324,7 @@ class Counter {
                                   (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
                           allow_raw_pointers())*/
             .property("counter", &Counter::counter)
+            .property("kv", &Counter::kv)
             .property("someDouble", &Counter::someDouble);
 
 // TEST
