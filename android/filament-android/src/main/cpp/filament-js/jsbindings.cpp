@@ -306,6 +306,11 @@ class Counter {
     Counter* clone() {
         return new Counter(counter);
     }
+
+    static Counter* create(int value)
+    {
+        return new Counter(value);
+    }
 };
 
     class_<KeyValue>("KeyValue")
@@ -325,7 +330,8 @@ class Counter {
                           allow_raw_pointers())*/
             .property("counter", &Counter::counter)
             .property("kv", &Counter::kv)
-            .property("someDouble", &Counter::someDouble);
+            .property("someDouble", &Counter::someDouble)
+            .class_function("create", &Counter::create, allow_raw_pointers());
 
 // TEST
 

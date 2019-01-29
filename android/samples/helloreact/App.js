@@ -156,6 +156,14 @@ export default class App extends Component<Props> {
             assert(c2.kv.key != kv1.key, `Condition ${c2.kv.key} != ${kv1.key}`);
             assert(c2.kv.value != kv1.value, `Condition ${c2.kv.value} != ${kv1.value}`);
 
+            console.log('Testing static methods...');
+
+            var c5 = Filament.Counter.create(5);
+            var c6 = Filament.Counter.create(6);
+
+            assert(c5.counter == 5);
+            assert(c6.counter == 6);
+
           }}
           title="Press Me"
         />
