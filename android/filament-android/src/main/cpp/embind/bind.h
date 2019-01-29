@@ -1416,7 +1416,8 @@ namespace emscripten {
             using namespace internal;
 
             typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, Args...> args;
-            auto invoke = &internal::Invoker<ReturnType, Args...>::invoke;
+            //auto invoke = &internal::Invoker<ReturnType, Args...>::invoke;
+            auto invoke = &JSCStaticMethod<ReturnType, Args...>::call;
             _embind_register_class_class_function(
                     TypeID<ClassType>::get(),
                     methodName,

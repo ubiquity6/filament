@@ -113,6 +113,15 @@ struct JSCMethod<void, ClassType, Args...> {
     }
 };
 
+template<typename ReturnType, typename... Args>
+struct JSCStaticMethod {
+    static JSValueRef call(ReturnType (*f)(Args...), JSContextRef ctx, JSClassRef jsClass, const JSValueRef jsargs[]) {
+        int index = 0;
+        auto obj = f(JSCVal<Args>::read(ctx, jsargs[index++])...);
+        return JSCVal<ReturnType>::write(ctx, obj, jsClass);
+    }
+};
+
 template<typename InstanceType, typename MemberType>
 struct JSCField {
     typedef MemberType InstanceType::*MemberPointer;
@@ -125,6 +134,7 @@ struct JSCField {
         ptr.*field = JSCVal<MemberType>::read(ctx, value);
     }
 };
+
 
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCFunction {
