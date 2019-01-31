@@ -321,7 +321,7 @@ namespace emscripten {
     ////////////////////////////////////////////////////////////////////////////////
     // Invoker
     ////////////////////////////////////////////////////////////////////////////////
-
+/*
     namespace internal {
         template<typename ReturnType, typename... Args>
         struct Invoker {
@@ -349,7 +349,7 @@ namespace emscripten {
             }
         };
     }
-
+*/
     ////////////////////////////////////////////////////////////////////////////////
     // SignatureCode, SignatureString
     ////////////////////////////////////////////////////////////////////////////////
@@ -420,7 +420,8 @@ namespace emscripten {
     void function(const char* name, ReturnType (*fn)(Args...), Policies...) {
         using namespace internal;
         typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, Args...> args;
-        auto invoker = &Invoker<ReturnType, Args...>::invoke;
+        //auto invoker = &Invoker<ReturnType, Args...>::invoke;
+        auto invoker = &JSCCGlobalFunction<ReturnType, Args...>::call;
         _embind_register_function(
                 name,
                 args.getCount(),
@@ -454,7 +455,7 @@ namespace emscripten {
         void raw_destructor(ClassType* ptr) {
             delete ptr;
         }
-
+/*
         template<typename FunctionPointerType, typename ReturnType, typename ThisType, typename... Args>
         struct FunctionInvoker {
             static typename internal::BindingType<ReturnType>::WireType invoke(
@@ -515,7 +516,7 @@ namespace emscripten {
                 );
             }
         };
-
+*/
         template<typename InstanceType, typename MemberType>
         struct MemberAccess {
             typedef MemberType InstanceType::*MemberPointer;
@@ -1198,7 +1199,7 @@ namespace emscripten {
                     reinterpret_cast<GenericFunction>(factory));
             return *this;
         }
-
+/*
         template<typename SmartPtr, typename... Args, typename... Policies>
         EMSCRIPTEN_ALWAYS_INLINE const class_& smart_ptr_constructor(const char* smartPtrName, SmartPtr (*factory)(Args...), Policies...) const {
             using namespace internal;
@@ -1216,7 +1217,7 @@ namespace emscripten {
                     reinterpret_cast<GenericFunction>(factory));
             return *this;
         }
-
+*/
         template<typename WrapperType, typename... ConstructorArgs>
         EMSCRIPTEN_ALWAYS_INLINE const class_& allow_subclass(
                 const char* wrapperClassName,
@@ -1274,8 +1275,6 @@ namespace emscripten {
             //auto invoker = &MethodInvoker<decltype(memberFunction), ReturnType, ClassType*, Args...>::invoke;
             auto invoker = &JSCMethod<ReturnType, ClassType, Args...>::call;
 
-            __android_log_print(ANDROID_LOG_INFO, "bind", "Class function binding modified: %s", methodName);
-
             typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, AllowedRawPointer<ClassType>, Args...> args;
             _embind_register_class_function(
                     TypeID<ClassType>::get(),
@@ -1294,7 +1293,8 @@ namespace emscripten {
         EMSCRIPTEN_ALWAYS_INLINE const class_& function(const char* methodName, ReturnType (ClassType::*memberFunction)(Args...) const, Policies...) const {
             using namespace internal;
 
-            auto invoker = &MethodInvoker<decltype(memberFunction), ReturnType, const ClassType*, Args...>::invoke;
+            //auto invoker = &MethodInvoker<decltype(memberFunction), ReturnType, const ClassType*, Args...>::invoke;
+            auto invoker = &JSCMethod<ReturnType, ClassType, Args...>::call;
 
             typename WithPolicies<Policies...>::template ArgTypeList<ReturnType, AllowedRawPointer<const ClassType>, Args...> args;
             _embind_register_class_function(
