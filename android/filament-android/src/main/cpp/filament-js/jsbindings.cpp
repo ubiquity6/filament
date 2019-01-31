@@ -299,6 +299,14 @@ class Counter {
         counter++;
     }
 
+    static double sumAll(int i, double d, const KeyValue& crkv, const KeyValue* pkv)
+    {
+        auto k1 = crkv.key;
+        auto k2 = pkv->key;
+        double res = i + d + crkv.key + pkv->key;
+        return res;
+    }
+
     double squareCounter() {
         return counter * this->counter;
     }
@@ -324,13 +332,14 @@ class Counter {
             .function("squareCounter", &Counter::squareCounter)
             .function("add", &Counter::add)
             .function("clone", &Counter::clone, allow_raw_pointers())
-            .function("plus", &Counter::plus, allow_raw_pointers())
-                    /*.function("plus", (int (*)(Counter*, Counter*)) []
+            //.function("plus", &Counter::plus, allow_raw_pointers())
+                    .function("plus", (int (*)(Counter*, Counter*)) []
                                   (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
-                          allow_raw_pointers())*/
+                          allow_raw_pointers())
             .property("counter", &Counter::counter)
             .property("kv", &Counter::kv)
             .property("someDouble", &Counter::someDouble)
+            .class_function("sumAll", &Counter::sumAll, allow_raw_pointers())
             .class_function("create", &Counter::create, allow_raw_pointers());
 
 // TEST

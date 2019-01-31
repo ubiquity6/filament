@@ -164,6 +164,13 @@ export default class App extends Component<Props> {
             assert(c5.counter == 5);
             assert(c6.counter == 6);
 
+            console.log('Testing multiple parameters of different types...');
+
+            var kv2 = c2.kv;
+            kv2.key = 3;
+            var sum = Filament.Counter.sumAll(1, 2.0, kv1, kv2);
+            assert(sum == 8.0);
+
           }}
           title="Press Me"
         />
