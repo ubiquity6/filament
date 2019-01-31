@@ -20,14 +20,28 @@ struct JSCVal {
     }
 
     static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
-        auto ptr = &value;
+        auto ptr = (void*) &value;
         return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
     }
 };
 
-
 template<typename T>
 struct JSCVal<T&> {
+
+    static T& read(JSContextRef ctx, JSValueRef jsValue) {
+        T* ptr = (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
+
+        return *ptr;
+    }
+
+    static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
+        auto ptr = (void*) &value;
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+    }
+};
+
+template<typename T>
+struct JSCVal<const T&> {
 
     static const T& read(JSContextRef ctx, JSValueRef jsValue) {
         const T* ptr = (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
@@ -36,7 +50,7 @@ struct JSCVal<T&> {
     }
 
     static JSValueRef write(JSContextRef ctx, const T& value, JSClassRef jsClassRef) {
-        auto ptr = &value;
+        auto ptr = (void*) &value;
         return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
     }
 };
@@ -53,7 +67,7 @@ struct JSCVal<T*> {
 };
 
 template<typename T>
-struct JSCVal<T&&> {
+struct JSCVal<const T&&> {
 
     static const T&& read(JSContextRef ctx, JSValueRef jsValue) {
         const T* ptr = (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
@@ -62,7 +76,22 @@ struct JSCVal<T&&> {
     }
 
     static JSValueRef write(JSContextRef ctx, const T& value, JSClassRef jsClassRef) {
-        auto ptr = &value;
+        auto ptr = (void*) &value;
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+    }
+};
+
+template<typename T>
+struct JSCVal<T&&> {
+
+    static T&& read(JSContextRef ctx, JSValueRef jsValue) {
+        T* ptr = (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
+
+        return *ptr;
+    }
+
+    static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
+        auto ptr = (void*) &value;
         return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
     }
 };
@@ -75,7 +104,7 @@ struct JSCVal<int> {
         return (int) result;
     }
 
-    static JSValueRef write(JSContextRef ctx, int value, JSClassRef jsClassRef) {
+    static JSValueRef write(JSContextRef ctx, const int value, JSClassRef jsClassRef) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %d", value);
         return JSValueMakeNumber(ctx, value);
     }
@@ -89,7 +118,7 @@ struct JSCVal<int&&> {
         return (int) result;
     }
 
-    static JSValueRef write(JSContextRef ctx, int value, JSClassRef jsClassRef) {
+    static JSValueRef write(JSContextRef ctx, const int value, JSClassRef jsClassRef) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %d", value);
         return JSValueMakeNumber(ctx, value);
     }
@@ -103,7 +132,7 @@ struct JSCVal<double> {
         return result;
     }
 
-    static JSValueRef write(JSContextRef ctx, double value, JSClassRef jsClassRef) {
+    static JSValueRef write(JSContextRef ctx, const double value, JSClassRef jsClassRef) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %f", value);
         return JSValueMakeNumber(ctx, value);
     }
@@ -117,7 +146,7 @@ struct JSCVal<double&&> {
         return result;
     }
 
-    static JSValueRef write(JSContextRef ctx, double value, JSClassRef jsClassRef) {
+    static JSValueRef write(JSContextRef ctx, const double value, JSClassRef jsClassRef) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %f", value);
         return JSValueMakeNumber(ctx, value);
     }
@@ -126,7 +155,7 @@ struct JSCVal<double&&> {
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCMethod {
     static JSValueRef call(ReturnType (ClassType::**method)(Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
-        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+        ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
         int index = 0;
         auto result = (nativeObject->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
         return JSCVal<ReturnType>::write(ctx, result, jsClassRef);
@@ -137,7 +166,7 @@ struct JSCMethod {
 template<typename ClassType, typename... Args>
 struct JSCMethod<void, ClassType, Args...> {
     static JSValueRef call(void (ClassType::**method)(Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
-        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+        ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
         int index = 0;
         (nativeObject->**method)(JSCVal<Args>::read(ctx, jsargs[index++])...);
         return (JSValueRef) nullptr;
@@ -179,7 +208,7 @@ struct JSCField {
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCFunction {
     static JSValueRef call(ReturnType (**f)(ClassType* thisObj, Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
-        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+        ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
 
         int index = 0;
         auto result = (**f)(nativeObject, JSCVal<Args>::read(ctx, jsargs[index++])...);
@@ -191,7 +220,7 @@ struct JSCFunction {
 template< typename ClassType, typename... Args>
 struct JSCFunction<void, ClassType, Args...> {
     static JSValueRef call(void (**f)(ClassType* thisObj, Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
-        ClassType* nativeObject = reinterpret_cast<ClassType*>(JSObjectGetPrivate(thisObj));
+        ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
 
         int index = 0;
         (**f)(nativeObject, JSCVal<Args>::read(ctx, jsargs[index++])...);
@@ -212,7 +241,8 @@ template<typename ReturnType, typename... Args>
 struct JSCCGlobalFunction {
     static JSValueRef call(ReturnType (*f)(Args...), JSContextRef ctx, JSClassRef jsClass, const JSValueRef jsargs[]) {
         int index = 0;
-        return JSCVal<ReturnType>::write(f(JSCVal<Args>::read(ctx, jsargs[index++])...));
+        auto result = f(JSCVal<Args>::read(ctx, jsargs[index++])...);
+        return JSCVal<ReturnType>::write(ctx, result, jsClass);
     }
 };
 

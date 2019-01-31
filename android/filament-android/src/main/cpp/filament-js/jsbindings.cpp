@@ -349,7 +349,7 @@ class Counter {
 
 /// Engine ::core class:: Central manager and resource owner.
 
-/*
+
 class_<Engine>("Engine")
 
     .class_function("_create", (Engine* (*)()) [] { return Engine::create(); },
@@ -713,9 +713,10 @@ class_<MaterialInstance>("MaterialInstance")
         self->setParameter(name.c_str(), type, value); }), allow_raw_pointers())
     .function("setPolygonOffset", &MaterialInstance::setPolygonOffset);
 
+/*
 class_<TextureSampler>("TextureSampler")
     .constructor<driver::SamplerMinFilter, driver::SamplerMagFilter, driver::SamplerWrapMode>();
-
+*/
 /// Texture ::core class:: 2D image or cubemap that can be sampled by the GPU, possibly mipmapped.
 class_<Texture>("Texture")
     .class_function("Builder", (TexBuilder (*)()) [] { return TexBuilder(); })
@@ -821,7 +822,7 @@ class_<utils::EntityManager>("EntityManager")
 /// BufferDescriptor ::class:: Low level buffer wrapper.
 /// Clients should use the [Buffer] helper function to contruct BufferDescriptor objects.
 class_<BufferDescriptor>("driver$BufferDescriptor")
-    .constructor<emscripten::val>()
+//    .constructor<emscripten::val>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &BufferDescriptor::getBytes);
@@ -829,8 +830,8 @@ class_<BufferDescriptor>("driver$BufferDescriptor")
 /// PixelBufferDescriptor ::class:: Low level pixel buffer wrapper.
 /// Clients should use the [PixelBuffer] helper function to contruct PixelBufferDescriptor objects.
 class_<PixelBufferDescriptor>("driver$PixelBufferDescriptor")
-    .constructor<emscripten::val, driver::PixelDataFormat, driver::PixelDataType>()
-    .constructor<emscripten::val, driver::CompressedPixelDataType, int, bool>()
+    //.constructor<emscripten::val, driver::PixelDataFormat, driver::PixelDataType>()
+    //.constructor<emscripten::val, driver::CompressedPixelDataType, int, bool>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &PixelBufferDescriptor::getBytes);
@@ -950,7 +951,7 @@ class_<KtxInfo>("KtxInfo")
     .property("pixelHeight", &KtxInfo::pixelHeight)
     .property("pixelDepth", &KtxInfo::pixelDepth);
 
-register_vector<std::string>("RegistryKeys");
+//register_vector<std::string>("RegistryKeys");
 
 /*
 class_<MeshReader::MaterialRegistry>("MeshReader$MaterialRegistry")
