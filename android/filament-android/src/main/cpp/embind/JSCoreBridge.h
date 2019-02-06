@@ -10,6 +10,14 @@
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSValueRef.h>
 
+
+//todo: this is temporary. Need to figure out how to manage memory between JS and C++
+template<typename T>
+inline T* valueToPtr(T const &value)
+{
+    return new T(value);
+}
+
 template<typename T>
 struct JSCVal {
 
@@ -20,8 +28,7 @@ struct JSCVal {
     }
 
     static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
-        auto ptr = (void*) &value;
-        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, valueToPtr(value));
     }
 };
 
@@ -35,8 +42,8 @@ struct JSCVal<T&> {
     }
 
     static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
-        auto ptr = (void*) &value;
-        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, valueToPtr(value));
     }
 };
 
@@ -50,8 +57,7 @@ struct JSCVal<const T&> {
     }
 
     static JSValueRef write(JSContextRef ctx, const T& value, JSClassRef jsClassRef) {
-        auto ptr = (void*) &value;
-        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, valueToPtr(value));
     }
 };
 
@@ -76,8 +82,7 @@ struct JSCVal<const T&&> {
     }
 
     static JSValueRef write(JSContextRef ctx, const T& value, JSClassRef jsClassRef) {
-        auto ptr = (void*) &value;
-        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, valueToPtr(value));
     }
 };
 
@@ -91,8 +96,7 @@ struct JSCVal<T&&> {
     }
 
     static JSValueRef write(JSContextRef ctx, T& value, JSClassRef jsClassRef) {
-        auto ptr = (void*) &value;
-        return (JSValueRef) JSObjectMake(ctx, jsClassRef, ptr);
+        return (JSValueRef) JSObjectMake(ctx, jsClassRef, valueToPtr(value));
     }
 };
 
@@ -207,7 +211,7 @@ struct JSCField {
 
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCFunction {
-    static JSValueRef call(ReturnType (**f)(ClassType* thisObj, Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
+    static JSValueRef call(ReturnType (**f)(ClassType*, Args...), JSContextRef ctx, JSObjectRef thisObj, JSClassRef jsClassRef, const JSValueRef jsargs[]) {
         ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
 
         int index = 0;
@@ -243,6 +247,15 @@ struct JSCCGlobalFunction {
         int index = 0;
         auto result = f(JSCVal<Args>::read(ctx, jsargs[index++])...);
         return JSCVal<ReturnType>::write(ctx, result, jsClass);
+    }
+};
+
+template<typename... Args>
+struct JSCCGlobalFunction<void, Args...> {
+    static JSValueRef call(void (*f)(Args...), JSContextRef ctx, JSClassRef jsClass, const JSValueRef jsargs[]) {
+        int index = 0;
+        f(JSCVal<Args>::read(ctx, jsargs[index++])...);
+        return (JSValueRef) nullptr;
     }
 };
 
