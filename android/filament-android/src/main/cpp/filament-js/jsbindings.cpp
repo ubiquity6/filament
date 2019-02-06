@@ -185,6 +185,22 @@ struct DecodedPng {
     BufferDescriptor decoded_data;
 };
 
+VertexBuffer::Builder* makeBuilder()
+{
+    auto bref = VertexBuffer::Builder();
+    return &bref;
+}
+
+
+void testBuilder()
+{
+    __android_log_print(ANDROID_LOG_INFO, "bind", "VB simple call test");
+
+    auto b = makeBuilder();
+    b->vertexCount(3);
+    b->bufferCount(2);
+}
+
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
 DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
     DecodedPng result;
@@ -205,6 +221,8 @@ DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
 }
 
 } // anonymous namespace
+
+
 
 EMSCRIPTEN_BINDINGS(jsbindings) {
 
@@ -295,6 +313,10 @@ class Counter {
         return counter + c->counter;
     }
 
+    int minus(Counter* c) {
+        return counter - c->counter;
+    }
+
     void increase() {
         counter++;
     }
@@ -332,15 +354,26 @@ class Counter {
             .function("squareCounter", &Counter::squareCounter)
             .function("add", &Counter::add)
             .function("clone", &Counter::clone, allow_raw_pointers())
+            .function("clone2", (Counter * (*)(Counter *))[](Counter * thisCounter) {
+                    return thisCounter->clone();
+                }, allow_raw_pointers())
             //.function("plus", &Counter::plus, allow_raw_pointers())
                     .function("plus", (int (*)(Counter*, Counter*)) []
                                   (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
                           allow_raw_pointers())
+            .function("minus", (int (*)(Counter*, Counter*)) []
+                              (Counter* thisCounter, Counter* another) { return thisCounter->minus(another); },
+                      allow_raw_pointers())
             .property("counter", &Counter::counter)
             .property("kv", &Counter::kv)
             .property("someDouble", &Counter::someDouble)
             .class_function("sumAll", &Counter::sumAll, allow_raw_pointers())
+            .class_function("create2", (Counter (*)(int))[](int initial){return Counter(initial);})
             .class_function("create", &Counter::create, allow_raw_pointers());
+
+
+
+function("testBuilder", &testBuilder);
 
 // TEST
 
@@ -547,7 +580,7 @@ class_<RenderBuilder>("RenderableManager$Builder")
 
 /// RenderableManager ::core class:: Allows access to properties of drawable objects.
 class_<RenderableManager>("RenderableManager")
-    .class_function("Builder", (RenderBuilder (*)(int)) [] (int n) { return RenderBuilder(n); })
+    //.class_function("Builder", (RenderBuilder (*)(int)) [] (int n) { return RenderBuilder(n); })
 
     /// getInstance ::method:: Gets an instance of the renderable component for an entity.
     /// entity ::argument:: an [Entity]
@@ -653,12 +686,15 @@ class_<VertexBuilder>("VertexBuffer$Builder")
             uint8_t byteStride), {
         return &builder->attribute(attr, bufferIndex, attrType, byteOffset, byteStride); })
     .BUILDER_FUNCTION("vertexCount", VertexBuilder, (VertexBuilder* builder, int count), {
-        return &builder->vertexCount(count); })
+        auto res = &builder->vertexCount(count);
+        return  res;
+    })
     .BUILDER_FUNCTION("normalized", VertexBuilder, (VertexBuilder* builder,
             VertexAttribute attrib), {
         return &builder->normalized(attrib); })
     .BUILDER_FUNCTION("bufferCount", VertexBuilder, (VertexBuilder* builder, int count), {
-        return &builder->bufferCount(count); });
+        return &builder->bufferCount(count);
+    });
 
 /// VertexBuffer ::core class:: Bundle of buffers and associated vertex attributes.
 class_<VertexBuffer>("VertexBuffer")
@@ -1014,11 +1050,11 @@ class_<MeshReader::Mesh>("MeshReader$Mesh")
 
 */
 
-        /*
+
 function("decodePng", &decodePng);
 class_<DecodedPng>("DecodedPng")
     .property("width", &DecodedPng::width)
     .property("height", &DecodedPng::height)
-    .property("data", &DecodedPng::decoded_data);*/
+    .property("data", &DecodedPng::decoded_data);
 
 } // EMSCRIPTEN_BINDINGS
