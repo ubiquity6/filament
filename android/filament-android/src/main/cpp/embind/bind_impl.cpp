@@ -332,8 +332,21 @@ void _embind_register_function(
         GenericFunction invoker,
         GenericFunction function) {
 
-    lazy_bind().push_back([name](JSGlobalContextRef context, JSObjectRef ns) {
+    lazy_bind().push_back([name, argTypes, invoker, function](JSGlobalContextRef ctx, JSObjectRef ns) {
         __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_function %s", name);
+        auto fName = JSStringCreateWithUTF8CString(name);
+        auto f = JSObjectMakeFunctionWithCallback(ctx, fName, GenericObjectCall);
+
+        FunctionContext fctx = [argTypes, invoker, name, function] (JSContextRef ctx, JSObjectRef jsFRef, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+            __android_log_print(ANDROID_LOG_INFO, "bind", "Function called %s", name);
+
+            auto smi = reinterpret_cast<StaticMethodInvoker>(invoker);
+            return smi(function, ctx, getJSClassRefByTypeId(argTypes[0]), arguments);
+        };
+
+        boundFunctions()[f] = fctx;
+        JSObjectSetProperty(ctx, ns, fName, f, kJSPropertyAttributeNone, nullptr);
+
     });
 }
 
@@ -463,7 +476,12 @@ void _embind_register_class_function(
         return mi(context, ctx, thisObject, getJSClassRefByTypeId(returnType), arguments);
     };
 
-    classesByTypeId()[classType]->methodsByName[std::string(methodName)] = fctx;
+    auto mName = std::string(methodName);
+    if(mName[0] == '_') {
+        mName.erase(0,1);
+    }
+
+    classesByTypeId()[classType]->methodsByName[mName] = fctx;
 }
 
 void _embind_register_class_property(
@@ -520,7 +538,12 @@ void _embind_register_class_class_function(
         return smi(method, ctx, getJSClassRefByTypeId(argTypes[0]), arguments);
     };
 
-    classesByTypeId()[classType]->staticMethodsByName[std::string(methodName)] = fctx;
+    auto mName = std::string(methodName);
+    if(mName[0] == '_') {
+        mName.erase(0,1);
+    }
+
+    classesByTypeId()[classType]->staticMethodsByName[mName] = fctx;
 
 }
 
@@ -545,7 +568,11 @@ void _embind_register_enum(
         TYPEID enumType,
         const char *name,
         size_t size,
-        bool isSigned) {}
+        bool isSigned) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_enum %s", name);
+
+}
 
 void _embind_register_smart_ptr(
         TYPEID pointerType,
@@ -564,7 +591,11 @@ void _embind_register_smart_ptr(
 void _embind_register_enum_value(
         TYPEID enumType,
         const char *valueName,
-        GenericEnumValue value) {}
+        GenericEnumValue value) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_enum_value %s", valueName);
+
+}
 
 void _embind_register_constant(
         const char *name,
