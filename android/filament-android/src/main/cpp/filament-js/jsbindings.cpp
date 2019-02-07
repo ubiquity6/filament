@@ -58,6 +58,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <math/mat4.h>
+#include <stdlib.h>
 
 #include <utils/EntityManager.h>
 
@@ -200,6 +201,15 @@ void testBuilder()
     b->vertexCount(3);
     b->bufferCount(2);
 }
+
+//todo: this is evil AF, perhaps there's a better way
+View* getViewFromJavaPtr(char * address)
+{
+    int64_t jptr = atoll(address);
+    return (View *) jptr;
+}
+
+
 
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
 DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
@@ -374,6 +384,7 @@ class Counter {
 
 
 function("testBuilder", &testBuilder);
+function("getViewFromJavaPtr", &getViewFromJavaPtr, allow_raw_pointers());
 
 // TEST
 
@@ -522,7 +533,11 @@ class_<View>("View")
     .function("setCamera", &View::setCamera, allow_raw_pointers())
     .function("getViewport", &View::getViewport)
     .function("setViewport", &View::setViewport)
-    .function("setClearColor", &View::setClearColor)
+    //.function("setClearColor", &View::setClearColor)
+        .function("setClearColor", (void (*) (View*, double, double, double, double))[]
+        (View* view, double r, double g, double b, double a) {
+            view->setClearColor({r,g,b,a});
+        }, allow_raw_pointers())
     .function("setDepthPrepass", &View::setDepthPrepass)
     .function("setPostProcessingEnabled", &View::setPostProcessingEnabled)
     .function("setAntiAliasing", &View::setAntiAliasing)

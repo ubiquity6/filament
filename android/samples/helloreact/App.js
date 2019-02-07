@@ -8,7 +8,7 @@
 
 import React, {Component} from 'react';
 import {Platform, StyleSheet, Text, View, Button, Alert} from 'react-native';
-import RCTFilamentView from './FilamentView';
+import FilamentView from './FilamentView';
 
 const instructions = Platform.select({
   ios: 'Press Cmd+R to reload,\n' + 'Cmd+D or shake for dev menu',
@@ -277,7 +277,7 @@ export default class App extends Component<Props> {
   render() {
     return (
       <View style={styles.container}>        
-        <RCTFilamentView style={styles.viewport}></RCTFilamentView>
+        <FilamentView style={styles.viewport}></FilamentView>
         <View style={styles.buttons}>
           <Button style={styles.btn} onPress={testBindings} title="test bindings"/>
           <Button style={styles.btn} onPress={initFilament} title="init filament"/>
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   buttons: {    
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     flexDirection:"row"
   },
   btn: {

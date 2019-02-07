@@ -2,12 +2,16 @@ package com.helloreact;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.support.annotation.Nullable;
 import android.view.Choreographer;
 import android.view.Surface;
 import android.view.SurfaceView;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.JavaScriptContextHolder;
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.android.filament.js.Bind;
 import com.google.android.filament.*;
 import com.google.android.filament.android.UiHelper;
@@ -36,12 +40,13 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
     private IndexBuffer indexBuffer;
 
     private Choreographer choreographer;
+    private ReactContext reactContext;
 
 
     public FilamentView(Context context) {
         super(context);
 
-        ReactContext reactContext = (ReactContext)getContext();
+        reactContext = (ReactContext)getContext();
         JavaScriptContextHolder jsContext = reactContext.getJavaScriptContextHolder();
 
         synchronized (jsContext) {
@@ -70,6 +75,10 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
             public void onNativeWindowChanged(Surface surface) {
                 if (swapChain != null) engine.destroySwapChain(swapChain);
                 swapChain = engine.createSwapChain(surface, mUiHelper.getSwapChainFlags());
+                WritableMap params = Arguments.createMap();
+                long ptr = view.getNativeObject();
+                params.putString("viewPtr", Long.toString(ptr));
+                sendEvent(reactContext, "filamentViewReady", params);
             }
 
             // The native surface went away, we must stop rendering.
@@ -204,6 +213,14 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
                 .build(engine);
 
         indexBuffer.setBuffer(engine, indexData);
+    }
+
+    private void sendEvent(ReactContext reactContext,
+                           String eventName,
+                           @Nullable WritableMap params) {
+        reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                .emit(eventName, params);
     }
 
     @Override
