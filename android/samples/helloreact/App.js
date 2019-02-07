@@ -276,14 +276,13 @@ type Props = {};
 export default class App extends Component<Props> {
   render() {
     return (
-      <View style={styles.container}>
-        <Text style={styles.welcome}>Welcome to React Native!</Text>
-        <Text style={styles.instructions}>To get started, edit App.js</Text>
-        <Text style={styles.instructions}>{instructions}</Text>
-        <RCTFilamentView></RCTFilamentView>
-        <Button onPress={testBindings} title="test bindings"/>
-        <Button onPress={initFilament} title="init filament"/>
-        <Button onPress={testBuilder} title="test builder"/>
+      <View style={styles.container}>        
+        <RCTFilamentView style={styles.viewport}></RCTFilamentView>
+        <View style={styles.buttons}>
+          <Button style={styles.btn} onPress={testBindings} title="test bindings"/>
+          <Button style={styles.btn} onPress={initFilament} title="init filament"/>
+          <Button style={styles.btn} onPress={testBuilder} title="test builder"/>
+        </View>
       </View>
     );
   }
@@ -293,17 +292,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5FCFF',
+    alignItems: 'stretch',
+    backgroundColor: 'white',
   },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
+  buttons: {    
+    justifyContent: 'space-between',
+    flexDirection:"row"
+  },
+  btn: {
+    flex: 1,    
     margin: 10,
-  },
-  instructions: {
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 5,
-  },
+  },  
+  viewport: {    
+    flex: 1
+  }
 });

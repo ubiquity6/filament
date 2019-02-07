@@ -224,7 +224,7 @@ public class View {
         nSetDynamicLightingOptions(getNativeObject(), zLightNear, zLightFar);
     }
 
-    long getNativeObject() {
+    public long getNativeObject() {
         if (mNativeObject == 0) {
             throw new IllegalStateException("Calling method on destroyed View");
         }
