@@ -9,6 +9,7 @@
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSValueRef.h>
+#include <JavaScriptCore/JSStringRef.h>
 
 
 //todo: this is temporary. Need to figure out how to manage memory between JS and C++
@@ -16,6 +17,15 @@ template<typename T>
 inline T* valueToPtr(T const &value)
 {
     return new T(value);
+}
+
+inline char* JSStrToCStr(JSContextRef ctx, JSValueRef v, JSValueRef *exception) {
+    JSStringRef jsStr = JSValueToStringCopy(ctx, v, exception);
+    size_t nBytes = JSStringGetMaximumUTF8CStringSize(jsStr);
+    char *cStr = (char *) malloc(nBytes * sizeof(char));
+    JSStringGetUTF8CString(jsStr, cStr, nBytes);
+    JSStringRelease(jsStr);
+    return cStr;
 }
 
 template<typename T>
@@ -155,6 +165,20 @@ struct JSCVal<double&&> {
         return JSValueMakeNumber(ctx, value);
     }
 };
+
+template<>
+struct JSCVal<char *> {
+    static char* read(JSContextRef ctx, JSValueRef jsValue) {
+        return JSStrToCStr(ctx, jsValue, nullptr);
+    }
+
+    static JSValueRef write(JSContextRef ctx, char* value, JSClassRef jsClassRef) {
+        auto jss = JSStringCreateWithUTF8CString(value);
+        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %s", value);
+        return JSValueMakeString(ctx, jss);
+    }
+};
+
 
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCMethod {
