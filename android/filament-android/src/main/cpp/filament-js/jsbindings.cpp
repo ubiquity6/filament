@@ -51,6 +51,7 @@
 #include <filament/VertexBuffer.h>
 #include <filament/View.h>
 
+
 #include <image/KtxBundle.h>
 #include <image/KtxUtility.h>
 
@@ -60,6 +61,7 @@
 #include <math/mat4.h>
 #include <stdlib.h>
 
+#include <utils/Entity.h>
 #include <utils/EntityManager.h>
 
 #include "../embind/bind.h"
@@ -186,30 +188,29 @@ struct DecodedPng {
     BufferDescriptor decoded_data;
 };
 
-VertexBuffer::Builder* makeBuilder()
-{
-    auto bref = VertexBuffer::Builder();
-    return &bref;
-}
-
-
-void testBuilder()
-{
-    __android_log_print(ANDROID_LOG_INFO, "bind", "VB simple call test");
-
-    auto b = makeBuilder();
-    b->vertexCount(3);
-    b->bufferCount(2);
-}
+// TEST ------------------------
 
 //todo: this is evil AF, perhaps there's a better way
-View* getViewFromJavaPtr(char * address)
+void* fromJavaPtr(char * address)
 {
-    int64_t jptr = atoll(address);
-    return (View *) jptr;
+    return (void*) atoll(address);
 }
 
+utils::EntityInstance<TransformManager> getTransformInstance(TransformManager* tm, int entityId) {
+    utils::Entity& entity = *reinterpret_cast<utils::Entity*>(&entityId);
+    return tm->getInstance(entity);
+}
 
+float dotProduct(math::float3 v1, math::float3* v2) {
+    return v1.x * v2->x + v1.y * v2->y + v1.z + v2->z;
+}
+
+math::float3 makeVec3(float x, float y, float z)
+{
+    return {x, y, y};
+}
+
+// TEST -------------------------
 
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
 DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
@@ -383,8 +384,13 @@ class Counter {
 
 
 
-function("testBuilder", &testBuilder);
-function("getViewFromJavaPtr", &getViewFromJavaPtr, allow_raw_pointers());
+
+function("getViewFromJavaPtr", (View* (*) (char* ))[] (char * ptr) {return (View*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getEngineFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getSceneFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
+function("dotProduct", &dotProduct, allow_raw_pointers());
+function("makeVec3", &makeVec3);
 
 // TEST
 
