@@ -1,7 +1,7 @@
 // @flow
 
 import {requireNativeComponent, DeviceEventEmitter} from 'react-native';
-import {mat4} from 'gl-matrix';
+import {mat4, vec3} from 'gl-matrix';
 
 import React from 'react';
 var RCTFilamentView = requireNativeComponent('RCTFilamentView');
@@ -26,7 +26,7 @@ export default class FilamentView extends React.Component {
             const tcm = this.engine.getTransformManager();
             const inst = Filament.getTransformInstance(tcm, e.triangleId);
             //tcm.setTransform(inst, transform);
-            inst.delete();
+            //inst.delete();
         });
     }
 
