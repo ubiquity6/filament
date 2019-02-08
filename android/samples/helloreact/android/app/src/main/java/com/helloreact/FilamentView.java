@@ -39,6 +39,7 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
     private VertexBuffer vertexBuffer;
     private IndexBuffer indexBuffer;
 
+    private int renderable;
     private Choreographer choreographer;
     private ReactContext reactContext;
 
@@ -76,8 +77,11 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
                 if (swapChain != null) engine.destroySwapChain(swapChain);
                 swapChain = engine.createSwapChain(surface, mUiHelper.getSwapChainFlags());
                 WritableMap params = Arguments.createMap();
-                long ptr = view.getNativeObject();
-                params.putString("viewPtr", Long.toString(ptr));
+
+                params.putString("viewPtr", Long.toString(view.getNativeObject()));
+                params.putString("enginePtr", Long.toString(engine.getNativeObject()));
+                params.putString("scenePtr", Long.toString(scene.getNativeObject()));
+                params.putInt("triangleId", renderable);
                 sendEvent(reactContext, "filamentViewReady", params);
             }
 
@@ -110,14 +114,11 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         camera = engine.createCamera();
         scene = engine.createScene();
         view = engine.createView();
-        long nativeViewPtr = view.getNativeObject();
-
 
         view.setClearColor(0.035f, 0.035f, 0.035f, 1.0f);
         view.setCamera(camera);
         view.setScene(scene);
         setupScene();
-        //view.setClearColor(1, 0, 0, 1);
     }
 
     private void setupScene() {
@@ -125,7 +126,7 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         createMesh();
 
         // To create a renderable we first create a generic entity
-        int renderable = EntityManager.get().create();
+        renderable = EntityManager.get().create();
 
         // We then create a renderable component on that entity
         // A renderable is made of several primitives; in this case we declare only 1
