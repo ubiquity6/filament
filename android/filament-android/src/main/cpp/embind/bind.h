@@ -696,10 +696,13 @@ namespace emscripten {
         value_array& element(ElementType InstanceType::*field) {
             using namespace internal;
 
+            auto getter = &JSCField<InstanceType, ElementType>::get;
+            auto setter = &JSCField<InstanceType, ElementType>::set;
+/*
             auto getter = &MemberAccess<InstanceType, ElementType>
             ::template getWire<ClassType>;
             auto setter = &MemberAccess<InstanceType, ElementType>
-            ::template setWire<ClassType>;
+            ::template setWire<ClassType>;*/
 
             _embind_register_value_array_element(
                     TypeID<ClassType>::get(),
