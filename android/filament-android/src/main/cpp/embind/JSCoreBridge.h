@@ -101,15 +101,42 @@ struct JSCVal {
     }
 
     static JSValueRef write(const T& value, InvokerParameters params) {
-
         TYPEID tid = TypeID<T>::get();
 
         NativeObject no = (NativeObject) &value;
-
         JSValueRef res = params.typeRegistry.native2js(tid, params.ctx, no);
 
         if (res == nullptr) {
             res = (JSValueRef) JSObjectMake(params.ctx, params.jsClassRef, valueToPtr(value));
+        }
+
+        return  res;
+    }
+};
+
+
+template<typename T>
+struct JSCVal<T*> {
+
+    static T* read(JSValueRef jsValue, InvokerParameters params) {
+        TYPEID tid = TypeID<T>::get();
+
+        T* ptr = (T*) params.typeRegistry.js2native(tid, params.ctx, jsValue);
+        if (ptr == nullptr) {
+            ptr =  (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
+        }
+
+        return  ptr;
+    }
+
+    static JSValueRef write(T* value, InvokerParameters params) {
+        TYPEID tid = TypeID<T>::get();
+
+        NativeObject no = (NativeObject) value;
+        JSValueRef res = params.typeRegistry.native2js(tid, params.ctx, no);
+
+        if (res == nullptr) {
+            res = (JSValueRef) JSObjectMake(params.ctx, params.jsClassRef, value);
         }
 
         return  res;
@@ -127,17 +154,6 @@ struct JSCVal<T&&> : public JSCVal<T> {};
 
 template<typename T>
 struct JSCVal<const T&&> : public JSCVal<T> {};
-
-template<typename T>
-struct JSCVal<T*> {
-    static T* read(JSValueRef jsValue, InvokerParameters params) {
-        return (T*) JSObjectGetPrivate((JSObjectRef)jsValue);
-    }
-
-    static JSValueRef write(T* value, InvokerParameters params) {
-        return (JSValueRef) JSObjectMake(params.ctx, params.jsClassRef, value);
-    }
-};
 
 template<>
 struct JSCVal<int> {
