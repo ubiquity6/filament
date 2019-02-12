@@ -14,31 +14,62 @@
 
 using namespace emscripten::internal;
 
+/////////////////////////////////////////
+/// Custom type conversions
+/////////////////////////////////////////
 
-//todo: this is temporary. Need to figure out how to manage memory between JS and C++
-template<typename T>
-inline T* valueToPtr(T const &value)
+typedef void* NativeObject;
+typedef std::function<NativeObject (JSContextRef, JSValueRef)> JsToNative;
+typedef std::function<JSValueRef (JSContextRef, NativeObject)> NativeToJs;
+
+struct TypeInfo
 {
-    return new T(value);
-}
+    std::string name;
+    JsToNative js2native;
+    NativeToJs native2js;
+};
 
 class TypeRegistry {
-    typedef std::function<void*(JSContextRef, JSValueRef)> JS2CConverter;
-    std::map<TYPEID,JS2CConverter> js2c;
+    std::map<TYPEID, TypeInfo> types;
 
 public:
-    void addJS2CConverter (TYPEID id, JS2CConverter f) {
-        this->js2c[id] = f;
+    void add(TYPEID tid, std::string name, JsToNative js2native, NativeToJs nativeToJs) {
+        types[tid] = {name, js2native, nativeToJs};
     }
 
-    void* fromJSValue(TYPEID tid, JSContextRef ctx, JSValueRef val) {
-        if (js2c.count(tid) > 0) {
-            return js2c[tid](ctx, val);
+    std::string getName(TYPEID tid) {
+        return types[tid].name;
+    }
+
+    NativeObject js2native(TYPEID tid, JSContextRef ctx, JSValueRef val) {
+        if (types.count(tid) > 0) {
+            return types[tid].js2native(ctx, val);
+        } else {
+            return nullptr;
+        }
+    }
+
+    JSValueRef native2js(TYPEID tid, JSContextRef ctx, NativeObject no) {
+        if (types.count(tid) > 0) {
+            return types[tid].native2js(ctx, no);
         } else {
             return nullptr;
         }
     }
 };
+
+
+/////////////////////////////////////////
+/// JS value conversions
+/////////////////////////////////////////
+
+//todo: this is temporary. Need to figure out how to manage memory between JS and C++
+
+template<typename T>
+inline T* valueToPtr(T const &value)
+{
+    return new T(value);
+}
 
 struct InvokerParameters {
     JSContextRef ctx;
@@ -55,17 +86,13 @@ inline char* JSStrToCStr(JSContextRef ctx, JSValueRef v, JSValueRef *exception) 
     return cStr;
 }
 
-/////////////////////////////////////////
-/// JS VALUE CONVERSION
-/////////////////////////////////////////
-
 template<typename T>
 struct JSCVal {
 
     static T& read(JSValueRef jsValue, InvokerParameters params) {
         TYPEID tid = TypeID<T>::get();
 
-        T* ptr = (T*) params.typeRegistry.fromJSValue(tid, params.ctx, jsValue);
+        T* ptr = (T*) params.typeRegistry.js2native(tid, params.ctx, jsValue);
         if (ptr == nullptr) {
             ptr =  (T*) (JSObjectGetPrivate((JSObjectRef)jsValue));
         }
@@ -74,7 +101,18 @@ struct JSCVal {
     }
 
     static JSValueRef write(const T& value, InvokerParameters params) {
-        return (JSValueRef) JSObjectMake(params.ctx, params.jsClassRef, valueToPtr(value));
+
+        TYPEID tid = TypeID<T>::get();
+
+        NativeObject no = (NativeObject) &value;
+
+        JSValueRef res = params.typeRegistry.native2js(tid, params.ctx, no);
+
+        if (res == nullptr) {
+            res = (JSValueRef) JSObjectMake(params.ctx, params.jsClassRef, valueToPtr(value));
+        }
+
+        return  res;
     }
 };
 
@@ -105,12 +143,10 @@ template<>
 struct JSCVal<int> {
     static int read(JSValueRef jsValue, InvokerParameters params) {
         double result = JSValueToNumber(params.ctx, jsValue, nullptr);
-        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue: %f", result);
         return (int) result;
     }
 
     static JSValueRef write(const int value, InvokerParameters params) {
-        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %d", value);
         return JSValueMakeNumber(params.ctx, value);
     }
 };
@@ -122,18 +158,23 @@ template<>
 struct JSCVal<double> {
     static double read(JSValueRef jsValue, InvokerParameters params) {
         double result = JSValueToNumber(params.ctx, jsValue, nullptr);
-        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue: %f", result);
         return result;
     }
 
     static JSValueRef write(const double value, InvokerParameters params) {
-        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %f", value);
         return JSValueMakeNumber(params.ctx, value);
     }
 };
 
 template<>
 struct JSCVal<double&&> : public JSCVal<double> {};
+
+template<>
+struct JSCVal<float&&> : public JSCVal<double> {};
+
+template<>
+struct JSCVal<float> : public JSCVal<double> {};
+
 
 template<>
 struct JSCVal<char *> {
@@ -143,14 +184,13 @@ struct JSCVal<char *> {
 
     static JSValueRef write(char* value, InvokerParameters params) {
         auto jss = JSStringCreateWithUTF8CString(value);
-        __android_log_print(ANDROID_LOG_INFO, "bind", "JSValue write: %s", value);
         return JSValueMakeString(params.ctx, jss);
     }
 };
 
 
 /////////////////////////////////////////
-/// FUNCTION CALLERS
+/// Function callers
 /////////////////////////////////////////
 
 template<typename ReturnType, typename ClassType, typename... Args>
