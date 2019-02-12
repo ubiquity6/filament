@@ -193,14 +193,24 @@ struct JSCVal<char *> {
 /// Function callers
 /////////////////////////////////////////
 
+template <typename T>
+struct Sequence {
+    int index = 0;
+
+    inline T next(const T seq[]){
+        T res = seq[index];
+        index++;
+        return res;
+    }
+};
+
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCMethod {
     static JSValueRef call(ReturnType (ClassType::**method)(Args...), InvokerParameters params, JSObjectRef thisObj, const JSValueRef jsargs[]) {
         ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
-        int index = 0;
-        auto result = (nativeObject->**method)(JSCVal<Args>::read(jsargs[index++], params) ...);
+        Sequence<JSValueRef> seq;
+        auto result = (nativeObject->**method)(JSCVal<Args>::read(seq.next(jsargs), params) ...);
         return JSCVal<ReturnType>::write(result, params);
-
     }
 };
 
@@ -208,8 +218,8 @@ template<typename ClassType, typename... Args>
 struct JSCMethod<void, ClassType, Args...> {
     static JSValueRef call(void (ClassType::**method)(Args...), InvokerParameters params, JSObjectRef thisObj, const JSValueRef jsargs[]) {
         ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
-        int index = 0;
-        (nativeObject->**method)(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        (nativeObject->**method)(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return (JSValueRef) nullptr;
     }
 };
@@ -217,8 +227,8 @@ struct JSCMethod<void, ClassType, Args...> {
 template<typename ReturnType, typename... Args>
 struct JSCStaticMethod {
     static JSValueRef call(ReturnType (*f)(Args...), InvokerParameters params, const JSValueRef jsargs[]) {
-        int index = 0;
-        auto obj = f(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        auto obj = f(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return JSCVal<ReturnType>::write(obj, params);
     }
 };
@@ -226,8 +236,8 @@ struct JSCStaticMethod {
 template<typename... Args>
 struct JSCStaticMethod<void, Args...> {
     static JSValueRef call(void (*f)(Args...), InvokerParameters params, const JSValueRef jsargs[]) {
-        int index = 0;
-        f(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        f(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return (JSValueRef) nullptr;
     }
 };
@@ -251,8 +261,8 @@ struct JSCFunction {
     static JSValueRef call(ReturnType (**f)(ClassType*, Args...), InvokerParameters params, JSObjectRef thisObj, const JSValueRef jsargs[]) {
         ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
 
-        int index = 0;
-        auto result = (**f)(nativeObject, JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        auto result = (**f)(nativeObject, JSCVal<Args>::read(seq.next(jsargs), params)...);
 
         return JSCVal<ReturnType>::write(result, params);
     }
@@ -263,8 +273,9 @@ struct JSCFunction<void, ClassType, Args...> {
     static JSValueRef call(void (**f)(ClassType* thisObj, Args...), InvokerParameters params, JSObjectRef thisObj, const JSValueRef jsargs[]) {
         ClassType* nativeObject = (ClassType*) JSObjectGetPrivate(thisObj);
 
-        int index = 0;
-        (**f)(nativeObject, JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        (**f)(nativeObject, JSCVal<Args>::read(seq.next(jsargs), params)...);
+
         return (JSValueRef) nullptr;
     }
 };
@@ -272,8 +283,8 @@ struct JSCFunction<void, ClassType, Args...> {
 template<typename ReturnType, typename... Args>
 struct JSCConstructor {
     static JSValueRef call(ReturnType (*f)(Args...), InvokerParameters params, const JSValueRef jsargs[]) {
-        int index = 0;
-        auto obj = f(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        auto obj = f(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return JSObjectMake(params.ctx, params.jsClassRef, obj);
     }
 };
@@ -281,8 +292,8 @@ struct JSCConstructor {
 template<typename ReturnType, typename... Args>
 struct JSCCGlobalFunction {
     static JSValueRef call(ReturnType (*f)(Args...), InvokerParameters params, const JSValueRef jsargs[]) {
-        int index = 0;
-        auto result = f(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        auto result = f(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return JSCVal<ReturnType>::write(result, params);
     }
 };
@@ -290,8 +301,8 @@ struct JSCCGlobalFunction {
 template<typename... Args>
 struct JSCCGlobalFunction<void, Args...> {
     static JSValueRef call(void (*f)(Args...), InvokerParameters params, const JSValueRef jsargs[]) {
-        int index = 0;
-        f(JSCVal<Args>::read(jsargs[index++], params)...);
+        Sequence<JSValueRef> seq;
+        f(JSCVal<Args>::read(seq.next(jsargs), params)...);
         return (JSValueRef) nullptr;
     }
 };
