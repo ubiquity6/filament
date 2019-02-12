@@ -32,12 +32,19 @@ std::map<TYPEID, std::string>& typenames() {
     return m;
 };
 
-TypeRegistry typeRegistry;
+TypeRegistry& typeRegistry() {
+    static TypeRegistry tr;
+    return tr;
+};
+
+typedef void* NativeObject;
 
 typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> FunctionContext;
 typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef object, JSValueRef* exception)> GetterContext;
 typedef std::function<void(JSContextRef ctx, JSObjectRef object, JSValueRef value, JSValueRef* exception)> SetterContext;
 typedef std::function<JSObjectRef (JSContextRef ctx, JSClassRef jsClassRef, JSObjectRef constructor, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> ConstructorContext;
+typedef std::function<JSValueRef(JSContextRef ctx, NativeObject no, JSValueRef* exception)> ValueArrayGetter;
+typedef std::function<void(JSContextRef ctx, NativeObject no, JSValueRef value, JSValueRef* exception)> ValueArraySetter;
 
 
 std::map<JSObjectRef, FunctionContext>& boundFunctions() {
@@ -103,7 +110,8 @@ JSClassRef getJSClassRefByTypeId(TYPEID typeId)
 }
 
 
-typedef void* NativeObject;
+
+typedef void* (*DefaultConstructor)();
 typedef JSValueRef (*GetterInvoker)(GenericFunction, NativeObject, InvokerParameters);
 typedef void (*SetterInvoker)(GenericFunction, NativeObject, InvokerParameters, JSValueRef);
 typedef JSObjectRef (*ConstructorInvoker)(GenericFunction, InvokerParameters, const JSValueRef jsargs[]);
@@ -236,6 +244,29 @@ JNI_METHOD(void, BindToContext)
 
 }
 
+struct ValueArrayAccess {
+    ValueArrayGetter getter;
+    ValueArraySetter setter;
+};
+
+struct ValueArrayInfo {
+    std::string typeName;
+    GenericFunction constructor;
+    GenericFunction destructor;
+    std::vector<ValueArrayAccess> accessors;
+
+    ValueArrayInfo (std::string typeName, GenericFunction constructor, GenericFunction destructor) {
+        this->typeName = typeName;
+        this->constructor = constructor;
+        this->destructor = destructor;
+    }
+};
+
+std::map<TYPEID, ValueArrayInfo*>& valueArrayInfoByType() {
+    static std::map<TYPEID, ValueArrayInfo*> m;
+    return m;
+}
+
 
 // Implemented in JavaScript.  Don't call these directly.
 extern "C" {
@@ -343,7 +374,7 @@ void _embind_register_function(
             __android_log_print(ANDROID_LOG_INFO, "bind", "Function called %s", name);
 
             auto smi = reinterpret_cast<StaticMethodInvoker>(invoker);
-            return smi(function, {ctx, getJSClassRefByTypeId(argTypes[0]), typeRegistry}, arguments);
+            return smi(function, {ctx, getJSClassRefByTypeId(argTypes[0]), typeRegistry()}, arguments);
         };
 
         boundFunctions()[f] = fctx;
@@ -361,6 +392,7 @@ void _embind_register_value_array(
         GenericFunction destructor) {
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_value_array %s", name);
+    valueArrayInfoByType()[tupleType] = new ValueArrayInfo(std::string(name), constructor, destructor);
 
 }
 
@@ -377,10 +409,50 @@ void _embind_register_value_array_element(
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_value_array_element");
 
+    ValueArrayGetter gctx = [getter, getterContext, getterReturnType](JSContextRef ctx, NativeObject no, JSValueRef* exception) {
+
+        GetterInvoker gi = reinterpret_cast<GetterInvoker>(getter);
+        return gi(getterContext, no, {ctx, getJSClassRefByTypeId(getterReturnType), typeRegistry()});
+    };
+
+
+    ValueArraySetter sctx = [setter, setterContext, setterArgumentType](JSContextRef ctx, NativeObject no, JSValueRef value, JSValueRef* exception) {
+        SetterInvoker si = reinterpret_cast<SetterInvoker>(setter);
+        return si(setterContext, no, {ctx, getJSClassRefByTypeId(setterArgumentType), typeRegistry()}, value);
+    };
+
+    valueArrayInfoByType()[tupleType]->accessors.push_back({gctx, sctx});
+
 }
 
 void _embind_finalize_value_array(TYPEID tupleType) {
+
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_finalize_value_array ");
+
+    auto info = valueArrayInfoByType()[tupleType];
+
+    JsToNative js2c = [tupleType, info](JSContextRef ctx, JSValueRef val) {
+        DefaultConstructor dc = (DefaultConstructor) info->constructor;
+        NativeObject no = dc();
+        for (int i = 0; i<info->accessors.size(); i++) {
+            JSValueRef v = JSObjectGetPropertyAtIndex(ctx, (JSObjectRef) val, i, nullptr);
+            info->accessors[i].setter(ctx, no, v, nullptr);
+        }
+
+        return no;
+    };
+
+    NativeToJs c2js = [tupleType, info](JSContextRef ctx, NativeObject no) {
+        size_t argCount = info->accessors.size();
+        JSValueRef arguments [argCount];
+        for (int i =0; i < argCount; i++) {
+            arguments[i] = info->accessors[i].getter(ctx, no, nullptr);
+        }
+
+        return JSObjectMakeArray(ctx, argCount, arguments, nullptr);
+    };
+
+    typeRegistry().add(tupleType, info->typeName, js2c, c2js);
 
 }
 
@@ -452,7 +524,7 @@ void _embind_register_class_constructor(
 
         ConstructorInvoker ci = reinterpret_cast<ConstructorInvoker>(invoker);
 
-        return ci(constructor, {ctx, jsClassRef, typeRegistry}, arguments);
+        return ci(constructor, {ctx, jsClassRef, typeRegistry()}, arguments);
     };
 
     classesByTypeId()[classType]->constructorContext = cc;
@@ -486,7 +558,7 @@ void _embind_register_class_function(
         __android_log_print(ANDROID_LOG_INFO, "bind", "Closure called: %s", methodName);
 
         auto mi = reinterpret_cast<GenericMethodInvoker>(invoker);
-        return mi(context, {ctx, getJSClassRefByTypeId(returnType), typeRegistry}, thisObject, arguments);
+        return mi(context, {ctx, getJSClassRefByTypeId(returnType), typeRegistry()}, thisObject, arguments);
     };
 
     auto mName = std::string(methodName);
@@ -518,14 +590,14 @@ void _embind_register_class_property(
         __android_log_print(ANDROID_LOG_INFO, "bind", "Getter called %s::%s", classname, fieldName);
 
         GetterInvoker gi = reinterpret_cast<GetterInvoker>(getter);
-        return gi(getterContext, no, {ctx, getJSClassRefByTypeId(getterReturnType), typeRegistry});
+        return gi(getterContext, no, {ctx, getJSClassRefByTypeId(getterReturnType), typeRegistry()});
     };
 
 
     SetterContext sctx = [setter, setterContext, setterArgumentType](JSContextRef ctx, JSObjectRef object, JSValueRef value, JSValueRef* exception) {
         NativeObject no = JSObjectGetPrivate(object);
         SetterInvoker si = reinterpret_cast<SetterInvoker>(setter);
-        return si(setterContext, no, {ctx, getJSClassRefByTypeId(setterArgumentType), typeRegistry}, value);
+        return si(setterContext, no, {ctx, getJSClassRefByTypeId(setterArgumentType), typeRegistry()}, value);
     };
 
     classesByTypeId()[classType]->fieldAccessorsByName[std::string(fieldName)] = {gctx, sctx};
@@ -548,7 +620,7 @@ void _embind_register_class_class_function(
         __android_log_print(ANDROID_LOG_INFO, "bind", "Static closure called %s", invokerSignature);
 
         auto smi = reinterpret_cast<StaticMethodInvoker>(invoker);
-        return smi(method, {ctx, getJSClassRefByTypeId(argTypes[0]), typeRegistry}, arguments);
+        return smi(method, {ctx, getJSClassRefByTypeId(argTypes[0]), typeRegistry()}, arguments);
     };
 
     auto mName = std::string(methodName);
