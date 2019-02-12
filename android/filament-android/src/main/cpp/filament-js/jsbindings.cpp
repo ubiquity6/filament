@@ -201,13 +201,14 @@ utils::EntityInstance<TransformManager> getTransformInstance(TransformManager* t
     return tm->getInstance(entity);
 }
 
-float dotProduct(math::float3 v1, math::float3* v2) {
-    return v1.x * v2->x + v1.y * v2->y + v1.z + v2->z;
+float dotProduct(math::float3 v1, math::float3 v2) {
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+//    return v1.x * v2->x + v1.y * v2->y + v1.z * v2->z;
 }
 
 math::float3 makeVec3(float x, float y, float z)
 {
-    return {x, y, y};
+    return {x, y, z};
 }
 
 // TEST -------------------------
