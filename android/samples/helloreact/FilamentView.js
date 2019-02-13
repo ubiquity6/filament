@@ -10,6 +10,8 @@ export default class FilamentView extends React.Component {
     engine:Engine;
     view:View;
     scene:Scene;        
+    triangleInstance;
+    transformManager;
 
     componentWillMount() {
         DeviceEventEmitter.addListener('filamentViewReady', (e:Event) => {            
@@ -18,17 +20,21 @@ export default class FilamentView extends React.Component {
             this.view = Filament.getViewFromJavaPtr(e.viewPtr);
             this.engine = Filament.getEngineFromJavaPtr(e.enginePtr);
             this.scene = Filament.getSceneFromJavaPtr(e.scenePtr);            
-
+            this.transformManager = this.engine.getTransformManager();
+            this.triangleInstance = Filament.getTransformInstance(this.transformManager, e.triangleId);
             this.view.setClearColor(0,0,0,1);
-
-            const radians = Math.PI;
-            const transform = mat4.fromRotation(mat4.create(), radians, [0, 0, 1]);
-            const tcm = this.engine.getTransformManager();
-            const inst = Filament.getTransformInstance(tcm, e.triangleId);
-            //tcm.setTransform(inst, transform);
-            //inst.delete();
         });
+
+        DeviceEventEmitter.addListener('filamentViewRender', (e:Event) => { 
+            const radians = Date.now() / 1000;            
+            const transform = mat4.fromRotation(mat4.create(), radians, [0, 0, 1]);
+            this.transformManager.setTransform(this.triangleInstance, transform);
+        });
+
+
     }
+
+    
 
     render() {        
         return <RCTFilamentView style={{flex: 1}}></RCTFilamentView>

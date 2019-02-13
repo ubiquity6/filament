@@ -26,6 +26,7 @@ import java.nio.channels.ReadableByteChannel;
 
 public class FilamentView extends SurfaceView implements Choreographer.FrameCallback {
     private UiHelper mUiHelper;
+    private JavaScriptContextHolder jsContext;
 
      // Filament specific APIs
     private Engine engine;
@@ -48,7 +49,7 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         super(context);
 
         reactContext = (ReactContext)getContext();
-        JavaScriptContextHolder jsContext = reactContext.getJavaScriptContextHolder();
+        jsContext = reactContext.getJavaScriptContextHolder();
 
         synchronized (jsContext) {
             Bind.BindToContext(jsContext.get());
@@ -236,9 +237,11 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         choreographer.postFrameCallback(this);
 
         if (mUiHelper.isReadyToRender()) {
+
             // If beginFrame() returns false you should skip the frame
             // This means you are sending frames too quickly to the GPU
             if (mRenderer.beginFrame(swapChain)) {
+                sendEvent(reactContext, "filamentViewRender", Arguments.createMap());
                 mRenderer.render(view);
                 mRenderer.endFrame();
             }
