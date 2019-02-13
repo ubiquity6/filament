@@ -206,6 +206,15 @@ float dotProduct(math::float3 v1, math::float3* v2) {
     return v1.x * v2->x + v1.y * v2->y + v1.z * v2->z;
 }
 
+struct flatmat3 {
+    math::mat3f m;
+    float& operator[](int i) { return m[i / 3][i % 3]; }
+};
+
+double simpleSum(flatmat3 m) {
+    return m[0] + m[1] + m[2] + m[3] + m[4] + m[5] + m[6] + m[7] + m[8];
+}
+
 math::float3 makeVec3(float x, float y, float z)
 {
     return {x, y, z};
@@ -288,10 +297,7 @@ value_array<flatmat4>("mat4")
     .element(index< 8>()).element(index< 9>()).element(index<10>()).element(index<11>())
     .element(index<12>()).element(index<13>()).element(index<14>()).element(index<15>());
 
-struct flatmat3 {
-    math::mat3f m;
-    float& operator[](int i) { return m[i / 3][i % 3]; }
-};
+
 
 value_array<flatmat3>("mat3")
     .element(index<0>()).element(index<1>()).element(index<2>())
@@ -392,6 +398,7 @@ function("getSceneFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (E
 function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
 function("dotProduct", &dotProduct, allow_raw_pointers());
 function("makeVec3", &makeVec3);
+function("simpleSum", &simpleSum);
 
 // TEST
 

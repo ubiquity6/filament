@@ -9,7 +9,7 @@
 import React, {Component} from 'react';
 import {Platform, StyleSheet, Text, View, Button, Alert} from 'react-native';
 import FilamentView from './FilamentView';
-import {vec3} from 'gl-matrix';
+import {vec3, mat3} from 'gl-matrix';
 
 const instructions = Platform.select({
   ios: 'Press Cmd+R to reload,\n' + 'Cmd+D or shake for dev menu',
@@ -189,6 +189,10 @@ function testBindings()
 
   var v3 = Filament.makeVec3(1, 2, 3);
   assert(v3[0] == 1 && v3[1] == 2 && v3[2] == 3, `Vector should be (1,2,3): ${v3}` );
+
+  var m1 = mat3.fromValues(1,2,3,4,5,6,7,8,9);
+  var s = Filament.simpleSum(m1);
+  assert(s == 45, `Cindition: ${s} == 45`);
 
 }
 
