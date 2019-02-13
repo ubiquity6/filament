@@ -272,6 +272,19 @@ struct JSCField {
 };
 
 
+template<typename ClassType, typename ElementType>
+struct JSCArray {
+
+    static JSValueRef get(int index, ClassType& ptr, InvokerParameters params) {
+        return JSCVal<ElementType>::write(ptr[index], params);
+    }
+
+    static void set(int index, ClassType& ptr, InvokerParameters params, JSValueRef value) {
+        ptr[index] = JSCVal<ElementType>::read(value, params);
+    }
+};
+
+
 template<typename ReturnType, typename ClassType, typename... Args>
 struct JSCFunction {
     static JSValueRef call(ReturnType (**f)(ClassType*, Args...), InvokerParameters params, JSObjectRef thisObj, const JSValueRef jsargs[]) {

@@ -716,7 +716,7 @@ namespace emscripten {
                     getContext(field));
             return *this;
         }
-
+/*
         template<typename Getter, typename Setter>
         value_array& element(Getter getter, Setter setter) {
             using namespace internal;
@@ -738,14 +738,18 @@ namespace emscripten {
                     SP::getContext(setter));
             return *this;
         }
-
+*/
         template<int Index>
         value_array& element(index<Index>) {
             using namespace internal;
             ClassType* null = 0;
             typedef typename std::remove_reference<decltype((*null)[Index])>::type ElementType;
-            auto getter = &internal::get_by_index<ClassType, ElementType>;
-            auto setter = &internal::set_by_index<ClassType, ElementType>;
+
+            auto getter = &JSCArray<ClassType, ElementType>::get;
+            auto setter = &JSCArray<ClassType, ElementType>::set;
+
+            //auto getter = &internal::get_by_index<ClassType, ElementType>;
+            //auto setter = &internal::set_by_index<ClassType, ElementType>;
 
             _embind_register_value_array_element(
                     TypeID<ClassType>::get(),
