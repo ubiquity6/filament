@@ -194,6 +194,10 @@ function testBindings()
   var s = Filament.simpleSum(m1);
   assert(s == 45, `Cindition: ${s} == 45`);
 
+  var m2 = Filament.makeMat33([9,8,7], [6,5,4], [3,2,1]);
+  var s2 = Filament.simpleSum(m2);
+  assert(s2 == 45, `Cindition: ${s2} == 45`);
+
 }
 
 type Props = {};

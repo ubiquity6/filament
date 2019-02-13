@@ -220,6 +220,25 @@ math::float3 makeVec3(float x, float y, float z)
     return {x, y, z};
 }
 
+flatmat3 makeMat33(math::float3 v1, math::float3 v2, math::float3 v3)
+{
+    flatmat3 m;
+    m[0] = v1[0];
+    m[1] = v1[1];
+    m[2] = v1[2];
+
+    m[3] = v2[0];
+    m[4] = v2[1];
+    m[5] = v2[2];
+
+    m[6] = v3[0];
+    m[7] = v3[1];
+    m[8] = v3[2];
+
+    return m;
+
+}
+
 // TEST -------------------------
 
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
@@ -399,6 +418,7 @@ function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
 function("dotProduct", &dotProduct, allow_raw_pointers());
 function("makeVec3", &makeVec3);
 function("simpleSum", &simpleSum);
+function("makeMat33", &makeMat33);
 
 // TEST
 
