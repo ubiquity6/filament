@@ -86,10 +86,11 @@ inline char* JSStrToCStr(JSContextRef ctx, JSValueRef v, JSValueRef *exception) 
     return cStr;
 }
 
-template<typename T>
+template<typename T, typename  T1 = void>
 struct JSCVal {
 
     static T& read(JSValueRef jsValue, InvokerParameters params) {
+
         TYPEID tid = TypeID<T>::get();
 
         T* ptr = (T*) params.typeRegistry.js2native(tid, params.ctx, jsValue);
@@ -111,6 +112,17 @@ struct JSCVal {
         }
 
         return  res;
+    }
+};
+
+template<typename T>
+struct JSCVal<T, typename std::enable_if<std::is_enum<T>::value>::type> {
+    static T read(JSValueRef jsValue, InvokerParameters params) {
+        return (T) JSValueToNumber(params.ctx, jsValue, nullptr);
+    }
+
+    static JSValueRef write(const T& value, InvokerParameters params) {
+        return JSValueMakeNumber(params.ctx, (int) value);
     }
 };
 
@@ -167,8 +179,6 @@ struct JSCVal<int> {
     }
 };
 
-template<>
-struct JSCVal<int&&> : public JSCVal<int> {};
 
 template<>
 struct JSCVal<double> {
@@ -182,15 +192,9 @@ struct JSCVal<double> {
     }
 };
 
-template<>
-struct JSCVal<double&&> : public JSCVal<double> {};
-
-template<>
-struct JSCVal<float&&> : public JSCVal<double> {};
 
 template<>
 struct JSCVal<float> : public JSCVal<double> {};
-
 
 template<>
 struct JSCVal<char *> {
