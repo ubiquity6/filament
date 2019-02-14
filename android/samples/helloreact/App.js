@@ -203,16 +203,13 @@ function testBindings()
   var attr1 = Filament.getAttr(2);
   assert(attr1 == 2, `${attr1} should be 2`);
 
-  
-/*
-  VertexAttribute.POSITION
-  AttributeType.FLOAT2
-            VertexAttribute.COLOR
-            AttributeType.UBYTE4
-            ertexAttribute.COLOR
-*/
 
-
+  assert(VertexAttribute.POSITION == 0);  
+  assert(Filament.VertexBuffer$AttributeType.FLOAT2 == 19);  
+  assert(VertexAttribute.COLOR == 2);  
+  assert(Filament.VertexBuffer$AttributeType.UBYTE4 == 7);  
+  assert(Filament.RenderableManager$PrimitiveType.TRIANGLES == 4);  
+  assert(Filament.IndexBuffer$IndexType.USHORT == 12);  
 
 }
 
