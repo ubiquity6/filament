@@ -179,7 +179,7 @@ function testBindings()
   var sum = Filament.Counter.sumAll(1, 2.0, kv1, kv2);
   assert(sum == 8.0);
 
-  console.log('Testing value arrays');
+  console.log('Testing value arrays...');
   var v1 = vec3.fromValues(1,2,3);
   var v2 = vec3.fromValues(4,5,6);
   var dotP1 = vec3.dot(v1, v2);
@@ -192,11 +192,27 @@ function testBindings()
 
   var m1 = mat3.fromValues(1,2,3,4,5,6,7,8,9);
   var s = Filament.simpleSum(m1);
-  assert(s == 45, `Cindition: ${s} == 45`);
+  assert(s == 45, `Condition: ${s} == 45`);
 
   var m2 = Filament.makeMat33([9,8,7], [6,5,4], [3,2,1]);
   var s2 = Filament.simpleSum(m2);
-  assert(s2 == 45, `Cindition: ${s2} == 45`);
+  assert(s2 == 45, `Condition: ${s2} == 45`);
+
+  console.log('Testing enum bindings...');
+
+  var attr1 = Filament.getAttr(2);
+  assert(attr1 == 2, `${attr1} should be 2`);
+
+  
+/*
+  VertexAttribute.POSITION
+  AttributeType.FLOAT2
+            VertexAttribute.COLOR
+            AttributeType.UBYTE4
+            ertexAttribute.COLOR
+*/
+
+
 
 }
 

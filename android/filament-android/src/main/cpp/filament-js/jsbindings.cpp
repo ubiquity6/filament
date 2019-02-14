@@ -239,6 +239,10 @@ flatmat3 makeMat33(math::float3 v1, math::float3 v2, math::float3 v3)
 
 }
 
+int getAttr(VertexAttribute attr) {
+    return attr;
+}
+
 // TEST -------------------------
 
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
@@ -419,6 +423,7 @@ function("dotProduct", &dotProduct, allow_raw_pointers());
 function("makeVec3", &makeVec3);
 function("simpleSum", &simpleSum);
 function("makeMat33", &makeMat33);
+function("getAttr", &getAttr);
 
 // TEST
 
