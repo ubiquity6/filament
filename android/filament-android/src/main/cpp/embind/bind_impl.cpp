@@ -97,6 +97,11 @@ std::map<TYPEID, ClassDescription*>& classesByTypeId() {
     return m;
 }
 
+std::map<TYPEID, JSObjectRef >& enumByTypeId() {
+    static std::map<TYPEID, JSObjectRef> m;
+    return m;
+}
+
 std::map<JSValueRef , ClassDescription*>& classesByPrototype() {
     static std::map<JSValueRef, ClassDescription*> m;
     return m;
@@ -657,6 +662,20 @@ void _embind_register_enum(
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_enum %s", name);
 
+    lazy_bind().push_back([name, enumType](JSGlobalContextRef ctx, JSObjectRef ns) {
+
+        auto container = JSObjectMake(ctx, nullptr, nullptr);
+        auto name_str = std::string(name);
+        auto targetObject = name_str.find('$') != std::string::npos
+                ? ns
+                : JSContextGetGlobalObject(ctx);
+
+        EXJSObjectSetValueWithUTF8CStringName(ctx, targetObject, name, container);
+
+        enumByTypeId()[enumType] = container;
+
+    });
+
 }
 
 void _embind_register_smart_ptr(
@@ -671,7 +690,11 @@ void _embind_register_smart_ptr(
         const char *shareSignature,
         GenericFunction share,
         const char *destructorSignature,
-        GenericFunction destructor) {}
+        GenericFunction destructor) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_smart_ptr %s", pointerName);
+
+}
 
 void _embind_register_enum_value(
         TYPEID enumType,
@@ -679,6 +702,12 @@ void _embind_register_enum_value(
         GenericEnumValue value) {
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_enum_value %s", valueName);
+
+    lazy_bind().push_back([valueName, value, enumType](JSGlobalContextRef ctx, JSObjectRef ns) {
+        auto container = enumByTypeId()[enumType];
+        auto jsValue = JSValueMakeNumber(ctx, value);
+        EXJSObjectSetValueWithUTF8CStringName(ctx, container, valueName, jsValue);
+    });
 
 }
 
