@@ -5,6 +5,7 @@ import android.content.res.AssetFileDescriptor;
 import android.support.annotation.Nullable;
 import android.view.Choreographer;
 import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import com.facebook.react.bridge.Arguments;
@@ -25,12 +26,12 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
 public class FilamentView extends SurfaceView implements Choreographer.FrameCallback {
-    private UiHelper mUiHelper;
+    private UiHelper uiHelper;
     private JavaScriptContextHolder jsContext;
 
      // Filament specific APIs
     private Engine engine;
-    private Renderer mRenderer;
+    private Renderer renderer;
     private View view; // com.google.android.filament.View, not android.view.View
     private SwapChain swapChain;
     private Camera camera;
@@ -67,16 +68,16 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
 
     void setupFilament()
     {
-        mUiHelper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
+        uiHelper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
 
         // Attach the SurfaceView to the helper, you could do the same with a TextureView
-        mUiHelper.attachTo(this);
+        uiHelper.attachTo(this);
 
         // Set a rendering callback that we will use to invoke Filament
-        mUiHelper.setRenderCallback(new UiHelper.RendererCallback() {
+        uiHelper.setRenderCallback(new UiHelper.RendererCallback() {
             public void onNativeWindowChanged(Surface surface) {
                 if (swapChain != null) engine.destroySwapChain(swapChain);
-                swapChain = engine.createSwapChain(surface, mUiHelper.getSwapChainFlags());
+                swapChain = engine.createSwapChain(surface, uiHelper.getSwapChainFlags());
                 WritableMap params = Arguments.createMap();
 
                 params.putString("viewPtr", Long.toString(view.getNativeObject()));
@@ -110,8 +111,28 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
             }
         });
 
+        final SurfaceHolder.Callback callback = new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                destroy();
+            }
+        };
+
+
+        getHolder().addCallback(callback);
+
         engine = Engine.create();
-        mRenderer = engine.createRenderer();
+        renderer = engine.createRenderer();
         camera = engine.createCamera();
         scene = engine.createScene();
         view = engine.createView();
@@ -236,14 +257,14 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
 
         choreographer.postFrameCallback(this);
 
-        if (mUiHelper.isReadyToRender()) {
+        if (uiHelper.isReadyToRender()) {
 
             // If beginFrame() returns false you should skip the frame
             // This means you are sending frames too quickly to the GPU
-            if (mRenderer.beginFrame(swapChain)) {
+            if (renderer.beginFrame(swapChain)) {
                 sendEvent(reactContext, "filamentViewRender", Arguments.createMap());
-                mRenderer.render(view);
-                mRenderer.endFrame();
+                renderer.render(view);
+                renderer.endFrame();
             }
         }
     }
@@ -264,6 +285,37 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         } catch (Exception e) {
             return  null;
         }
+    }
+
+
+
+    private void destroy() {
+
+        // Always detach the surface before destroying the engine
+        uiHelper.detach();
+
+        // This ensures that all the commands we've sent to Filament have
+        // been processed before we attempt to destroy anything
+        Fence.waitAndDestroy(engine.createFence(Fence.Type.SOFT), Fence.Mode.FLUSH);
+
+        // Cleanup all resources
+        engine.destroyEntity(renderable);
+        engine.destroyRenderer(renderer);
+        engine.destroyVertexBuffer(vertexBuffer);
+        engine.destroyIndexBuffer(indexBuffer);
+        engine.destroyMaterial(material);
+        engine.destroyView(view);
+        engine.destroyScene(scene);
+        engine.destroyCamera(camera);
+
+        // Engine.destroyEntity() destroys Filament related resources only
+        // (components), not the entity itself
+        EntityManager entityManager = EntityManager.get();
+        entityManager.destroy(renderable);
+
+        // Destroying the engine will free up any resource you may have forgotten
+        // to destroy, but it's recommended to do the cleanup properly
+        engine.destroy();
     }
 
 }
