@@ -9,6 +9,7 @@
 #include <emscripten/wire.h>
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSObjectRef.h>
+#include <JavaScriptCore/JSTypedArray.h>
 #include <JavaScriptCore/JSValueRef.h>
 #include <JavaScriptCore/JSStringRef.h>
 
@@ -69,6 +70,11 @@ template<typename T>
 inline T* valueToPtr(T const &value)
 {
     return new T(value);
+}
+
+inline void typedArrayDealllocator(void* bytes, void* deallocatorContext)
+{
+    __android_log_print(ANDROID_LOG_INFO, "bind", "Deallocator called");
 }
 
 struct InvokerParameters {
@@ -161,11 +167,23 @@ struct JSCVal<T&> : public JSCVal<T> {};
 template<typename T>
 struct JSCVal<const T&> : public JSCVal<T> {};
 
+/*
 template<typename T>
 struct JSCVal<T&&> : public JSCVal<T> {};
 
 template<typename T>
 struct JSCVal<const T&&> : public JSCVal<T> {};
+*/
+template<typename T>
+struct JSCVal<T&&> {
+    static T read(JSValueRef jsValue, InvokerParameters params) {
+        return  JSCVal<T>::read(jsValue, params);
+    }
+
+    static JSValueRef write(const T& value, InvokerParameters params) {
+        return JSCVal<T>::write(value, params);
+    }
+};
 
 template<>
 struct JSCVal<int> {
@@ -205,6 +223,27 @@ struct JSCVal<char *> {
     static JSValueRef write(char* value, InvokerParameters params) {
         auto jss = JSStringCreateWithUTF8CString(value);
         return JSValueMakeString(params.ctx, jss);
+    }
+};
+
+
+
+template<>
+struct JSCVal<float *> {
+    static float* read(JSValueRef jsValue, InvokerParameters params) {
+
+        auto isArr = JSValueIsArray(params.ctx, jsValue);
+        auto type = JSValueGetType(params.ctx, jsValue);
+        auto artype = JSValueGetTypedArrayType(params.ctx, jsValue, nullptr);
+
+
+        return (float*) JSObjectGetTypedArrayBytesPtr(params.ctx, (JSObjectRef) jsValue, nullptr);
+    }
+
+    static JSValueRef write(float* value, InvokerParameters params) {
+
+        return JSObjectMakeTypedArrayWithBytesNoCopy(params.ctx, kJSTypedArrayTypeFloat32Array, value, 16, &typedArrayDealllocator,
+                                                     nullptr, nullptr);
     }
 };
 

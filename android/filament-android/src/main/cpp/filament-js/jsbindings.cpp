@@ -243,6 +243,12 @@ int getAttr(VertexAttribute attr) {
     return attr;
 }
 
+double sum4floats(float values[]) {
+    return 0;
+    //return  values[0] + values[1] + values[2] + values[3];
+
+}
+
 // TEST -------------------------
 
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
@@ -424,6 +430,7 @@ function("makeVec3", &makeVec3);
 function("simpleSum", &simpleSum);
 function("makeMat33", &makeMat33);
 function("getAttr", &getAttr);
+function("sum4floats", &sum4floats, allow_raw_pointers());
 
 // TEST
 
@@ -572,11 +579,7 @@ class_<View>("View")
     .function("setCamera", &View::setCamera, allow_raw_pointers())
     .function("getViewport", &View::getViewport)
     .function("setViewport", &View::setViewport)
-    //.function("setClearColor", &View::setClearColor)
-        .function("setClearColor", (void (*) (View*, double, double, double, double))[]
-        (View* view, double r, double g, double b, double a) {
-            view->setClearColor({r,g,b,a});
-        }, allow_raw_pointers())
+    .function("setClearColor", &View::setClearColor)
     .function("setDepthPrepass", &View::setDepthPrepass)
     .function("setPostProcessingEnabled", &View::setPostProcessingEnabled)
     .function("setAntiAliasing", &View::setAntiAliasing)
@@ -803,10 +806,10 @@ class_<MaterialInstance>("MaterialInstance")
         self->setParameter(name.c_str(), type, value); }), allow_raw_pointers())
     .function("setPolygonOffset", &MaterialInstance::setPolygonOffset);
 
-/*
+
 class_<TextureSampler>("TextureSampler")
     .constructor<driver::SamplerMinFilter, driver::SamplerMagFilter, driver::SamplerWrapMode>();
-*/
+
 /// Texture ::core class:: 2D image or cubemap that can be sampled by the GPU, possibly mipmapped.
 class_<Texture>("Texture")
     .class_function("Builder", (TexBuilder (*)()) [] { return TexBuilder(); })
@@ -912,7 +915,7 @@ class_<utils::EntityManager>("EntityManager")
 /// BufferDescriptor ::class:: Low level buffer wrapper.
 /// Clients should use the [Buffer] helper function to contruct BufferDescriptor objects.
 class_<BufferDescriptor>("driver$BufferDescriptor")
-//    .constructor<emscripten::val>()
+    .constructor<emscripten::val>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &BufferDescriptor::getBytes);
@@ -920,8 +923,8 @@ class_<BufferDescriptor>("driver$BufferDescriptor")
 /// PixelBufferDescriptor ::class:: Low level pixel buffer wrapper.
 /// Clients should use the [PixelBuffer] helper function to contruct PixelBufferDescriptor objects.
 class_<PixelBufferDescriptor>("driver$PixelBufferDescriptor")
-    //.constructor<emscripten::val, driver::PixelDataFormat, driver::PixelDataType>()
-    //.constructor<emscripten::val, driver::CompressedPixelDataType, int, bool>()
+    .constructor<emscripten::val, driver::PixelDataFormat, driver::PixelDataType>()
+    .constructor<emscripten::val, driver::CompressedPixelDataType, int, bool>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &PixelBufferDescriptor::getBytes);
