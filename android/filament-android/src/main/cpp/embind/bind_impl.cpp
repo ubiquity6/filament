@@ -39,6 +39,7 @@ TypeRegistry& typeRegistry() {
 };
 
 typedef void* NativeObject;
+typedef void (*Destructor)(NativeObject);
 
 typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)> FunctionContext;
 typedef std::function<JSValueRef(JSContextRef ctx, JSObjectRef object, JSValueRef* exception)> GetterContext;
@@ -71,10 +72,12 @@ struct ClassDescription {
     std::vector<ClassFieldAccessWithJSName> fieldAccessors;
 
     ConstructorContext constructorContext;
+    Destructor destructor;
     JSClassRef jsClassRef;
 
-    ClassDescription(std::string className) {
+    ClassDescription(std::string className, Destructor destructor) {
         name = className;
+        this->destructor = destructor;
     }
 
     ClassFieldAccess findFieldAccessor(JSStringRef propName) {
@@ -166,6 +169,17 @@ JSValueRef GenericObjectCall (JSContextRef ctx, JSObjectRef function, JSObjectRe
     return functionContext(ctx, function, thisObject, argumentCount, arguments, exception);
 }
 
+JSValueRef DestructorCall (JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+
+    __android_log_print(ANDROID_LOG_INFO, "bind", "Destructor called %u", argumentCount);
+
+    NativeObject no  = JSObjectGetPrivate(thisObject);
+    auto prototype = JSObjectGetPrototype(ctx, thisObject);
+    classesByPrototype()[prototype]->destructor(no);
+
+    return (JSValueRef) nullptr;
+}
+
 
 
 void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
@@ -179,6 +193,7 @@ void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
 
         staticFunctions.push_back({it.first.c_str(), GenericObjectCall,  kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete});
     }
+    staticFunctions.push_back({"delete", DestructorCall, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete});
     staticFunctions.push_back({ 0, 0, 0 });
 
     std::vector<JSStaticValue> staticValues;
@@ -513,7 +528,7 @@ void _embind_register_class(
 
 
     __android_log_print(ANDROID_LOG_INFO, "bind", "_embind_register_class %s", className);
-    ClassDescription* cd = new ClassDescription(std::string(className));
+    ClassDescription* cd = new ClassDescription(std::string(className), (Destructor) destructor);
     classesByTypeId()[classType] = cd;
     classesByTypeId()[pointerType] = cd;
     classesByTypeId()[constPointerType] = cd;
