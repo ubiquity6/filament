@@ -211,17 +211,7 @@ function testBindings()
   assert(Filament.RenderableManager$PrimitiveType.TRIANGLES == 4);  
   assert(Filament.IndexBuffer$IndexType.USHORT == 12);  
 
-  console.log('Testing typed arrays bindings...');
 
-  var f32 = new Float32Array([0,1,2,3]);
-  console.log(`arr value ${f32}`);
-  console.log(`arr value ${f32[1]}`);
-  console.log(`arr value ${f32[2]}`);
-  console.log(`arr value ${f32[3]}`);
-
-
-  var sum = Filament.sum4floats(f32);
-  assert(sum == 6);
 }
 
 type Props = {};
