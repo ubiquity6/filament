@@ -128,22 +128,21 @@ using SkyBuilder = Skybox::Builder;
 // semantics and void* doesn't make sense to JavaScript anyway. This little wrapper class is exposed
 // to JavaScript as "driver$BufferDescriptor", but clients will normally use our "Filament.Buffer"
 // helper function (implemented in utilities.js)
+
+
 struct BufferDescriptor {
     BufferDescriptor() {}
     // This form is used when JavaScript sends a buffer into WASM.
-    BufferDescriptor(val arrdata) {
-        auto byteLength = arrdata["byteLength"].as<uint32_t>();
-        this->bd.reset(new driver::BufferDescriptor(malloc(byteLength), byteLength,
+    BufferDescriptor(TypedArray arrdata) {
+        this->bd.reset(new driver::BufferDescriptor(arrdata.data, arrdata.byteLength,
                 [](void* buffer, size_t size, void* user) { free(buffer); }));
     }
     // This form is used when WASM needs to return a buffer to JavaScript.
     BufferDescriptor(uint8_t* data, uint32_t size) {
         this->bd.reset(new driver::BufferDescriptor(data, size));
     }
-    val getBytes() {
-        unsigned char *byteBuffer = (unsigned char*) bd->buffer;
-        size_t bufferLength = bd->size;
-        return val(typed_memory_view(bufferLength, byteBuffer));
+    TypedArray getBytes() {
+        return TypedArray((uint8_t *) bd->buffer, bd->size);
     }
     // In order to match its JavaScript counterpart, the Buffer wrapper needs to use reference
     // counting, and the easiest way to achieve that is with shared_ptr.
@@ -243,11 +242,7 @@ int getAttr(VertexAttribute attr) {
     return attr;
 }
 
-double sum4floats(float values[]) {
-    return 0;
-    //return  values[0] + values[1] + values[2] + values[3];
 
-}
 
 // TEST -------------------------
 
@@ -430,7 +425,6 @@ function("makeVec3", &makeVec3);
 function("simpleSum", &simpleSum);
 function("makeMat33", &makeMat33);
 function("getAttr", &getAttr);
-function("sum4floats", &sum4floats, allow_raw_pointers());
 
 // TEST
 
@@ -758,8 +752,8 @@ class_<VertexBuffer>("VertexBuffer")
     .class_function("Builder", (VertexBuilder (*)()) [] { return VertexBuilder(); })
     .function("_setBufferAt", EMBIND_LAMBDA(void, (VertexBuffer* self,
             Engine* engine, uint8_t bufferIndex, BufferDescriptor vbd), {
-        self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd));
-    }), allow_raw_pointers());
+                self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd));
+            }), allow_raw_pointers());
 
 class_<IndexBuilder>("IndexBuffer$Builder")
     .function("_build", EMBIND_LAMBDA(IndexBuffer*, (IndexBuilder* builder, Engine* engine), {
@@ -915,7 +909,7 @@ class_<utils::EntityManager>("EntityManager")
 /// BufferDescriptor ::class:: Low level buffer wrapper.
 /// Clients should use the [Buffer] helper function to contruct BufferDescriptor objects.
 class_<BufferDescriptor>("driver$BufferDescriptor")
-    .constructor<emscripten::val>()
+    .constructor<TypedArray>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &BufferDescriptor::getBytes);

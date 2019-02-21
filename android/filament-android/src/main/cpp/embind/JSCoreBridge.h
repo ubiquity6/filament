@@ -12,6 +12,8 @@
 #include <JavaScriptCore/JSTypedArray.h>
 #include <JavaScriptCore/JSValueRef.h>
 #include <JavaScriptCore/JSStringRef.h>
+#include "EXJSConvertTypedArray.h"
+#include "JSTypedArray.h"
 
 using namespace emscripten::internal;
 
@@ -197,6 +199,9 @@ struct JSCVal<int> {
     }
 };
 
+template<>
+struct JSCVal<unsigned char> : public JSCVal<int> {};
+
 
 template<>
 struct JSCVal<double> {
@@ -227,23 +232,24 @@ struct JSCVal<char *> {
 };
 
 
-
 template<>
-struct JSCVal<float *> {
-    static float* read(JSValueRef jsValue, InvokerParameters params) {
+struct JSCVal<TypedArray> {
+    static TypedArray read(JSValueRef jsValue, InvokerParameters params) {
 
-        auto isArr = JSValueIsArray(params.ctx, jsValue);
-        auto type = JSValueGetType(params.ctx, jsValue);
-        auto artype = JSValueGetTypedArrayType(params.ctx, jsValue, nullptr);
+        //todo: fix memory management when we upgrade to react 59
 
+        size_t byteLength;
+        auto buffer = (uint8_t *) JSObjectGetTypedArrayDataMalloc(params.ctx, (JSObjectRef) jsValue, &byteLength);
 
-        return (float*) JSObjectGetTypedArrayBytesPtr(params.ctx, (JSObjectRef) jsValue, nullptr);
+        return TypedArray(buffer, byteLength);
     }
 
-    static JSValueRef write(float* value, InvokerParameters params) {
+    static JSValueRef write(TypedArray& value, InvokerParameters params) {
 
-        return JSObjectMakeTypedArrayWithBytesNoCopy(params.ctx, kJSTypedArrayTypeFloat32Array, value, 16, &typedArrayDealllocator,
-                                                     nullptr, nullptr);
+        /*return JSObjectMakeTypedArrayWithBytesNoCopy(params.ctx, kJSTypedArrayTypeFloat32Array, value, 16, &typedArrayDealllocator,
+                                                     nullptr, nullptr);*/
+        //todo: fix memory management when we upgrade to react 59
+        return JSObjectMakeTypedArrayWithData(params.ctx, kJSTypedArrayTypeFloat32Array, value.data, value.byteLength);
     }
 };
 

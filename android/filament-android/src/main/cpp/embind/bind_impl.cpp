@@ -19,6 +19,7 @@ using namespace emscripten::internal;
 #include "JSCoreBridge.h"
 
 #include "EXJSUtils.h"
+#include "EXJSConvertTypedArray.h"
 
 
 // create a list of lamdas to lazy-bind to the javascript context once it becomes available.
@@ -107,14 +108,17 @@ std::map<JSValueRef , ClassDescription*>& classesByPrototype() {
     return m;
 }
 
+std::map<JSValueRef , ClassDescription*>& classesByConstructor() {
+    static std::map<JSValueRef, ClassDescription*> m;
+    return m;
+}
+
 JSClassRef getJSClassRefByTypeId(TYPEID typeId)
 {
     return classesByTypeId().count(typeId) > 0
           ? classesByTypeId()[typeId]->jsClassRef
           : nullptr;
 }
-
-
 
 typedef void* (*DefaultConstructor)();
 typedef JSValueRef (*GetterInvoker)(GenericFunction, NativeObject, InvokerParameters);
@@ -123,13 +127,13 @@ typedef JSObjectRef (*ConstructorInvoker)(GenericFunction, InvokerParameters, co
 typedef JSValueRef (*GenericMethodInvoker)(GenericFunction, InvokerParameters, JSObjectRef, const JSValueRef args[]);
 typedef JSObjectRef (*StaticMethodInvoker)(GenericFunction, InvokerParameters, const JSValueRef jsargs[]);
 
-JSObjectRef GenericConstructorCall(JSContextRef ctx, JSObjectRef jsObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+JSObjectRef GenericConstructorCall(JSContextRef ctx, JSObjectRef jsConstructor, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
 {
     __android_log_print(ANDROID_LOG_INFO, "bind", "GenericConstructorCall %u", argumentCount);
-    auto prototype = JSObjectGetPrototype(ctx, jsObject);
-    ClassDescription* cd = classesByPrototype()[prototype];
 
-    return cd->constructorContext(ctx, cd->jsClassRef, jsObject, argumentCount, arguments, exception);
+    ClassDescription* cd = classesByConstructor()[jsConstructor];
+
+    return cd->constructorContext(ctx, cd->jsClassRef, jsConstructor, argumentCount, arguments, exception);
 }
 
 JSValueRef GenericGetter(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception)
@@ -189,32 +193,34 @@ void JSRegisterClass(TYPEID classType, JSContextRef jsCtx, JSObjectRef ns)
 
     JSClassDefinition definition = kJSClassDefinitionEmpty;
     definition.className = className;
-    definition.callAsConstructor = GenericConstructorCall;
     definition.staticFunctions = staticFunctions.data();
     definition.staticValues = staticValues.data();
 
     cd->jsClassRef = JSClassCreate(&definition);
 
+
+    auto jsConstructor = JSObjectMakeConstructor(jsCtx, cd->jsClassRef, GenericConstructorCall);
     auto jsClassObject = JSObjectMake(jsCtx, cd->jsClassRef, nullptr);
+    auto prototype = JSObjectGetPrototype(jsCtx, jsClassObject);
 
     for (auto const& it : cd->methodsByName) {
         JSObjectRef p = (JSObjectRef) JSObjectGetProperty(jsCtx, jsClassObject, JSStringCreateWithUTF8CString(it.first.c_str()), nullptr);
         boundFunctions()[p] = it.second;
     }
 
-    auto prototype = JSObjectGetPrototype(jsCtx, jsClassObject);
-    classesByPrototype()[prototype] = cd;
-
     auto jsStringClassName = JSStringCreateWithUTF8CString(className);
 
-    JSObjectSetProperty(jsCtx, ns, jsStringClassName, jsClassObject, kJSPropertyAttributeNone, nullptr);
+    JSObjectSetProperty(jsCtx, ns, jsStringClassName, jsConstructor, kJSPropertyAttributeNone, nullptr);
 
     for (auto const& it : cd->staticMethodsByName) {
         auto fName = JSStringCreateWithUTF8CString(it.first.c_str());
         auto f = JSObjectMakeFunctionWithCallback(jsCtx, fName, GenericObjectCall);
         boundFunctions()[f] = it.second;
-        JSObjectSetProperty(jsCtx, jsClassObject, fName, f, kJSPropertyAttributeNone, nullptr);
+        JSObjectSetProperty(jsCtx, jsConstructor, fName, f, kJSPropertyAttributeNone, nullptr);
     }
+
+    classesByPrototype()[prototype] = cd;
+    classesByConstructor()[jsConstructor] = cd;
 }
 
 #define JNI_METHOD(return_type, method_name)                                   \
@@ -233,6 +239,8 @@ JNI_METHOD(void, BindToContext)
     auto jsGlobal = JSContextGetGlobalObject(jsCtx);
     auto jsNamespace = JSObjectMake(jsCtx, nullptr, nullptr);
     EXJSObjectSetValueWithUTF8CStringName(jsCtx, jsGlobal, "Filament", jsNamespace);
+
+    JSContextPrepareTypedArrayAPI(jsCtx);
 
     for(auto k = lazy_bind().begin(); k< lazy_bind().end(); ++k) {
         (*k)(jsCtx, jsNamespace);
@@ -567,9 +575,6 @@ void _embind_register_class_function(
     };
 
     auto mName = std::string(methodName);
-    if(mName[0] == '_') {
-        mName.erase(0,1);
-    }
 
     classesByTypeId()[classType]->methodsByName[mName] = fctx;
 }
