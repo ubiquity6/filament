@@ -252,7 +252,7 @@ public class Engine {
         Fence.waitAndDestroy(createFence(Fence.Type.HARD), Fence.Mode.FLUSH);
     }
 
-    long getNativeObject() {
+    public long getNativeObject() {
         if (mNativeObject == 0) {
             throw new IllegalStateException("Calling method on destroyed Engine");
         }

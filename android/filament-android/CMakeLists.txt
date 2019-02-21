@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.4.1)
 
 set(FILAMENT_DIR ${FILAMENT_DIST_DIR})
-set(EMSDK /Users/ncoderre/extern/emsdk)
+set(EMSDK /Users/aleksander/experiments/emsdk)
 set(EXTERNAL ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 
 add_library(filament STATIC IMPORTED)
@@ -85,6 +85,7 @@ add_library(filament-jni SHARED
         src/main/cpp/embind/val_impl.cpp
         src/main/cpp/embind/bind.cpp
         src/main/cpp/embind/EXJSUtils.cpp
+        src/main/cpp/embind/EXJSConvertTypedArray.c
 )
 
 target_link_libraries(filament-jni
@@ -98,7 +99,7 @@ target_link_libraries(filament-jni
       android
       jnigraphics
         image
-        /Users/ncoderre/extern/filament/android/samples/helloreact/android/app/build/intermediates/transforms/mergeJniLibs/debug/0/lib/armeabi-v7a/libjsc.so
+        /Users/aleksander/experiments/filament_u6/filament/android/samples/helloreact/android/app/build/intermediates/transforms/mergeJniLibs/debug/0/lib/armeabi-v7a/libjsc.so
 )
 
 option(FILAMENT_SUPPORTS_VULKAN "Enables Vulkan on Android" OFF)

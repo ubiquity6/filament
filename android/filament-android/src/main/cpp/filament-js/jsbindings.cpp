@@ -51,6 +51,7 @@
 #include <filament/VertexBuffer.h>
 #include <filament/View.h>
 
+
 #include <image/KtxBundle.h>
 #include <image/KtxUtility.h>
 
@@ -58,11 +59,12 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <math/mat4.h>
+#include <stdlib.h>
 
+#include <utils/Entity.h>
 #include <utils/EntityManager.h>
 
-#include <emscripten.h>
-#include <emscripten/bind.h>
+#include "../embind/bind.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
@@ -126,22 +128,21 @@ using SkyBuilder = Skybox::Builder;
 // semantics and void* doesn't make sense to JavaScript anyway. This little wrapper class is exposed
 // to JavaScript as "driver$BufferDescriptor", but clients will normally use our "Filament.Buffer"
 // helper function (implemented in utilities.js)
+
+
 struct BufferDescriptor {
     BufferDescriptor() {}
     // This form is used when JavaScript sends a buffer into WASM.
-    BufferDescriptor(val arrdata) {
-        auto byteLength = arrdata["byteLength"].as<uint32_t>();
-        this->bd.reset(new driver::BufferDescriptor(malloc(byteLength), byteLength,
+    BufferDescriptor(TypedArray arrdata) {
+        this->bd.reset(new driver::BufferDescriptor(arrdata.data, arrdata.byteLength,
                 [](void* buffer, size_t size, void* user) { free(buffer); }));
     }
     // This form is used when WASM needs to return a buffer to JavaScript.
     BufferDescriptor(uint8_t* data, uint32_t size) {
         this->bd.reset(new driver::BufferDescriptor(data, size));
     }
-    val getBytes() {
-        unsigned char *byteBuffer = (unsigned char*) bd->buffer;
-        size_t bufferLength = bd->size;
-        return val(typed_memory_view(bufferLength, byteBuffer));
+    TypedArray getBytes() {
+        return TypedArray((uint8_t *) bd->buffer, bd->size);
     }
     // In order to match its JavaScript counterpart, the Buffer wrapper needs to use reference
     // counting, and the easiest way to achieve that is with shared_ptr.
@@ -186,6 +187,65 @@ struct DecodedPng {
     BufferDescriptor decoded_data;
 };
 
+// TEST ------------------------
+
+//todo: this is evil AF, perhaps there's a better way
+void* fromJavaPtr(char * address)
+{
+    return (void*) atoll(address);
+}
+
+utils::EntityInstance<TransformManager> getTransformInstance(TransformManager* tm, int entityId) {
+    utils::Entity& entity = *reinterpret_cast<utils::Entity*>(&entityId);
+    return tm->getInstance(entity);
+}
+
+float dotProduct(math::float3 v1, math::float3* v2) {
+    //return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+    return v1.x * v2->x + v1.y * v2->y + v1.z * v2->z;
+}
+
+struct flatmat3 {
+    math::mat3f m;
+    float& operator[](int i) { return m[i / 3][i % 3]; }
+};
+
+double simpleSum(flatmat3 m) {
+    return m[0] + m[1] + m[2] + m[3] + m[4] + m[5] + m[6] + m[7] + m[8];
+}
+
+math::float3 makeVec3(float x, float y, float z)
+{
+    return {x, y, z};
+}
+
+flatmat3 makeMat33(math::float3 v1, math::float3 v2, math::float3 v3)
+{
+    flatmat3 m;
+    m[0] = v1[0];
+    m[1] = v1[1];
+    m[2] = v1[2];
+
+    m[3] = v2[0];
+    m[4] = v2[1];
+    m[5] = v2[2];
+
+    m[6] = v3[0];
+    m[7] = v3[1];
+    m[8] = v3[2];
+
+    return m;
+
+}
+
+int getAttr(VertexAttribute attr) {
+    return attr;
+}
+
+
+
+// TEST -------------------------
+
 // JavaScript clients should call [createTextureFromPng] rather than calling this directly.
 DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
     DecodedPng result;
@@ -206,6 +266,8 @@ DecodedPng decodePng(BufferDescriptor encoded_data, int requested_ncomp) {
 }
 
 } // anonymous namespace
+
+
 
 EMSCRIPTEN_BINDINGS(jsbindings) {
 
@@ -259,23 +321,124 @@ value_array<flatmat4>("mat4")
     .element(index< 8>()).element(index< 9>()).element(index<10>()).element(index<11>())
     .element(index<12>()).element(index<13>()).element(index<14>()).element(index<15>());
 
-struct flatmat3 {
-    math::mat3f m;
-    float& operator[](int i) { return m[i / 3][i % 3]; }
-};
+
 
 value_array<flatmat3>("mat3")
     .element(index<0>()).element(index<1>()).element(index<2>())
     .element(index<3>()).element(index<4>()).element(index<5>())
     .element(index<6>()).element(index<7>()).element(index<8>());
 
+
+// TEST
+
+struct KeyValue {
+    int key;
+    double value;
+};
+
+class Counter {
+    public:
+    int counter = 0;
+    double someDouble = 0.0;
+    KeyValue kv = {1, 2.0};
+
+    Counter(int init) {
+        counter = init;
+    }
+
+    int add(int value) {
+        counter += value;
+        return counter;
+    }
+
+    int plus(Counter* c) {
+        return counter + c->counter;
+    }
+
+    int minus(Counter* c) {
+        return counter - c->counter;
+    }
+
+    void increase() {
+        counter++;
+    }
+
+    static double sumAll(int i, double d, const KeyValue& crkv, const KeyValue* pkv)
+    {
+        auto k1 = crkv.key;
+        auto k2 = pkv->key;
+        double res = i + d + crkv.key + pkv->key;
+        return res;
+    }
+
+    double squareCounter() {
+        return counter * this->counter;
+    }
+
+    Counter* clone() {
+        return new Counter(counter);
+    }
+
+    static Counter* create(int value)
+    {
+        return new Counter(value);
+    }
+};
+
+    class_<KeyValue>("KeyValue")
+            .property("key", &KeyValue::key)
+            .property("value", &KeyValue::value);
+
+
+    class_<Counter>("Counter")
+            .constructor<int>()
+            .function("increase", &Counter::increase)
+            .function("squareCounter", &Counter::squareCounter)
+            .function("add", &Counter::add)
+            .function("clone", &Counter::clone, allow_raw_pointers())
+            .function("clone2", (Counter * (*)(Counter *))[](Counter * thisCounter) {
+                    return thisCounter->clone();
+                }, allow_raw_pointers())
+            //.function("plus", &Counter::plus, allow_raw_pointers())
+                    .function("plus", (int (*)(Counter*, Counter*)) []
+                                  (Counter* thisCounter, Counter* another) { return thisCounter->plus(another); },
+                          allow_raw_pointers())
+            .function("minus", (int (*)(Counter*, Counter*)) []
+                              (Counter* thisCounter, Counter* another) { return thisCounter->minus(another); },
+                      allow_raw_pointers())
+            .property("counter", &Counter::counter)
+            .property("kv", &Counter::kv)
+            .property("someDouble", &Counter::someDouble)
+            .class_function("sumAll", &Counter::sumAll, allow_raw_pointers())
+            .class_function("create2", (Counter (*)(int))[](int initial){return Counter(initial);})
+            .class_function("create", &Counter::create, allow_raw_pointers());
+
+
+
+
+function("getViewFromJavaPtr", (View* (*) (char* ))[] (char * ptr) {return (View*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getEngineFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getSceneFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
+function("dotProduct", &dotProduct, allow_raw_pointers());
+function("makeVec3", &makeVec3);
+function("simpleSum", &simpleSum);
+function("makeMat33", &makeMat33);
+function("getAttr", &getAttr);
+
+// TEST
+
 // CORE FILAMENT CLASSES
 // ---------------------
 
 /// Engine ::core class:: Central manager and resource owner.
+
+
 class_<Engine>("Engine")
+
     .class_function("_create", (Engine* (*)()) [] { return Engine::create(); },
             allow_raw_pointers())
+
     /// destroy ::static method:: Destroys an engine instance and cleans up resources.
     /// engine ::argument:: the instance to destroy
     .class_function("destroy", (void (*)(Engine*)) []
@@ -468,7 +631,7 @@ class_<RenderBuilder>("RenderableManager$Builder")
 
 /// RenderableManager ::core class:: Allows access to properties of drawable objects.
 class_<RenderableManager>("RenderableManager")
-    .class_function("Builder", (RenderBuilder (*)(int)) [] (int n) { return RenderBuilder(n); })
+    //.class_function("Builder", (RenderBuilder (*)(int)) [] (int n) { return RenderBuilder(n); })
 
     /// getInstance ::method:: Gets an instance of the renderable component for an entity.
     /// entity ::argument:: an [Entity]
@@ -574,20 +737,23 @@ class_<VertexBuilder>("VertexBuffer$Builder")
             uint8_t byteStride), {
         return &builder->attribute(attr, bufferIndex, attrType, byteOffset, byteStride); })
     .BUILDER_FUNCTION("vertexCount", VertexBuilder, (VertexBuilder* builder, int count), {
-        return &builder->vertexCount(count); })
+        auto res = &builder->vertexCount(count);
+        return  res;
+    })
     .BUILDER_FUNCTION("normalized", VertexBuilder, (VertexBuilder* builder,
             VertexAttribute attrib), {
         return &builder->normalized(attrib); })
     .BUILDER_FUNCTION("bufferCount", VertexBuilder, (VertexBuilder* builder, int count), {
-        return &builder->bufferCount(count); });
+        return &builder->bufferCount(count);
+    });
 
 /// VertexBuffer ::core class:: Bundle of buffers and associated vertex attributes.
 class_<VertexBuffer>("VertexBuffer")
     .class_function("Builder", (VertexBuilder (*)()) [] { return VertexBuilder(); })
     .function("_setBufferAt", EMBIND_LAMBDA(void, (VertexBuffer* self,
             Engine* engine, uint8_t bufferIndex, BufferDescriptor vbd), {
-        self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd));
-    }), allow_raw_pointers());
+                self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd));
+            }), allow_raw_pointers());
 
 class_<IndexBuilder>("IndexBuffer$Builder")
     .function("_build", EMBIND_LAMBDA(IndexBuffer*, (IndexBuilder* builder, Engine* engine), {
@@ -633,6 +799,7 @@ class_<MaterialInstance>("MaterialInstance")
             (MaterialInstance* self, std::string name, RgbType type, math::float3 value), {
         self->setParameter(name.c_str(), type, value); }), allow_raw_pointers())
     .function("setPolygonOffset", &MaterialInstance::setPolygonOffset);
+
 
 class_<TextureSampler>("TextureSampler")
     .constructor<driver::SamplerMinFilter, driver::SamplerMagFilter, driver::SamplerWrapMode>();
@@ -742,7 +909,7 @@ class_<utils::EntityManager>("EntityManager")
 /// BufferDescriptor ::class:: Low level buffer wrapper.
 /// Clients should use the [Buffer] helper function to contruct BufferDescriptor objects.
 class_<BufferDescriptor>("driver$BufferDescriptor")
-    .constructor<emscripten::val>()
+    .constructor<TypedArray>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
     .function("getBytes", &BufferDescriptor::getBytes);
@@ -871,7 +1038,7 @@ class_<KtxInfo>("KtxInfo")
     .property("pixelHeight", &KtxInfo::pixelHeight)
     .property("pixelDepth", &KtxInfo::pixelDepth);
 
-register_vector<std::string>("RegistryKeys");
+//register_vector<std::string>("RegistryKeys");
 
 /*
 class_<MeshReader::MaterialRegistry>("MeshReader$MaterialRegistry")
@@ -933,6 +1100,7 @@ class_<MeshReader::Mesh>("MeshReader$Mesh")
 // Clients should call [createTextureFromPng] rather than using decodePng and DecodedPng directly.
 
 */
+
 
 function("decodePng", &decodePng);
 class_<DecodedPng>("DecodedPng")
