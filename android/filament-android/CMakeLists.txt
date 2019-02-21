@@ -85,6 +85,7 @@ add_library(filament-jni SHARED
         src/main/cpp/embind/val_impl.cpp
         src/main/cpp/embind/bind.cpp
         src/main/cpp/embind/EXJSUtils.cpp
+        src/main/cpp/embind/EXJSConvertTypedArray.c
 )
 
 target_link_libraries(filament-jni

@@ -46,7 +46,7 @@ void EXJSObjectSetFunctionWithUTF8CStringName(JSContextRef ctx,
     JSStringRelease(jsName);
 }
 
-
+/*
 #ifndef EXJS_USE_JSC_TYPEDARRAY_HEADER
 
 JS_EXPORT JSTypedArrayType JSValueGetTypedArrayType(JSContextRef ctx, JSValueRef value, JSValueRef* exception) {
@@ -91,3 +91,4 @@ JS_EXPORT JSObjectRef JSObjectMakeTypedArray(JSContextRef ctx, JSTypedArrayType 
 }
 
 #endif
+ */
