@@ -136,6 +136,17 @@ struct JSCVal<T, typename std::enable_if<std::is_enum<T>::value>::type> {
 
 
 template<typename T>
+struct JSCVal<T, typename std::enable_if<std::is_arithmetic<T>::value>::type> {
+    static T read(JSValueRef jsValue, InvokerParameters params) {
+        return (T) JSValueToNumber(params.ctx, jsValue, nullptr);
+    }
+
+    static JSValueRef write(const T& value, InvokerParameters params) {
+        return JSValueMakeNumber(params.ctx, (int) value);
+    }
+};
+
+template<typename T>
 struct JSCVal<T*> {
 
     static T* read(JSValueRef jsValue, InvokerParameters params) {
@@ -169,13 +180,6 @@ struct JSCVal<T&> : public JSCVal<T> {};
 template<typename T>
 struct JSCVal<const T&> : public JSCVal<T> {};
 
-/*
-template<typename T>
-struct JSCVal<T&&> : public JSCVal<T> {};
-
-template<typename T>
-struct JSCVal<const T&&> : public JSCVal<T> {};
-*/
 template<typename T>
 struct JSCVal<T&&> {
     static T read(JSValueRef jsValue, InvokerParameters params) {
@@ -186,38 +190,6 @@ struct JSCVal<T&&> {
         return JSCVal<T>::write(value, params);
     }
 };
-
-template<>
-struct JSCVal<int> {
-    static int read(JSValueRef jsValue, InvokerParameters params) {
-        double result = JSValueToNumber(params.ctx, jsValue, nullptr);
-        return (int) result;
-    }
-
-    static JSValueRef write(const int value, InvokerParameters params) {
-        return JSValueMakeNumber(params.ctx, value);
-    }
-};
-
-template<>
-struct JSCVal<unsigned char> : public JSCVal<int> {};
-
-
-template<>
-struct JSCVal<double> {
-    static double read(JSValueRef jsValue, InvokerParameters params) {
-        double result = JSValueToNumber(params.ctx, jsValue, nullptr);
-        return result;
-    }
-
-    static JSValueRef write(const double value, InvokerParameters params) {
-        return JSValueMakeNumber(params.ctx, value);
-    }
-};
-
-
-template<>
-struct JSCVal<float> : public JSCVal<double> {};
 
 template<>
 struct JSCVal<char *> {
