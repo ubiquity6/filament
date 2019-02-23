@@ -72,11 +72,11 @@ export default class FilamentView extends React.Component {
 
             this.materialInstance = this.material.getDefaultInstance();
                 
-            var b = Filament.RenderableManager.Builder(1);
-                b.boundingBox([[ -1, -1, -1 ], [ 1, 1, 1 ]]);
-                b.geometry(0, Filament.RenderableManager$PrimitiveType.TRIANGLES, this.vb, this.ib);                
-                b.material(0, this.materialInstance);                
-                b.build(this.engine, this.triangle);
+            Filament.RenderableManager.Builder(1)
+                .boundingBox([[ -1, -1, -1 ], [ 1, 1, 1 ]])
+                .geometry(0, Filament.RenderableManager$PrimitiveType.TRIANGLES, this.vb, this.ib)
+                .material(0, this.materialInstance)
+                .build(this.engine, this.triangle);
 
         });
 

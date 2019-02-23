@@ -418,8 +418,10 @@ class Counter {
 
 function("getViewFromJavaPtr", (View* (*) (char* ))[] (char * ptr) {return (View*) fromJavaPtr(ptr);} , allow_raw_pointers());
 function("getEngineFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
-function("getSceneFromJavaPtr", (Engine* (*) (char* ))[] (char * ptr) {return (Engine*) fromJavaPtr(ptr);} , allow_raw_pointers());
-function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
+function("getSceneFromJavaPtr", (Scene* (*) (char* ))[] (char * ptr) {return (Scene*) fromJavaPtr(ptr);} , allow_raw_pointers());
+//function("getMaterialInstanceFromJavaPtr", (MaterialInstance* (*) (char* ))[] (char * ptr) {return (MaterialInstance*) fromJavaPtr(ptr);} , allow_raw_pointers());
+function("getMaterialFromJavaPtr", (Material* (*) (char* ))[] (char * ptr) {return (Material*) fromJavaPtr(ptr);} , allow_raw_pointers());
+//function("getTransformInstance", &getTransformInstance, allow_raw_pointers());
 function("dotProduct", &dotProduct, allow_raw_pointers());
 function("makeVec3", &makeVec3);
 function("simpleSum", &simpleSum);
@@ -631,6 +633,8 @@ class_<RenderBuilder>("RenderableManager$Builder")
 
 /// RenderableManager ::core class:: Allows access to properties of drawable objects.
 class_<RenderableManager>("RenderableManager")
+        //todo: figure out how to make original binding work
+        .class_function("Builder", (RenderBuilder* (*)(int)) [] (int n) { return new RenderBuilder(n); }, allow_raw_pointers())
     //.class_function("Builder", (RenderBuilder (*)(int)) [] (int n) { return RenderBuilder(n); })
 
     /// getInstance ::method:: Gets an instance of the renderable component for an entity.
