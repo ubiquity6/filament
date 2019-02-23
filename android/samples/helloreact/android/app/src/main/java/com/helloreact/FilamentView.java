@@ -38,8 +38,11 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
     private Scene scene;
 
     private Material material;
+    private MaterialInstance materialInstance;
     private VertexBuffer vertexBuffer;
     private IndexBuffer indexBuffer;
+
+
 
     private int renderable;
     private Choreographer choreographer;
@@ -52,18 +55,20 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         reactContext = (ReactContext)getContext();
         jsContext = reactContext.getJavaScriptContextHolder();
 
-        synchronized (jsContext) {
-            Bind.BindToContext(jsContext.get());
-        }
+        reactContext.runOnJSQueueThread(new Runnable() {
+            @Override
+            public void run() {
+                JavaScriptContextHolder jsContext = reactContext.getJavaScriptContextHolder();
+                synchronized (jsContext) {
+                    Bind.BindToContext(jsContext.get());
+                }
+            }
+        });
 
         setupFilament();
         choreographer = Choreographer.getInstance();
         choreographer.postFrameCallback(this);
 
-        /*reactContext.getJSModule(RCTEventEmitter.class).receiveEvent(
-                getId(),
-                "topChange",
-                event);*/
     }
 
     void setupFilament()
@@ -83,7 +88,9 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
                 params.putString("viewPtr", Long.toString(view.getNativeObject()));
                 params.putString("enginePtr", Long.toString(engine.getNativeObject()));
                 params.putString("scenePtr", Long.toString(scene.getNativeObject()));
-                params.putInt("triangleId", renderable);
+                //params.putString("materialInstancePtr", Long.toString(materialInstance.getNativeObject()));
+                params.putString("materialPtr", Long.toString(material.getNativeObject()));
+                //params.putInt("triangleId", renderable);
                 sendEvent(reactContext, "filamentViewReady", params);
             }
 
@@ -140,11 +147,15 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         view.setClearColor(0.035f, 0.035f, 0.035f, 1.0f);
         view.setCamera(camera);
         view.setScene(scene);
-        setupScene();
+
+        material = loadMaterial();
+        //materialInstance = material.getDefaultInstance();
+
+        //setupScene();
     }
 
     private void setupScene() {
-        loadMaterial();
+        material = loadMaterial();
         createMesh();
 
         // To create a renderable we first create a generic entity
@@ -167,10 +178,10 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         //startAnimation()
     }
 
-    private void loadMaterial() {
+    private Material loadMaterial() {
         ByteBuffer buff = readUncompressedAsset("materials/baked_color.filamat");
 
-        material = new Material.Builder().payload(buff, buff.remaining()).build(engine);
+        return new Material.Builder().payload(buff, buff.remaining()).build(engine);
     }
 
     private void putVertex(ByteBuffer b, double x, double y, double z, int color)
@@ -241,6 +252,7 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
     private void sendEvent(ReactContext reactContext,
                            String eventName,
                            @Nullable WritableMap params) {
+
         reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                 .emit(eventName, params);
@@ -299,10 +311,10 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
         Fence.waitAndDestroy(engine.createFence(Fence.Type.SOFT), Fence.Mode.FLUSH);
 
         // Cleanup all resources
-        engine.destroyEntity(renderable);
+        //engine.destroyEntity(renderable);
         engine.destroyRenderer(renderer);
-        engine.destroyVertexBuffer(vertexBuffer);
-        engine.destroyIndexBuffer(indexBuffer);
+        //engine.destroyVertexBuffer(vertexBuffer);
+        //engine.destroyIndexBuffer(indexBuffer);
         engine.destroyMaterial(material);
         engine.destroyView(view);
         engine.destroyScene(scene);
@@ -310,8 +322,8 @@ public class FilamentView extends SurfaceView implements Choreographer.FrameCall
 
         // Engine.destroyEntity() destroys Filament related resources only
         // (components), not the entity itself
-        EntityManager entityManager = EntityManager.get();
-        entityManager.destroy(renderable);
+        //EntityManager entityManager = EntityManager.get();
+        //entityManager.destroy(renderable);
 
         // Destroying the engine will free up any resource you may have forgotten
         // to destroy, but it's recommended to do the cleanup properly
