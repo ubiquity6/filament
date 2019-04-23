@@ -695,7 +695,11 @@ class_<TransformManager>("TransformManager")
     /// ::retval:: a transform component that can be passed to `setTransform`.
     .function("getInstance", &TransformManager::getInstance)
 
-    .function("create", &TransformManager::create)
+    .function("create", EMBIND_LAMBDA(void,
+            (TransformManager* self, utils::Entity entity), {
+        self->create(entity);
+    }), allow_raw_pointers())
+
     .function("destroy", &TransformManager::destroy)
     .function("setParent", &TransformManager::setParent)
     .function("getParent", &TransformManager::getParent)
