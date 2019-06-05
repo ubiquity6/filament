@@ -69,7 +69,7 @@ public:
     static constexpr uint64_t PRIORITY_MASK                 = 0x001C000000000000llu;
     static constexpr int PRIORITY_SHIFT                     = 50;
 
-    static constexpr uint64_t BLENDING_MASK                 = 0x00E0000000000000llu;
+    static constexpr uint64_t BLENDING_MASK                 = 0x0020000000000000llu;
     static constexpr int BLENDING_SHIFT                     = 53;
 
     static constexpr uint64_t PASS_MASK                     = 0xFF00000000000000llu;
@@ -84,50 +84,65 @@ public:
     };
 
     enum CommandTypeFlags : uint8_t {
-        COLOR  = 0x1, // generate the color pass
-        DEPTH  = 0x2, // generate the depth pass
-        SHADOW = 0x4, // generate the shadow-map pass
-        DEPTH_AND_COLOR = DEPTH | COLOR, // generate both depth and color pass
+        COLOR = 0x1,    // generate the color pass only (e.g. no depth-prepass)
+        DEPTH = 0x2,    // generate the depth pass only ( e.g. shadowmap)
+        COLOR_AND_DEPTH = COLOR | DEPTH,
+
+
+        // shadow-casters are rendered in the depth buffer, regardless of blending (or alpha masking)
+        DEPTH_CONTAINS_SHADOW_CASTERS = 0x4,
+        // alpha-blended objects are not rendered in the depth buffer
+        DEPTH_FILTER_TRANSLUCENT_OBJECTS = 0x8,
+        // alpha-tested objects are not rendered in the depth buffer
+        DEPTH_FILTER_ALPHA_MASKED_OBJECTS = 0x10,
+
+
+        // generate commands for color with depth pre-pass -- in this case, we want to put
+        // objects that use alpha-testing or blending in the depth prepass.
+        COLOR_WITH_DEPTH_PREPASS = DEPTH | COLOR | DEPTH_FILTER_TRANSLUCENT_OBJECTS | DEPTH_FILTER_ALPHA_MASKED_OBJECTS,
+        // generate commands for shadow map
+        SHADOW = DEPTH | DEPTH_CONTAINS_SHADOW_CASTERS
     };
+
+
 
     // Command key encoding
     // --------------------
     //
     // a     = alpha masking
-    // bbb   = blending
     // ppp   = priority
     // t     = two-pass transparency ordering
     // 0     = reserved, must be zero
     //
     // DEPTH command
-    // |    8   | 3 | 3 | 2|       16       |               32               |
-    // +--------+---+---+--+----------------+--------------------------------+
-    // |00000000|000|ppp|00|0000000000000000|          distanceBits          |
-    // +--------+---+---+-------------------+--------------------------------+
-    // | correctness    |     optimizations (truncation allowed)             |
+    // |    8   | 2|1| 3 | 2|       16       |               32               |
+    // +--------+--+-+---+--+----------------+--------------------------------+
+    // |00000000|00|0|ppp|00|0000000000000000|          distanceBits          |
+    // +--------+--+-+---+-------------------+--------------------------------+
+    // | correctness     |     optimizations (truncation allowed)             |
     //
     //
     // COLOR command (with depth prepass)
-    // |    8   | 3 | 3 | 2|       16       |               32               |
-    // +--------+---+---+--+----------------+--------------------------------+
-    // |00000001|00a|ppp|00|0000000000000000|          material-id           |
-    // +--------+---+---+--+----------------+--------------------------------+
-    // | correctness    |        optimizations (truncation allowed)          |
+    // |    8   | 2|1| 3 | 2|       16       |               32               |
+    // +--------+--+-+---+--+----------------+--------------------------------+
+    // |00000001|00|a|ppp|00|0000000000000000|          material-id           |
+    // +--------+--+-+---+--+----------------+--------------------------------+
+    // | correctness     |        optimizations (truncation allowed)          |
     //
     //
     // COLOR command (without depth prepass)
-    // |    8   | 3 | 3 | 2|  6   |   10     |               32               |
-    // +--------+---+---+--+------+----------+--------------------------------+
-    // |00000001|00a|ppp|00|000000| Z-bucket |          material-id           |
-    // +--------+---+---+--+------+----------+--------------------------------+
-    // | correctness    |      optimizations (truncation allowed)             |
+    // |    8   | 2|1| 3 | 2|  6   |   10     |               32               |
+    // +--------+--+-+---+--+------+----------+--------------------------------+
+    // |00000001|00|a|ppp|00|000000| Z-bucket |          material-id           |
+    // +--------+--+-+---+--+------+----------+--------------------------------+
+    // | correctness     |      optimizations (truncation allowed)             |
     //
     //
     // BLENDED command
-    // |    8   | 3 | 3 | 2|              32                |         15    |1|
-    // +--------+---+---+--+--------------------------------+---------------+-+
-    // |00000010|bbb|ppp|00|         ~distanceBits          |   blendOrder  |t|
-    // +--------+---+---+--+--------------------------------+---------------+-+
+    // |    8   | 2|1| 3 | 2|              32                |         15    |1|
+    // +--------+--+-+---+--+--------------------------------+---------------+-+
+    // |00000010|00|0|ppp|00|         ~distanceBits          |   blendOrder  |t|
+    // +--------+--+-+---+--+--------------------------------+---------------+-+
     // | correctness                                                          |
     //
     //
@@ -207,9 +222,9 @@ public:
     void setGeometry(FScene& scene, utils::Range<uint32_t> vr) noexcept;
     void setCamera(const CameraInfo& camera) noexcept;
     void setRenderFlags(RenderFlags flags) noexcept;
-    void generateSortedCommands(CommandTypeFlags commandType) noexcept;
+    Command const* appendSortedCommands(CommandTypeFlags const commandTypeFlags) noexcept;
     void execute(const char* name,
-            backend::Handle <backend::HwRenderTarget> renderTarget,
+            backend::Handle<backend::HwRenderTarget> renderTarget,
             backend::RenderPassParams params,
             Command const* first, Command const* last) const noexcept;
 

@@ -283,6 +283,8 @@ static bool processBlending(MaterialBuilder& builder, const JsonishValue& value)
         { "opaque", MaterialBuilder::BlendingMode::OPAQUE },
         { "transparent", MaterialBuilder::BlendingMode::TRANSPARENT },
         { "fade", MaterialBuilder::BlendingMode::FADE },
+        { "multiply", MaterialBuilder::BlendingMode::MULTIPLY },
+        { "screen", MaterialBuilder::BlendingMode::SCREEN },
     };
     auto jsonString = value.toJsonString();
     if (!isStringValidEnum(strToEnum, jsonString->getString())) {
@@ -298,6 +300,8 @@ static bool processPostLightingBlending(MaterialBuilder& builder, const JsonishV
         { "add", MaterialBuilder::BlendingMode::ADD },
         { "opaque", MaterialBuilder::BlendingMode::OPAQUE },
         { "transparent", MaterialBuilder::BlendingMode::TRANSPARENT },
+        { "multiply", MaterialBuilder::BlendingMode::MULTIPLY },
+        { "screen", MaterialBuilder::BlendingMode::SCREEN },
     };
     auto jsonString = value.toJsonString();
     if (!isStringValidEnum(strToEnum, jsonString->getString())) {
@@ -385,13 +389,18 @@ static bool processShadowMultiplier(MaterialBuilder& builder, const JsonishValue
     return true;
 }
 
-static bool processCurvatureToRoughness(MaterialBuilder& builder, const JsonishValue& value) {
-    builder.curvatureToRoughness(value.toJsonBool()->getBool());
+static bool processSpecularAntiAliasing(MaterialBuilder& builder, const JsonishValue& value) {
+    builder.specularAntiAliasing(value.toJsonBool()->getBool());
     return true;
 }
 
-static bool processLimitOverInterpolation(MaterialBuilder& builder, const JsonishValue& value) {
-    builder.limitOverInterpolation(value.toJsonBool()->getBool());
+static bool processSpecularAntiAliasingVariance(MaterialBuilder& builder, const JsonishValue& value) {
+    builder.specularAntiAliasingVariance(value.toJsonNumber()->getFloat());
+    return true;
+}
+
+static bool processSpecularAntiAliasingThreshold(MaterialBuilder& builder, const JsonishValue& value) {
+    builder.specularAntiAliasingThreshold(value.toJsonNumber()->getFloat());
     return true;
 }
 
@@ -405,12 +414,22 @@ static bool processFlipUV(MaterialBuilder& builder, const JsonishValue& value) {
     return true;
 }
 
+static bool processMultiBounceAO(MaterialBuilder& builder, const JsonishValue& value) {
+    builder.multiBounceAmbientOcclusion(value.toJsonBool()->getBool());
+    return true;
+}
+
+static bool processSpecularAmbientOcclusion(MaterialBuilder& builder, const JsonishValue& value) {
+    builder.specularAmbientOcclusion(value.toJsonBool()->getBool());
+    return true;
+}
+
 static bool processShading(MaterialBuilder& builder, const JsonishValue& value) {
     static const std::unordered_map<std::string, MaterialBuilder::Shading> strToEnum {
-        { "cloth", MaterialBuilder::Shading::CLOTH },
-        { "lit", MaterialBuilder::Shading::LIT },
-        { "subsurface", MaterialBuilder::Shading::SUBSURFACE },
-        { "unlit", MaterialBuilder::Shading::UNLIT },
+        { "cloth",              MaterialBuilder::Shading::CLOTH },
+        { "lit",                MaterialBuilder::Shading::LIT },
+        { "subsurface",         MaterialBuilder::Shading::SUBSURFACE },
+        { "unlit",              MaterialBuilder::Shading::UNLIT },
         { "specularGlossiness", MaterialBuilder::Shading::SPECULAR_GLOSSINESS },
     };
     auto jsonString = value.toJsonString();
@@ -461,28 +480,31 @@ static bool processVariantFilter(MaterialBuilder& builder, const JsonishValue& v
 
 ParametersProcessor::ParametersProcessor() {
     using Type = JsonishValue::Type;
-    mParameters["name"]                   = { &processName, Type::STRING };
-    mParameters["interpolation"]          = { &processInterpolation, Type::STRING };
-    mParameters["parameters"]             = { &processParameters, Type::ARRAY };
-    mParameters["variables"]              = { &processVariables, Type::ARRAY };
-    mParameters["requires"]               = { &processRequires, Type::ARRAY };
-    mParameters["blending"]               = { &processBlending, Type::STRING };
-    mParameters["postLightingBlending"]   = { &processPostLightingBlending, Type::STRING };
-    mParameters["vertexDomain"]           = { &processVertexDomain, Type::STRING };
-    mParameters["culling"]                = { &processCulling, Type::STRING };
-    mParameters["colorWrite"]             = { &processColorWrite, Type::BOOL };
-    mParameters["depthWrite"]             = { &processDepthWrite, Type::BOOL };
-    mParameters["depthCulling"]           = { &processDepthCull, Type::BOOL };
-    mParameters["doubleSided"]            = { &processDoubleSided, Type::BOOL };
-    mParameters["transparency"]           = { &processTransparencyMode, Type::STRING };
-    mParameters["maskThreshold"]          = { &processMaskThreshold, Type::NUMBER };
-    mParameters["shadowMultiplier"]       = { &processShadowMultiplier, Type::BOOL };
-    mParameters["shadingModel"]           = { &processShading, Type::STRING };
-    mParameters["variantFilter"]          = { &processVariantFilter, Type::ARRAY };
-    mParameters["curvatureToRoughness"]   = { &processCurvatureToRoughness, Type::BOOL };
-    mParameters["limitOverInterpolation"] = { &processLimitOverInterpolation, Type::BOOL };
-    mParameters["clearCoatIorChange"]     = { &processClearCoatIorChange, Type::BOOL };
-    mParameters["flipUV"]                 = { &processFlipUV, Type::BOOL };
+    mParameters["name"]                          = { &processName, Type::STRING };
+    mParameters["interpolation"]                 = { &processInterpolation, Type::STRING };
+    mParameters["parameters"]                    = { &processParameters, Type::ARRAY };
+    mParameters["variables"]                     = { &processVariables, Type::ARRAY };
+    mParameters["requires"]                      = { &processRequires, Type::ARRAY };
+    mParameters["blending"]                      = { &processBlending, Type::STRING };
+    mParameters["postLightingBlending"]          = { &processPostLightingBlending, Type::STRING };
+    mParameters["vertexDomain"]                  = { &processVertexDomain, Type::STRING };
+    mParameters["culling"]                       = { &processCulling, Type::STRING };
+    mParameters["colorWrite"]                    = { &processColorWrite, Type::BOOL };
+    mParameters["depthWrite"]                    = { &processDepthWrite, Type::BOOL };
+    mParameters["depthCulling"]                  = { &processDepthCull, Type::BOOL };
+    mParameters["doubleSided"]                   = { &processDoubleSided, Type::BOOL };
+    mParameters["transparency"]                  = { &processTransparencyMode, Type::STRING };
+    mParameters["maskThreshold"]                 = { &processMaskThreshold, Type::NUMBER };
+    mParameters["shadowMultiplier"]              = { &processShadowMultiplier, Type::BOOL };
+    mParameters["shadingModel"]                  = { &processShading, Type::STRING };
+    mParameters["variantFilter"]                 = { &processVariantFilter, Type::ARRAY };
+    mParameters["specularAntiAliasing"]          = { &processSpecularAntiAliasing, Type::BOOL };
+    mParameters["specularAntiAliasingVariance"]  = { &processSpecularAntiAliasingVariance, Type::NUMBER };
+    mParameters["specularAntiAliasingThreshold"] = { &processSpecularAntiAliasingThreshold, Type::NUMBER };
+    mParameters["clearCoatIorChange"]            = { &processClearCoatIorChange, Type::BOOL };
+    mParameters["flipUV"]                        = { &processFlipUV, Type::BOOL };
+    mParameters["multiBounceAmbientOcclusion"]   = { &processMultiBounceAO, Type::BOOL };
+    mParameters["specularAmbientOcclusion"]      = { &processSpecularAmbientOcclusion, Type::BOOL };
 }
 
 bool ParametersProcessor::process(MaterialBuilder& builder, const JsonishObject& jsonObject) {

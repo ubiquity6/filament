@@ -361,6 +361,9 @@ public:
             float dzf =  1.0f;
         } shadowmap;
         struct {
+            bool enabled = true;
+        } ssao;
+        struct {
             bool camera_at_origin = true;
         } view;
     } debug;

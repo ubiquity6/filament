@@ -63,9 +63,9 @@ public:
         uint32_t height = 1;    // height of resource in pixel
         uint32_t depth = 1;     // # of images for 3D textures
         uint8_t levels = 1;     // # of levels for textures
+        uint8_t samples = 1;
         backend::SamplerType type = backend::SamplerType::SAMPLER_2D;     // texture target type
         backend::TextureFormat format = backend::TextureFormat::RGBA8;    // resource internal format
-        bool relaxed = false; // dimensions can be slightly adjusted
     };
 
     bool isValid() const noexcept { return index != UNINITIALIZED; }
@@ -87,13 +87,45 @@ public:
 namespace FrameGraphRenderTarget {
 
 struct Attachments {
-    enum { COLOR, DEPTH };
+    enum Access : uint8_t {
+        READ = 0x1,
+        WRITE = 0x2,
+        READ_WRITE = READ | WRITE
+    };
+    struct AttachmentInfo {
+        // auto convert from FrameGraphResource
+        AttachmentInfo(FrameGraphResource handle) noexcept : mHandle(handle) {} // NOLINT
+
+        // auto convert to FrameGraphResource
+        operator FrameGraphResource() const noexcept { return mHandle; } // NOLINT
+
+        AttachmentInfo() noexcept = default;
+
+        AttachmentInfo(FrameGraphResource handle, Access access) noexcept
+                : mHandle(handle), mAccess(access) {}
+
+        AttachmentInfo(FrameGraphResource handle, uint8_t level, Access access) noexcept
+                : mHandle(handle), mLevel(level), mAccess(access) {}
+
+        bool isValid() const noexcept { return mHandle.isValid(); }
+
+        FrameGraphResource getHandle() const noexcept { return mHandle; }
+        uint8_t getLevel() const noexcept { return mLevel; }
+        Access getAccess() const noexcept { return mAccess; }
+
+    private:
+        FrameGraphResource mHandle{};
+        uint8_t mLevel = 0;
+        Access mAccess = Access::READ_WRITE;
+    };
+
+    enum { COLOR = 0, DEPTH = 1 };
     static constexpr size_t COUNT = 2;
     union {
-        std::array<FrameGraphResource, COUNT> textures = {};
+        std::array<AttachmentInfo, COUNT> textures = {};
         struct {
-            FrameGraphResource color;
-            FrameGraphResource depth;
+            AttachmentInfo color;
+            AttachmentInfo depth;
         };
     };
 };
@@ -102,6 +134,18 @@ struct Descriptor {
     Attachments attachments;
     Viewport viewport;
     uint8_t samples = 1;            // # of samples
+};
+
+struct AttachmentResult {
+    enum { COLOR = 0, DEPTH = 1 };
+    static constexpr size_t COUNT = 2;
+    union {
+        std::array<FrameGraphResource, COUNT> textures = {};
+        struct {
+            FrameGraphResource color;
+            FrameGraphResource depth;
+        };
+    };
 };
 
 } // namespace FrameGraphRenderTarget

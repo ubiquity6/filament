@@ -25,18 +25,16 @@
 
 #include <utils/Path.h>
 
-#include <tsl/robin_map.h>
-
 namespace gltfio {
 
 namespace details {
-    class FFilamentAsset;
+    struct FFilamentAsset;
     class AssetPool;
 }
 
 struct ResourceConfiguration {
     class filament::Engine* engine;
-    utils::Path basePath;
+    utils::Path gltfPath;
     bool normalizeSkinningWeights;
     bool recomputeBoundingBoxes;
 };
@@ -78,18 +76,18 @@ public:
      * Adds raw resource data into a cache for platforms that do not have filesystem or network
      * access.
      */
-    void addResourceData(std::string url, BufferDescriptor&& buffer) {
-        mResourceCache.emplace(url, std::move(buffer));
-    }
+    void addResourceData(std::string url, BufferDescriptor&& buffer);
 
 private:
     bool createTextures(details::FFilamentAsset* asset) const;
-    void computeTangents(details::FFilamentAsset* asset) const;
+    void computeTangents(details::FFilamentAsset* asset, int tangentsSlot) const;
     void normalizeSkinningWeights(details::FFilamentAsset* asset) const;
     void updateBoundingBoxes(details::FFilamentAsset* asset) const;
     details::AssetPool* mPool;
     const ResourceConfiguration mConfig;
-    tsl::robin_map<std::string, BufferDescriptor> mResourceCache;
+
+    struct Impl;
+    Impl* pImpl;
 };
 
 } // namespace gltfio

@@ -11,13 +11,14 @@ endif()
 # Sources and headers
 # ==================================================================================================
 set(SHADERS
+        src/ambient_occlusion.fs
         src/brdf.fs
         src/common_getters.fs
         src/common_graphics.fs
         src/common_lighting.fs
         src/common_material.fs
-        src/common_material.vs
         src/common_math.fs
+        src/common_shading.fs
         src/common_types.fs
         src/conversion_functions.fs
         src/depth_main.fs
@@ -33,6 +34,8 @@ set(SHADERS
         src/light_punctual.fs
         src/main.fs
         src/main.vs
+        src/material_inputs.fs
+        src/material_inputs.vs
         src/post_process.fs
         src/post_process.vs
         src/shading_lit.fs

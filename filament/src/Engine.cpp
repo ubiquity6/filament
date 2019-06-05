@@ -215,15 +215,15 @@ void FEngine::init() {
             .intensity(1.0f)
             .build(*this));
 
-    mPostProcessManager.init(*this);
-    mLightManager.init(*this);
-    mDFG.reset(new DFG(*this));
-
     // Always initialize the default material, most materials' depth shaders fallback on it.
     mDefaultMaterial = upcast(
             FMaterial::DefaultMaterialBuilder()
                     .package(MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE)
                     .build(*const_cast<FEngine*>(this)));
+
+    mPostProcessManager.init(*this);
+    mLightManager.init(*this);
+    mDFG.reset(new DFG(*this));
 }
 
 FEngine::~FEngine() noexcept {
@@ -320,15 +320,16 @@ void FEngine::prepare() {
     // prepare() is called once per Renderer frame. Ideally we would upload the content of
     // UBOs that are visible only. It's not such a big issue because the actual upload() is
     // skipped is the UBO hasn't changed. Still we could have a lot of these.
+    FEngine::DriverApi& driver = getDriverApi();
     for (auto& materialInstanceList : mMaterialInstances) {
         for (auto& item : materialInstanceList.second) {
-            item->commit(*this);
+            item->commit(driver);
         }
     }
 
     // Commit default material instances.
     for (auto& material : mMaterials) {
-        material->getDefaultInstance()->commit(*this);
+        material->getDefaultInstance()->commit(driver);
     }
 }
 
@@ -717,7 +718,7 @@ void FEngine::destroy(const FStream* p) {
 }
 
 
-inline void FEngine::destroy(const FMaterial* ptr) {
+void FEngine::destroy(const FMaterial* ptr) {
     if (ptr != nullptr) {
         auto pos = mMaterialInstances.find(ptr);
         if (pos != mMaterialInstances.cend()) {
@@ -732,7 +733,7 @@ inline void FEngine::destroy(const FMaterial* ptr) {
     }
 }
 
-inline void FEngine::destroy(const FMaterialInstance* ptr) {
+void FEngine::destroy(const FMaterialInstance* ptr) {
     if (ptr != nullptr) {
         auto pos = mMaterialInstances.find(ptr->getMaterial());
         assert(pos != mMaterialInstances.cend());

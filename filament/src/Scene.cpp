@@ -93,7 +93,7 @@ void FScene::prepare(const mat4f& worldOriginTransform) {
 
 
     // find the max intensity directional light index in our local array
-    float maxIntensity = 0;
+    float maxIntensity = 0.0f;
 
     for (Entity e : entities) {
         if (!em.isAlive(e))
@@ -134,6 +134,7 @@ void FScene::prepare(const mat4f& worldOriginTransform) {
             if (UTILS_UNLIKELY(lcm.isDirectionalLight(li))) {
                 // we don't store the directional lights, because we only have a single one
                 if (lcm.getIntensity(li) >= maxIntensity) {
+                    maxIntensity = lcm.getIntensity(li);
                     float3 d = lcm.getLocalDirection(li);
                     // using the inverse-transpose handles non-uniform scaling
                     d = normalize(transpose(inverse(worldTransform.upperLeft())) * d);
@@ -265,7 +266,7 @@ void FScene::prepareDynamicLights(const CameraInfo& camera, ArenaScope& rootAren
 // produces much better vectorization. The ALWAYS_INLINE keyword makes sure we actually don't
 // pay the price of the call!
 UTILS_ALWAYS_INLINE
-void FScene::computeLightCameraPlaneDistances(
+inline void FScene::computeLightCameraPlaneDistances(
         float* UTILS_RESTRICT const distances,
         CameraInfo const& UTILS_RESTRICT camera,
         float4 const* UTILS_RESTRICT const spheres, size_t count) noexcept {
@@ -285,7 +286,7 @@ void FScene::computeLightCameraPlaneDistances(
 // produces much better vectorization. The ALWAYS_INLINE keyword makes sure we actually don't
 // pay the price of the call!
 UTILS_ALWAYS_INLINE
-void FScene::computeLightRanges(
+inline void FScene::computeLightRanges(
         float2* UTILS_RESTRICT const zrange,
         CameraInfo const& UTILS_RESTRICT camera,
         float4 const* UTILS_RESTRICT const spheres, size_t count) noexcept {

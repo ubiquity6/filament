@@ -6,6 +6,10 @@ void blendPostLightingColor(const MaterialInputs material, inout vec4 color) {
     color = material.postLightingColor + color * (1.0 - material.postLightingColor.a);
 #elif defined(POST_LIGHTING_BLEND_MODE_ADD)
     color += material.postLightingColor;
+#elif defined(POST_LIGHTING_BLEND_MODE_MULTIPLY)
+    color *= material.postLightingColor;
+#elif defined(POST_LIGHTING_BLEND_MODE_SCREEN)
+    color += material.postLightingColor * (1.0 - color);
 #endif
 }
 #endif
@@ -15,7 +19,7 @@ void main() {
     // Computes global variables we need to evaluate material and lighting
     computeShadingParams();
 
-    // Initialize the inputs to sensible default values, see common_material.fs
+    // Initialize the inputs to sensible default values, see material_inputs.fs
     MaterialInputs inputs;
     initMaterial(inputs);
 

@@ -21,6 +21,8 @@
 
 #include "private/backend/CommandStream.h"
 
+#include "details/Texture.h"
+
 #include <backend/DriverEnums.h>
 #include <backend/Handle.h>
 
@@ -33,6 +35,7 @@ namespace filament {
 
 using namespace backend;
 using namespace fg;
+using namespace details;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -114,14 +117,13 @@ struct RenderTargetResource final : public VirtualResource {  // 104
 
     RenderTargetResource(
             FrameGraphRenderTarget::Descriptor const& desc, bool imported,
-            TargetBufferFlags targets,
-            uint32_t width, uint32_t height, TextureFormat format)
-            : desc(desc), imported(imported),
-              attachments(targets), format(format), width(width), height(height)  {
-        targetInfo.params.viewport   = desc.viewport;
+            TargetBufferFlags targets, uint32_t width, uint32_t height, TextureFormat format)
+                : desc(desc), imported(imported),
+                  attachments(targets), format(format), width(width), height(height) {
+        targetInfo.params.viewport = desc.viewport;
         // if Descriptor was initialized with default values, set the viewport to width/height
         if (targetInfo.params.viewport.width == 0 && targetInfo.params.viewport.height == 0) {
-            targetInfo.params.viewport.width  = width;
+            targetInfo.params.viewport.width = width;
             targetInfo.params.viewport.height = height;
         }
     }
@@ -140,6 +142,8 @@ struct RenderTargetResource final : public VirtualResource {  // 104
     TextureFormat format;
     uint32_t width;
     uint32_t height;
+    TargetBufferFlags discardStart = TargetBufferFlags::NONE;
+    TargetBufferFlags discardEnd = TargetBufferFlags::NONE;
 
     // updated during execute with the current pass' discard flags
     FrameGraphPassResources::RenderTargetInfo targetInfo;
@@ -151,20 +155,20 @@ struct RenderTargetResource final : public VirtualResource {  // 104
 
                 // devirtualize our texture handles. By this point these handles have been
                 // remapped to their alias if any.
-                backend::Handle<backend::HwTexture> textures[FrameGraphRenderTarget::Attachments::COUNT];
+                TargetBufferInfo infos[FrameGraphRenderTarget::Attachments::COUNT];
                 for (size_t i = 0, c = desc.attachments.textures.size(); i < c; i++) {
-                    FrameGraphResource r = desc.attachments.textures[i];
+                    auto const& r = desc.attachments.textures[i];
                     if (r.isValid()) {
-                        ResourceNode const& node = resourceNodes[r.index];
+                        ResourceNode const& node = resourceNodes[r.getHandle().index];
                         assert(node.resource);
-                        textures[i] = node.resource->texture;
+                        infos[i].handle = node.resource->texture;
+                        infos[i].level = r.getLevel();
                     }
                 }
 
                 // create the concrete rendertarget
                 targetInfo.target = driver.createRenderTarget(attachments,
-                        width, height, desc.samples, format,
-                        { textures[0] }, { textures[1] }, {});
+                        width, height, desc.samples, infos[0], infos[1], {});
             }
         }
     }
@@ -184,8 +188,8 @@ RenderTargetResource::~RenderTargetResource() = default;
 
 struct RenderTarget { // 32
     RenderTarget(const char* name,
-            FrameGraphRenderTarget::Descriptor const& desc, bool imported, uint16_t index) noexcept
-            : name(name), imported(imported), index(index), desc(desc) {
+            FrameGraphRenderTarget::Descriptor const& desc, uint16_t index) noexcept
+            : name(name), index(index), desc(desc) {
     }
     RenderTarget(RenderTarget const&) = delete;
     RenderTarget(RenderTarget&&) noexcept = default;
@@ -193,12 +197,11 @@ struct RenderTarget { // 32
 
     // constants
     const char* const name;         // for debugging
-    bool imported;
     uint16_t index;
 
     // set by builder
     FrameGraphRenderTarget::Descriptor desc;
-    RenderPassFlags userTargetFlags{};
+    TargetBufferFlags userClearFlags{};
 
     // set in compile
     RenderPassFlags targetFlags{};
@@ -216,87 +219,64 @@ struct RenderTarget { // 32
 
         if (pos != renderTargetCache.end()) {
             cache = pos->get();
-            cache->targetInfo.params.flags.clear |= userTargetFlags.clear;
+            cache->targetInfo.params.flags.clear |= userClearFlags;
         } else {
             uint8_t attachments = 0;
             uint32_t width = 0;
             uint32_t height = 0;
             TextureFormat colorFormat = {};
-            backend::Handle<backend::HwTexture> textures[FrameGraphRenderTarget::Attachments::COUNT];
 
             static constexpr TargetBufferFlags flags[] = {
                     TargetBufferFlags::COLOR,
                     TargetBufferFlags::DEPTH,
                     TargetBufferFlags::STENCIL };
 
-            bool relaxed = true;
             uint32_t minWidth = std::numeric_limits<uint32_t>::max();
             uint32_t maxWidth = 0;
             uint32_t minHeight = std::numeric_limits<uint32_t>::max();
             uint32_t maxHeight = 0;
 
-            for (FrameGraphResource const& attachment : desc.attachments.textures) {
-                size_t index = &attachment - desc.attachments.textures.data();
+            for (size_t i = 0; i < desc.attachments.textures.size(); i++) {
+                FrameGraphRenderTarget::Attachments::AttachmentInfo attachment = desc.attachments.textures[i];
                 if (attachment.isValid()) {
-                    Resource const* const pResource = resourceNodes[attachment.index].resource;
+                    Resource const* const pResource = resourceNodes[attachment.getHandle().index].resource;
                     assert(pResource);
 
-                    attachments |= flags[index];
+                    attachments |= flags[i];
 
                     // figure out the min/max dimensions across all attachments
-                    minWidth  = std::min(minWidth,  pResource->desc.width);
-                    maxWidth  = std::max(maxWidth,  pResource->desc.width);
-                    minHeight = std::min(minHeight, pResource->desc.height);
-                    maxHeight = std::max(maxHeight, pResource->desc.height);
+                    const size_t level = attachment.getLevel();
+                    const uint32_t w = FTexture::valueForLevel(level, pResource->desc.width);
+                    const uint32_t h = FTexture::valueForLevel(level, pResource->desc.height);
+                    minWidth  = std::min(minWidth,  w);
+                    maxWidth  = std::max(maxWidth,  w);
+                    minHeight = std::min(minHeight, h);
+                    maxHeight = std::max(maxHeight, h);
 
-                    textures[index] = pResource->texture;
-                    if (index == FrameGraphRenderTarget::Attachments::COLOR) {
+                    if (i == FrameGraphRenderTarget::Attachments::COLOR) {
                         colorFormat = pResource->desc.format;
                     }
-
-                    // TODO: if the resource doesn't need an actual texture, we may be able to
-                    //       increase its size.
-                    relaxed = relaxed && pResource->desc.relaxed;
                 }
             }
 
             if (attachments) {
-                if (!relaxed && (minWidth == maxWidth && minHeight == maxHeight)) {
+                if (minWidth == maxWidth && minHeight == maxHeight) {
                     // All attachments' size match, we're good to go.
-                    // We don't take this path if all attachments allow to tweak their size,
-                    // as in that case we can round-up to take advantage of caching in the driver.
+                    width = minWidth;
+                    height = minHeight;
+                } else {
+                    // TODO: what should we do here? Is it a user-error?
                     width = maxWidth;
                     height = maxHeight;
-                } else {
-                    // Some attachments might not allow to be resized (i.e. the non relaxed textures),
-                    // use the largest size.
-                    // We also round dimensions up to avoid lots of small resizes in the driver.
-                    // (this is assuming the driver uses some cache internally).
-                    width  = (maxWidth  + 31) & ~31;
-                    height = (maxHeight + 31) & ~31;
-
-                    // and update the resource's descriptors that allow it
-                    for (FrameGraphResource const& attachment : desc.attachments.textures) {
-                        if (attachment.isValid()) {
-                            Resource* const pResource = resourceNodes[attachment.index].resource;
-                            if (pResource->desc.relaxed || !pResource->needsTexture) {
-                                pResource->desc.width = width;
-                                pResource->desc.height = height;
-                            }
-                        }
-                    }
-                    // at the end of this process, it's possible that some attachments won't match
-                    // but there is nothing more we can do, as these attachments require a texture
-                    // and don't have the relaxed flag.
                 }
 
                 // create the cache entry
                 RenderTargetResource* pRenderTargetResource =
-                        fg.mArena.make<RenderTargetResource>(desc, imported,
+                        fg.mArena.make<RenderTargetResource>(desc, false,
                                 TargetBufferFlags(attachments), width, height, colorFormat);
                 renderTargetCache.emplace_back(pRenderTargetResource, fg);
                 cache = pRenderTargetResource;
-                cache->targetInfo.params.flags.clear |= userTargetFlags.clear;
+                cache->targetInfo.params.flags.clear |= userClearFlags;
             }
         }
     }
@@ -427,12 +407,17 @@ Resource::~Resource() noexcept {
 void Resource::create(FrameGraph&, DriverApi& driver) noexcept {
     // some sanity check
     if (!imported) {
+        assert(usage);
+        // (it means it's only used as an attachment for a rendertarget)
+        uint8_t samples = desc.samples;
+        auto effectiveUsage = usage;
         if (needsTexture) {
-            assert(usage);
-            // (it means it's only used as an attachment for a rendertarget)
-            texture = driver.createTexture(desc.type, desc.levels, desc.format, 1,
-                    desc.width, desc.height, desc.depth, usage);
+            effectiveUsage |= TextureUsage::SAMPLEABLE;
+            samples = 1; // sampleable textures can't be multi-sampled
         }
+        // FIXME: set the proper sampler count
+        texture = driver.createTexture(desc.type, desc.levels, desc.format, samples,
+                desc.width, desc.height, desc.depth, effectiveUsage);
     }
 }
 
@@ -462,6 +447,21 @@ FrameGraph::Builder::Builder(FrameGraph& fg, PassNode& pass) noexcept
 
 FrameGraph::Builder::~Builder() noexcept = default;
 
+const char* FrameGraph::Builder::getPassName() const noexcept {
+    return mPass.name;
+}
+
+const char* FrameGraph::Builder::getName(FrameGraphResource const& r) const noexcept {
+    ResourceNode& resourceNode = mFrameGraph.getResource(r);
+    Resource* pResource = resourceNode.resource;
+    assert(pResource);
+    return pResource ? pResource->name : "(invalid)";
+}
+
+uint8_t FrameGraph::Builder::getSamples(FrameGraphResource const& r) const noexcept {
+    return isAttachment(r) ? getRenderTargetDescriptor(r).samples : 1;
+}
+
 FrameGraphResource FrameGraph::Builder::createTexture(
         const char* name, FrameGraphResource::Descriptor const& desc) noexcept {
     Resource* resource = mFrameGraph.createResource(name, desc, false);
@@ -475,11 +475,11 @@ FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(const char
 
     // TODO: enforce that we can't have a resource used in 2 rendertarget in the same pass
 
-    Attachments rt{};
+    FrameGraphRenderTarget::AttachmentResult rt{};
     FrameGraph& fg = mFrameGraph;
 
-    RenderTarget& renderTarget = fg.createRenderTarget(name, desc, false);
-    renderTarget.userTargetFlags.clear = clearFlags;
+    RenderTarget& renderTarget = fg.createRenderTarget(name, desc);
+    renderTarget.userClearFlags = clearFlags;
 
     mPass.declareRenderTarget(renderTarget);
 
@@ -489,37 +489,43 @@ FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(const char
             TextureUsage::DEPTH_ATTACHMENT,
             TextureUsage::STENCIL_ATTACHMENT
     };
-    for (FrameGraphResource const& attachment : desc.attachments.textures) {
-        const size_t index = &attachment - desc.attachments.textures.data();
-        if (attachment.isValid()) {
-            // using a resource as a RT implies reading (i.e. adds a reference to that resource) from it
-            rt.textures[index] = mPass.read(fg, attachment, true);
-            // using a resource as a RT implies writing (i.e. adds a reference to the pass) into it
-            rt.textures[index] = mPass.write(fg, rt.textures[index]);
-
-            ResourceNode& node = fg.getResource(rt.textures[index]);
+    for (size_t i = 0; i < desc.attachments.textures.size(); i++) {
+        FrameGraphRenderTarget::Attachments::AttachmentInfo attachmentInfo = desc.attachments.textures[i];
+        if (attachmentInfo.isValid()) {
+            FrameGraphResource attachment = attachmentInfo.getHandle();
+            if (attachmentInfo.getAccess() & FrameGraphRenderTarget::Attachments::READ) {
+                attachment = mPass.read(fg, attachment, true);
+            }
+            if (attachmentInfo.getAccess() & FrameGraphRenderTarget::Attachments::WRITE) {
+                attachment = mPass.write(fg, attachment);
+            }
+            ResourceNode& node = fg.getResource(attachment);
             uint8_t usage = node.resource->usage;
-            usage |= usages[index];
+            usage |= usages[i];
             node.resource->usage = TextureUsage(usage);
 
             // renderTargetIndex is used to retrieve the Descriptor
             node.renderTargetIndex = renderTarget.index;
+
+            rt.textures[i] = attachment;
         }
     }
     return rt;
 }
 
-FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(
-        FrameGraphResource texture, TargetBufferFlags clearFlags) noexcept {
-    uint8_t samples = 1;
-    if (isAttachment(texture)) {
-        samples = getRenderTargetDescriptor(texture).samples;
-    }
-    ResourceNode& resourceNode = mFrameGraph.getResource(texture);
-    Resource* pResource = resourceNode.resource;
-    assert(pResource);
-    FrameGraphRenderTarget::Descriptor desc { .attachments.color = texture, .samples = samples };
-    return useRenderTarget(pResource->name, desc, clearFlags);
+FrameGraphResource FrameGraph::Builder::useRenderTarget(FrameGraphResource texture,
+        TargetBufferFlags clearFlags) noexcept {
+    FrameGraphRenderTarget::Descriptor desc{
+            .attachments.color = { texture, FrameGraphRenderTarget::Attachments::WRITE },
+            .samples = getSamples(texture)
+    };
+    return useRenderTarget(getName(texture), desc, clearFlags).color;
+}
+
+FrameGraphResource::Descriptor const& FrameGraph::Builder::getDescriptor(FrameGraphResource const& r) {
+    FrameGraphResource::Descriptor const* desc = mFrameGraph.getDescriptor(r);
+    assert(desc);
+    return *desc;
 }
 
 FrameGraphResource FrameGraph::Builder::read(FrameGraphResource const& input, bool doesntNeedTexture) {
@@ -560,6 +566,10 @@ FrameGraphPassResources::FrameGraphPassResources(FrameGraph& fg, fg::PassNode co
         : mFrameGraph(fg), mPass(pass) {
 }
 
+const char* FrameGraphPassResources::getPassName() const noexcept {
+    return mPass.name;
+}
+
 backend::Handle<backend::HwTexture> FrameGraphPassResources::getTexture(FrameGraphResource r) const noexcept {
     Resource const* const pResource = mFrameGraph.mResourceNodes[r.index].resource;
     assert(pResource);
@@ -573,7 +583,7 @@ backend::Handle<backend::HwTexture> FrameGraphPassResources::getTexture(FrameGra
 }
 
 FrameGraphPassResources::RenderTargetInfo
-FrameGraphPassResources::getRenderTarget(FrameGraphResource r) const noexcept {
+FrameGraphPassResources::getRenderTarget(FrameGraphResource r, uint8_t level) const noexcept {
 
     FrameGraphPassResources::RenderTargetInfo info{};
     FrameGraph& fg = mFrameGraph;
@@ -589,8 +599,8 @@ FrameGraphPassResources::getRenderTarget(FrameGraphResource r) const noexcept {
         auto pos = std::find_if(
                 desc.attachments.textures.begin(),
                 desc.attachments.textures.end(),
-                [pResource, &resourceNodes](FrameGraphResource const& r) {
-                    return r.isValid() && resourceNodes[r.index].resource == pResource;
+                [pResource, &resourceNodes, level](FrameGraphRenderTarget::Attachments::AttachmentInfo const& info) {
+                    return info.isValid() && resourceNodes[info.getHandle().index].resource == pResource && info.getLevel() == level;
                 });
         if (pos != std::end(desc.attachments.textures)) {
             assert(renderTarget->cache);
@@ -629,7 +639,7 @@ FrameGraphResource::Descriptor const& FrameGraphPassResources::getDescriptor(
 // ------------------------------------------------------------------------------------------------
 
 FrameGraph::FrameGraph()
-        : mArena("FrameGraph Arena", 16384), // TODO: the Area will eventually come from outside
+        : mArena("FrameGraph Arena", 32768), // TODO: the Area will eventually come from outside
           mPassNodes(mArena),
           mResourceNodes(mArena),
           mRenderTargets(mArena),
@@ -688,10 +698,10 @@ PassNode& FrameGraph::createPass(const char* name, FrameGraphPassExecutor* base)
 }
 
 fg::RenderTarget& FrameGraph::createRenderTarget(const char* name,
-        FrameGraphRenderTarget::Descriptor const& desc, bool imported) noexcept {
+        FrameGraphRenderTarget::Descriptor const& desc) noexcept {
     auto& renderTargets = mRenderTargets;
     const uint16_t id = (uint16_t)renderTargets.size();
-    renderTargets.emplace_back(name, desc, imported, id);
+    renderTargets.emplace_back(name, desc, id);
     return renderTargets.back();
 }
 
@@ -729,18 +739,26 @@ bool FrameGraph::equals(FrameGraphRenderTarget::Descriptor const& lhs,
     return std::equal(
             lhs.attachments.textures.begin(), lhs.attachments.textures.end(),
             rhs.attachments.textures.begin(), rhs.attachments.textures.end(),
-            [&resourceNodes](FrameGraphResource lhs, FrameGraphResource rhs) {
-                if (lhs.index == rhs.index) {
+            [&resourceNodes](
+                    FrameGraphRenderTarget::Attachments::AttachmentInfo lhs,
+                    FrameGraphRenderTarget::Attachments::AttachmentInfo rhs) {
+                // both resource must be the same level to match
+                if (lhs.getLevel() != rhs.getLevel()) {
+                    return false;
+                }
+                const FrameGraphResource lHandle = lhs.getHandle();
+                const FrameGraphResource rHandle = rhs.getHandle();
+                if (lHandle == rHandle) {
                     // obviously resources match if they're the same
                     return true;
                 }
-                if (lhs.isValid() && rhs.isValid()) {
-                    if (resourceNodes[lhs.index].resource == resourceNodes[rhs.index].resource) {
+                if (lHandle.isValid() && rHandle.isValid()) {
+                    if (resourceNodes[lHandle.index].resource == resourceNodes[rHandle.index].resource) {
                         // they also match if they're the same concrete resource
                         return true;
                     }
                 }
-                if (!rhs.isValid()) {
+                if (!rHandle.isValid()) {
                     // it's okay if the cached RT has more attachments than we require
                     return true;
                 }
@@ -771,6 +789,8 @@ FrameGraphResource FrameGraph::importResource(const char* name,
     RenderTargetResource* pRenderTargetResource = mArena.make<RenderTargetResource>(descriptor, true,
             TargetBufferFlags::COLOR, width, height, TextureFormat{});
     pRenderTargetResource->targetInfo.target = target;
+    pRenderTargetResource->discardStart = discardStart;
+    pRenderTargetResource->discardEnd = discardEnd;
     mRenderTargetCache.emplace_back(pRenderTargetResource, *this);
 
     // NOTE: we don't even need to create a fg::RenderTarget, all is needed is a cache entry
@@ -787,10 +807,10 @@ FrameGraphResource FrameGraph::importResource(
     return createResourceNode(resource);
 }
 
-uint8_t FrameGraph::computeDiscardFlags(DiscardPhase phase,
+TargetBufferFlags FrameGraph::computeDiscardFlags(DiscardPhase phase,
         PassNode const* curr, PassNode const* first, RenderTarget const& renderTarget) {
     auto& resourceNodes = mResourceNodes;
-    uint8_t discardFlags = TargetBufferFlags::ALL;
+    TargetBufferFlags discardFlags = TargetBufferFlags::ALL;
 
     static constexpr TargetBufferFlags flags[] = {
             TargetBufferFlags::COLOR,
@@ -807,11 +827,11 @@ uint8_t FrameGraph::computeDiscardFlags(DiscardPhase phase,
         for (FrameGraphResource cur : ((phase == DiscardPhase::START) ? pass.writes : pass.reads)) {
             // for all possible attachments of our renderTarget...
             Resource const* const pResource = resourceNodes[cur.index].resource;
-            for (FrameGraphResource const& attachment : desc.attachments.textures) {
+            for (size_t i = 0; i < desc.attachments.textures.size(); i++) {
+                FrameGraphResource attachment = desc.attachments.textures[i];
                 if (attachment.isValid() && resourceNodes[attachment.index].resource == pResource) {
                     // we can't discard this attachment since it's read/written
-                    size_t index = &attachment - desc.attachments.textures.data();
-                    discardFlags &= ~flags[index];
+                    discardFlags &= ~flags[i];
                 }
             }
             if (!discardFlags) {
@@ -822,16 +842,16 @@ uint8_t FrameGraph::computeDiscardFlags(DiscardPhase phase,
 
     if (phase == DiscardPhase::START) {
         // clear implies discarding the content of the buffer
-        discardFlags |= (renderTarget.userTargetFlags.clear & TargetBufferFlags::ALL);
+        discardFlags |= (renderTarget.userClearFlags & TargetBufferFlags::ALL);
     }
 
-    if (renderTarget.imported) {
+    if (renderTarget.cache->imported) {
         // we never discard more than the user flags
         if (phase == DiscardPhase::START) {
-            discardFlags &= renderTarget.userTargetFlags.discardStart;
+            discardFlags &= renderTarget.cache->discardStart;
         }
         if (phase == DiscardPhase::END) {
-            discardFlags &= renderTarget.userTargetFlags.discardEnd;
+            discardFlags &= renderTarget.cache->discardEnd;
         }
     }
 
@@ -875,7 +895,8 @@ FrameGraph& FrameGraph::compile() noexcept {
             for (fg::RenderTarget& rt : renderTargets) {
                 auto& textures = rt.desc.attachments.textures;
                 if (textures[0].isValid()) {
-                    ResourceNode const& node = resourceNodes[textures[0].index];
+                    FrameGraphResource handle = textures[0];
+                    ResourceNode const& node = resourceNodes[handle.index];
                     if (node.resource->imported && node.resource == from.resource) {
                         for (size_t i = 1; i < textures.size(); ++i) {
                             textures[i] = {};
@@ -1008,19 +1029,19 @@ FrameGraph& FrameGraph::compile() noexcept {
 
             // does anyone writes to this resource before us -- if so, don't discard those buffers on enter
             // (i.e. if nobody wrote, no need to load from memory)
-            uint8_t discardStart = computeDiscardFlags(
+            TargetBufferFlags discardStart = computeDiscardFlags(
                     DiscardPhase::START, first, &pass, *pRenderTarget);
 
             // does anyone reads this resource after us -- if so, don't discard those buffers on exit
             // (i.e. if nobody is going to read, no need to write back to memory)
-            uint8_t discardEnd = computeDiscardFlags(
+            TargetBufferFlags discardEnd = computeDiscardFlags(
                     DiscardPhase::END, &pass + 1, last, *pRenderTarget);
 
             pRenderTarget->targetFlags = {
-                    .clear = 0,  // this is eventually set by the user
+                    .clear = {},  // this is eventually set by the user
                     .discardStart = discardStart,
                     .discardEnd = discardEnd,
-                    .dependencies = 0
+                    .dependencies = {}
             };
         }
     }
@@ -1099,8 +1120,8 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     out << "\n";
     for (ResourceNode const& node : registry) {
         Resource const* subresource = node.resource;
-        out << "\"R" << node.resource->id << "_" << node.version << "\""
-               "[label=\"" << node.resource->name << "\\n(version: " << node.version << ")"
+        out << "\"R" << node.resource->id << "_" << +node.version << "\""
+               "[label=\"" << node.resource->name << "\\n(version: " << +node.version << ")"
                "\\nid:" << node.resource->id <<
                "\\nrefs:" << node.resource->refs << ", texture: " << node.resource->needsTexture <<
                "\", style=filled, fillcolor="
@@ -1115,7 +1136,7 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     for (auto const& node : frameGraphPasses) {
         out << "P" << node.id << " -> { ";
         for (auto const& writer : node.writes) {
-            out << "R" << registry[writer.index].resource->id << "_" << registry[writer.index].version << " ";
+            out << "R" << registry[writer.index].resource->id << "_" << +registry[writer.index].version << " ";
         }
         out << "} [color=red2]\n";
     }
@@ -1123,7 +1144,7 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     // connect resources to passes
     out << "\n";
     for (ResourceNode const& node : registry) {
-        out << "R" << node.resource->id << "_" << node.version << " -> { ";
+        out << "R" << node.resource->id << "_" << +node.version << " -> { ";
 
         // who reads us...
         for (PassNode const& pass : frameGraphPasses) {
@@ -1141,8 +1162,8 @@ void FrameGraph::export_graphviz(utils::io::ostream& out) {
     if (!mAliases.empty()) {
         out << "\n";
         for (fg::Alias const& alias : mAliases) {
-            out << "R" << registry[alias.from.index].resource->id << "_" << registry[alias.from.index].version << " -> ";
-            out << "R" << registry[alias.to.index].resource->id << "_" << registry[alias.to.index].version;
+            out << "R" << registry[alias.from.index].resource->id << "_" << +registry[alias.from.index].version << " -> ";
+            out << "R" << registry[alias.to.index].resource->id << "_" << +registry[alias.to.index].version;
             out << " [color=yellow, style=dashed]\n";
         }
     }

@@ -39,6 +39,8 @@
 #include <utils/Slice.h>
 #include <utils/Range.h>
 
+#include <math/scalar.h>
+
 #include <array>
 
 namespace utils {
@@ -121,8 +123,10 @@ public:
     void prepareCamera(const CameraInfo& camera, const Viewport& viewport) const noexcept;
     void prepareShadowing(FEngine& engine, backend::DriverApi& driver,
             FScene::RenderableSoa& renderableData, FScene::LightSoa const& lightData) noexcept;
-    void prepareLighting(
-            FEngine& engine, FEngine::DriverApi& driver, ArenaScope& arena, Viewport const& viewport) noexcept;
+    void prepareLighting(FEngine& engine, FEngine::DriverApi& driver,
+            ArenaScope& arena, Viewport const& viewport) noexcept;
+    void prepareSSAO(backend::Handle<backend::HwTexture> ssao) const noexcept;
+    void cleanupSSAO() const noexcept;
     void froxelize(FEngine& engine) const noexcept;
     void commitUniforms(backend::DriverApi& driver) const noexcept;
     void commitFroxels(backend::DriverApi& driverApi) const noexcept;
@@ -224,6 +228,25 @@ public:
         return mDepthPrepass;
     }
 
+    void setAmbientOcclusion(AmbientOcclusion ambientOcclusion) noexcept {
+        mAmbientOcclusion = ambientOcclusion;
+    }
+
+    AmbientOcclusion getAmbientOcclusion() const noexcept {
+        return mAmbientOcclusion;
+    }
+
+    void setAmbientOcclusionOptions(AmbientOcclusionOptions const& options) noexcept {
+        mAmbientOcclusionOptions = options;
+        mAmbientOcclusionOptions.radius = math::clamp(0.0f, 10.0f, mAmbientOcclusionOptions.radius);
+        mAmbientOcclusionOptions.bias = math::clamp(0.0f, 0.1f, mAmbientOcclusionOptions.bias);
+        mAmbientOcclusionOptions.power = math::clamp(0.0f, 1.0f, mAmbientOcclusionOptions.power);
+    }
+
+    AmbientOcclusionOptions const& getAmbientOcclusionOptions() const noexcept {
+        return mAmbientOcclusionOptions;
+    }
+
     Range const& getVisibleRenderables() const noexcept {
         return mVisibleRenderables;
     }
@@ -310,6 +333,8 @@ private:
     bool mShadowingEnabled = true;
     bool mHasPostProcessPass = true;
     DepthPrepass mDepthPrepass = DepthPrepass::DEFAULT;
+    AmbientOcclusion mAmbientOcclusion = AmbientOcclusion::NONE;
+    AmbientOcclusionOptions mAmbientOcclusionOptions{};
 
     using duration = std::chrono::duration<float, std::milli>;
     DynamicResolutionOptions mDynamicResolution;

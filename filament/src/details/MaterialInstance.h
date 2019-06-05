@@ -25,6 +25,8 @@
 
 #include <backend/Handle.h>
 
+#include <math/scalar.h>
+
 #include <utils/compiler.h>
 
 #include <filament/MaterialInstance.h>
@@ -44,9 +46,9 @@ public:
 
     void terminate(FEngine& engine);
 
-    void commit(FEngine& engine) const {
+    void commit(FEngine::DriverApi& driver) const {
         if (UTILS_UNLIKELY(mUniforms.isDirty() || mSamplers.isDirty())) {
-            commitSlow(engine);
+            commitSlow(driver);
         }
     }
 
@@ -69,6 +71,9 @@ public:
 
     void setParameter(const char* name,
             Texture const* texture, TextureSampler const& sampler) noexcept;
+
+    void setParameter(const char* name,
+            backend::Handle<backend::HwTexture> texture, backend::SamplerParams params) noexcept;
 
     FMaterial const* getMaterial() const noexcept { return mMaterial; }
 
@@ -98,7 +103,15 @@ public:
     backend::PolygonOffset getPolygonOffset() const noexcept { return mPolygonOffset; }
 
     void setMaskThreshold(float threshold) noexcept {
-        setParameter("_maskThreshold", threshold);
+        setParameter("_maskThreshold", math::saturate(threshold));
+    }
+
+    void setSpecularAntiAliasingVariance(float variance) noexcept {
+        setParameter("_specularAntiAliasingVariance", math::saturate(variance));
+    }
+
+    void setSpecularAntiAliasingThreshold(float threshold) noexcept {
+        setParameter("_specularAntiAliasingThreshold", math::saturate(threshold * threshold));
     }
 
     void setDoubleSided(bool doubleSided) noexcept;
@@ -109,8 +122,9 @@ private:
 
     FMaterialInstance() noexcept;
     void initDefaultInstance(FEngine& engine, FMaterial const* material);
+    void initParameters(FMaterial const* material);
 
-    void commitSlow(FEngine& engine) const;
+    void commitSlow(FEngine::DriverApi& driver) const;
 
     // keep these grouped, they're accessed together in the render-loop
     FMaterial const* mMaterial = nullptr;

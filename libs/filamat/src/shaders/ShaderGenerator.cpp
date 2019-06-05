@@ -16,8 +16,6 @@
 
 #include "ShaderGenerator.h"
 
-#include <sstream>
-
 #include <private/filament/SamplerInterfaceBlock.h>
 #include <private/filament/UniformInterfaceBlock.h>
 #include <filament/MaterialEnums.h>
@@ -46,14 +44,14 @@ static const char* getShadingDefine(filament::Shading shading) noexcept {
     }
 }
 
-static void generateMaterialDefines(std::ostream& os, const CodeGenerator& cg,
+static void generateMaterialDefines(utils::io::sstream& os, const CodeGenerator& cg,
         MaterialBuilder::PropertyList const properties) noexcept {
     for (size_t i = 0; i < MaterialBuilder::MATERIAL_PROPERTIES_COUNT; i++) {
         cg.generateMaterialProperty(os, static_cast<MaterialBuilder::Property>(i), properties[i]);
     }
 }
 
-static void generateVertexDomain(const CodeGenerator& cg, std::stringstream& vs,
+static void generateVertexDomain(const CodeGenerator& cg, utils::io::sstream& vs,
         filament::VertexDomain domain) noexcept {
     switch (domain) {
         case VertexDomain::OBJECT:
@@ -71,11 +69,11 @@ static void generateVertexDomain(const CodeGenerator& cg, std::stringstream& vs,
     }
 }
 
-static size_t countLines(const std::stringstream& ss) noexcept {
-    std::string s = ss.str();
+static size_t countLines(const char* s) noexcept {
     size_t lines = 0;
-    for (char i : s) {
-        if (i == '\n') lines++;
+    size_t i = 0;
+    while (s[i] != 0) {
+        if (s[i++] == '\n') lines++;
     }
     return lines;
 }
@@ -88,10 +86,10 @@ static size_t countLines(const utils::CString& s) noexcept {
     return lines;
 }
 
-static void appendShader(std::stringstream& ss,
+static void appendShader(utils::io::sstream& ss,
         const utils::CString& shader, size_t lineOffset) noexcept {
     if (!shader.empty()) {
-        size_t lines = countLines(ss);
+        size_t lines = countLines(ss.c_str());
         ss << "#line " << lineOffset;
         if (shader[0] != '\n') ss << "\n";
         ss << shader.c_str();
@@ -132,7 +130,7 @@ const std::string ShaderGenerator::createVertexProgram(filament::backend::Shader
         MaterialBuilder::TargetApi targetApi, MaterialBuilder::TargetLanguage targetLanguage,
         MaterialInfo const& material, uint8_t variantKey, filament::Interpolation interpolation,
         filament::VertexDomain vertexDomain) const noexcept {
-    std::stringstream vs;
+    utils::io::sstream vs;
 
     const CodeGenerator cg(shaderModel, targetApi, targetLanguage);
     const bool lit = material.isLit;
@@ -141,7 +139,6 @@ const std::string ShaderGenerator::createVertexProgram(filament::backend::Shader
     cg.generateProlog(vs, ShaderType::VERTEX, material.hasExternalSamplers);
 
     cg.generateDefine(vs, "FLIP_UV_ATTRIBUTE", material.flipUV);
-    cg.generateDefine(vs, "GEOMETRIC_SPECULAR_AA_NORMAL", material.limitOverInterpolation);
 
     bool litVariants = lit || material.hasShadowMultiplier;
     cg.generateDefine(vs, "HAS_DIRECTIONAL_LIGHTING", litVariants && variant.hasDirectionalLighting());
@@ -204,7 +201,7 @@ const std::string ShaderGenerator::createVertexProgram(filament::backend::Shader
 
     cg.generateEpilog(vs);
 
-    return vs.str();
+    return vs.c_str();
 }
 
 bool ShaderGenerator::hasCustomDepthShader() const noexcept {
@@ -225,7 +222,7 @@ const std::string ShaderGenerator::createFragmentProgram(filament::backend::Shad
     const bool lit = material.isLit;
     const filament::Variant variant(variantKey);
 
-    std::stringstream fs;
+    utils::io::sstream fs;
     cg.generateProlog(fs, ShaderType::FRAGMENT, material.hasExternalSamplers);
 
     cg.generateDefine(fs, "IBL_USE_RGBM", filament::CONFIG_IBL_RGBM);
@@ -234,10 +231,12 @@ const std::string ShaderGenerator::createFragmentProgram(filament::backend::Shad
     // this should probably be a code generation option
     cg.generateDefine(fs, "USE_MULTIPLE_SCATTERING_COMPENSATION", true);
 
-    cg.generateDefine(fs, "GEOMETRIC_SPECULAR_AA_ROUGHNESS", material.curvatureToRoughness);
-    cg.generateDefine(fs, "GEOMETRIC_SPECULAR_AA_NORMAL", material.limitOverInterpolation);
+    cg.generateDefine(fs, "GEOMETRIC_SPECULAR_AA", material.specularAntiAliasing && lit);
 
     cg.generateDefine(fs, "CLEAR_COAT_IOR_CHANGE", material.clearCoatIorChange);
+
+    cg.generateDefine(fs, "SPECULAR_AMBIENT_OCCLUSION", material.specularAO);
+    cg.generateDefine(fs, "MULTI_BOUNCE_AMBIENT_OCCLUSION", material.multiBounceAO);
 
     // lighting variants
     bool litVariants = lit || material.hasShadowMultiplier;
@@ -255,16 +254,22 @@ const std::string ShaderGenerator::createFragmentProgram(filament::backend::Shad
         case BlendingMode::TRANSPARENT:
             cg.generateDefine(fs, "BLEND_MODE_TRANSPARENT", true);
             break;
-        case BlendingMode::FADE:
-            // Fade is a special case of transparent
-            cg.generateDefine(fs, "BLEND_MODE_TRANSPARENT", true);
-            cg.generateDefine(fs, "BLEND_MODE_FADE", true);
-            break;
         case BlendingMode::ADD:
             cg.generateDefine(fs, "BLEND_MODE_ADD", true);
             break;
         case BlendingMode::MASKED:
             cg.generateDefine(fs, "BLEND_MODE_MASKED", true);
+            break;
+        case BlendingMode::FADE:
+            // Fade is a special case of transparent
+            cg.generateDefine(fs, "BLEND_MODE_TRANSPARENT", true);
+            cg.generateDefine(fs, "BLEND_MODE_FADE", true);
+            break;
+        case BlendingMode::MULTIPLY:
+            cg.generateDefine(fs, "BLEND_MODE_MULTIPLY", true);
+            break;
+        case BlendingMode::SCREEN:
+            cg.generateDefine(fs, "BLEND_MODE_SCREEN", true);
             break;
     }
     switch (material.postLightingBlendingMode) {
@@ -276,6 +281,12 @@ const std::string ShaderGenerator::createFragmentProgram(filament::backend::Shad
             break;
         case BlendingMode::ADD:
             cg.generateDefine(fs, "POST_LIGHTING_BLEND_MODE_ADD", true);
+            break;
+        case BlendingMode::MULTIPLY:
+            cg.generateDefine(fs, "POST_LIGHTING_BLEND_MODE_MULTIPLY", true);
+            break;
+        case BlendingMode::SCREEN:
+            cg.generateDefine(fs, "POST_LIGHTING_BLEND_MODE_SCREEN", true);
             break;
         default:
             break;
@@ -333,7 +344,7 @@ const std::string ShaderGenerator::createFragmentProgram(filament::backend::Shad
 
     cg.generateEpilog(fs);
 
-    return fs.str();
+    return fs.c_str();
 }
 
 void ShaderGenerator::fixupExternalSamplers(filament::backend::ShaderModel sm,
@@ -350,7 +361,7 @@ const std::string ShaderPostProcessGenerator::createPostProcessVertexProgram(
         MaterialBuilder::TargetLanguage targetLanguage, filament::PostProcessStage variant,
         uint8_t firstSampler) noexcept {
     const CodeGenerator cg(sm, targetApi, targetLanguage);
-    std::stringstream vs;
+    utils::io::sstream vs;
     cg.generateProlog(vs, ShaderType::VERTEX, false);
     cg.generateDefine(vs, "LOCATION_POSITION", uint32_t(VertexAttribute::POSITION));
     generatePostProcessStageDefines(vs, cg, variant);
@@ -365,7 +376,7 @@ const std::string ShaderPostProcessGenerator::createPostProcessVertexProgram(
     cg.generateCommon(vs, ShaderType::VERTEX);
     cg.generatePostProcessMain(vs, ShaderType::VERTEX, variant);
     cg.generateEpilog(vs);
-    return vs.str();
+    return vs.c_str();
 }
 
 const std::string ShaderPostProcessGenerator::createPostProcessFragmentProgram(
@@ -373,7 +384,7 @@ const std::string ShaderPostProcessGenerator::createPostProcessFragmentProgram(
         MaterialBuilder::TargetLanguage targetLanguage, filament::PostProcessStage variant,
         uint8_t firstSampler) noexcept {
     const CodeGenerator cg(sm, targetApi, targetLanguage);
-    std::stringstream fs;
+    utils::io::sstream fs;
     cg.generateProlog(fs, ShaderType::FRAGMENT, false);
     generatePostProcessStageDefines(fs, cg, variant);
 
@@ -387,10 +398,10 @@ const std::string ShaderPostProcessGenerator::createPostProcessFragmentProgram(
     cg.generateCommon(fs, ShaderType::FRAGMENT);
     cg.generatePostProcessMain(fs, ShaderType::FRAGMENT, variant);
     cg.generateEpilog(fs);
-    return fs.str();
+    return fs.c_str();
 }
 
-void ShaderPostProcessGenerator::generatePostProcessStageDefines(std::stringstream& vs,
+void ShaderPostProcessGenerator::generatePostProcessStageDefines(utils::io::sstream& vs,
         CodeGenerator const& cg, PostProcessStage variant) noexcept {
     cg.generateDefine(vs, "POST_PROCESS_TONE_MAPPING_OPAQUE",
             uint32_t(PostProcessStage::TONE_MAPPING_OPAQUE));

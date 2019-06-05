@@ -84,7 +84,7 @@ struct FFilamentAsset : public FilamentAsset {
     }
 
     const utils::Entity* getEntities() const noexcept {
-        return mEntities.data();
+        return mEntities.empty() ? nullptr : mEntities.data();
     }
 
     utils::Entity getRoot() const noexcept {
@@ -96,6 +96,10 @@ struct FFilamentAsset : public FilamentAsset {
     }
 
     const filament::MaterialInstance* const* getMaterialInstances() const noexcept {
+        return mMaterialInstances.data();
+    }
+
+    filament::MaterialInstance* const* getMaterialInstances() noexcept {
         return mMaterialInstances.data();
     }
 
@@ -145,6 +149,10 @@ struct FFilamentAsset : public FilamentAsset {
         mNodeMap.clear();
         mPrimMap.clear();
         releaseSourceAsset();
+    }
+
+    const void* getSourceAsset() noexcept {
+        return mSourceAsset;
     }
 
     void acquireSourceAsset() {

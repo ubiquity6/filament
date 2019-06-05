@@ -142,7 +142,6 @@ function build_desktop_target {
             -DIMPORT_EXECUTABLES_DIR=out \
             -DCMAKE_BUILD_TYPE=$1 \
             -DCMAKE_INSTALL_PREFIX=../${lc_target}/filament \
-            -DFILAMENT_REQUIRES_CXXABI=${FILAMENT_REQUIRES_CXXABI} \
             -DENABLE_JAVA=${ENABLE_JAVA} \
             ../..
     fi
@@ -395,7 +394,8 @@ function build_android {
 
         if [[ "$INSTALL_COMMAND" ]]; then
             echo "Installing out/filamat-android-debug.aar..."
-            cp build/outputs/aar/filamat-android-debug.aar ../../out/
+            cp build/outputs/aar/filamat-android-full-debug.aar ../../out/
+            cp build/outputs/aar/filamat-android-lite-debug.aar ../../out/
         fi
     fi
 
@@ -404,7 +404,8 @@ function build_android {
 
         if [[ "$INSTALL_COMMAND" ]]; then
             echo "Installing out/filamat-android-release.aar..."
-            cp build/outputs/aar/filamat-android-release.aar ../../out/
+            cp build/outputs/aar/filamat-android-full-release.aar ../../out/
+            cp build/outputs/aar/filamat-android-lite-release.aar ../../out/
         fi
     fi
 

@@ -68,6 +68,7 @@ public:
     /** Gets all material instances. These are already bound to renderables. */
     size_t getMaterialInstanceCount() const noexcept;
     const filament::MaterialInstance* const* getMaterialInstances() const noexcept;
+    filament::MaterialInstance* const* getMaterialInstances() noexcept;
 
     /** Gets loading instructions for vertex buffers and index buffers. */
     size_t getBufferBindingCount() const noexcept;
@@ -105,6 +106,12 @@ public:
      */
     void releaseSourceData() noexcept;
 
+    /**
+     * Returns a weak reference to the underlying cgltf hierarchy. This becomes invalid after
+     * calling releaseSourceData();
+     */
+    const void* getSourceAsset() noexcept;
+
 protected:
     FilamentAsset() noexcept = default;
     ~FilamentAsset() = default;
@@ -141,6 +148,7 @@ struct BufferBinding {
     bool convertBytesToShorts;   // the resource loader must convert the buffer from u8 to u16
     bool generateTrivialIndices; // the resource loader must generate indices like: 0, 1, 2, ...
     bool generateDummyData;      // the resource loader should generate a sequence of 1.0 values
+    bool generateTangents;       // the resource loader should generate tangents
 };
 
 /** Describes a binding from a Texture to a MaterialInstance. */

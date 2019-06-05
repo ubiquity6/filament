@@ -226,17 +226,24 @@ Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderShadowM
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderCurvatureToRoughness(
-        JNIEnv*, jclass, jlong nativeBuilder, jboolean curvatureToRoughness) {
+Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderSpecularAntiAliasing(
+        JNIEnv*, jclass, jlong nativeBuilder, jboolean specularAntiAliasing) {
     auto builder = (MaterialBuilder*) nativeBuilder;
-    builder->curvatureToRoughness(curvatureToRoughness);
+    builder->specularAntiAliasing(specularAntiAliasing);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderLimitOverInterpolation(
-        JNIEnv*, jclass, jlong nativeBuilder, jboolean limitOverInterpolation) {
+Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderSpecularAntiAliasingVariance(
+        JNIEnv*, jclass, jlong nativeBuilder, jfloat variance) {
     auto builder = (MaterialBuilder*) nativeBuilder;
-    builder->limitOverInterpolation(limitOverInterpolation);
+    builder->specularAntiAliasingVariance(variance);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderSpecularAntiAliasingThreshold(
+        JNIEnv*, jclass, jlong nativeBuilder, jfloat threshold) {
+    auto builder = (MaterialBuilder*) nativeBuilder;
+    builder->specularAntiAliasingThreshold(threshold);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -251,6 +258,20 @@ Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderFlipUV(
         jclass, jlong nativeBuilder, jboolean flipUV) {
     auto builder = (MaterialBuilder*) nativeBuilder;
     builder->flipUV(flipUV);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderMultiBounceAmbientOcclusion(
+        JNIEnv*, jclass, jlong nativeBuilder, jboolean multiBounceAO) {
+    auto builder = (MaterialBuilder*) nativeBuilder;
+    builder->multiBounceAmbientOcclusion(multiBounceAO);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_filamat_MaterialBuilder_nMaterialBuilderSpecularAmbientOcclusion(
+        JNIEnv*, jclass, jlong nativeBuilder, jboolean specularAO) {
+    auto builder = (MaterialBuilder*) nativeBuilder;
+    builder->specularAmbientOcclusion(specularAO);
 }
 
 extern "C" JNIEXPORT void JNICALL

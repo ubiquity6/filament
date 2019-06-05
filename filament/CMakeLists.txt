@@ -124,8 +124,11 @@ set(PRIVATE_HDRS
 
 set(MATERIAL_SRCS
         src/materials/defaultMaterial.mat
+        src/materials/mipmapDepth.mat
         src/materials/skybox.mat
         src/materials/skyboxRGBM.mat
+        src/materials/sao.mat
+        src/materials/ssao.mat
 )
 
 # Embed the binary resource blob for materials.
@@ -134,10 +137,28 @@ list(APPEND PRIVATE_HDRS ${RESGEN_HEADER})
 list(APPEND SRCS ${RESGEN_SOURCE})
 
 # ==================================================================================================
+# Configuration
+# ==================================================================================================
+if (ANDROID OR WEBGL OR IOS)
+    set(IS_MOBILE_TARGET TRUE)
+endif()
+
+# Size of the DFG lookup table
+if (NOT DFG_LUT_SIZE)
+    if (IS_MOBILE_TARGET)
+        set(DFG_LUT_SIZE 64)
+    else()
+        set(DFG_LUT_SIZE 128)
+    endif()
+endif()
+message(STATUS "DFG LUT size set to ${DFG_LUT_SIZE}x${DFG_LUT_SIZE}")
+
+# ==================================================================================================
 # Definitions
 # ==================================================================================================
 # "2" corresponds to SYSTRACE_TAG_FILEMENT (See: utils/Systrace.h)
-add_definitions(-DSYSTRACE_TAG=2 )
+add_definitions(-DSYSTRACE_TAG=2)
+add_definitions(-DFILAMENT_DFG_LUT_SIZE=${DFG_LUT_SIZE})
 
 # ==================================================================================================
 # Generate all .filamat: default material, skyboxes, and post-process
@@ -151,7 +172,7 @@ set(MATERIAL_BINS)
 file(MAKE_DIRECTORY ${MATERIAL_DIR})
 
 # Target system.
-if (ANDROID OR WEBGL OR IOS)
+if (IS_MOBILE_TARGET)
     set(MATC_TARGET mobile)
 else()
     set(MATC_TARGET desktop)
@@ -211,7 +232,7 @@ file(MAKE_DIRECTORY "${GENERATION_ROOT}/generated/data/")
 set(output_path "${GENERATION_ROOT}/generated/data/dfg.inc")
 add_custom_command(
         OUTPUT ${output_path}
-        COMMAND cmgen --quiet --ibl-dfg-multiscatter --ibl-dfg-cloth --ibl-dfg=${output_path}
+        COMMAND cmgen --quiet --size=${DFG_LUT_SIZE} --ibl-dfg-multiscatter --ibl-dfg-cloth --ibl-dfg=${output_path}
         DEPENDS cmgen
         COMMENT "Generating DFG LUT ${output_path}"
 )
@@ -339,3 +360,4 @@ install(FILES "README.md" DESTINATION .)
 add_subdirectory(backend)
 add_subdirectory(test)
 add_subdirectory(benchmark)
+add_subdirectory(tools)

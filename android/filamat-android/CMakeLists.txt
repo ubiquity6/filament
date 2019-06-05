@@ -2,9 +2,14 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set(FILAMENT_DIR ${FILAMENT_DIST_DIR})
 
-add_library(filamat STATIC IMPORTED)
-set_target_properties(filamat PROPERTIES IMPORTED_LOCATION
-        ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libfilamat.a)
+set(FILAMAT_FLAVOR "filamat")
+if(FILAMAT_LITE)
+    set(FILAMAT_FLAVOR "filamat_lite")
+endif()
+
+add_library(${FILAMAT_FLAVOR} STATIC IMPORTED)
+set_target_properties(${FILAMAT_FLAVOR} PROPERTIES IMPORTED_LOCATION
+        ${FILAMENT_DIR}/lib/${ANDROID_ABI}/lib${FILAMAT_FLAVOR}.a)
 
 add_library(utils STATIC IMPORTED)
 set_target_properties(utils PROPERTIES IMPORTED_LOCATION
@@ -13,10 +18,6 @@ set_target_properties(utils PROPERTIES IMPORTED_LOCATION
 add_library(filabridge STATIC IMPORTED)
 set_target_properties(filabridge PROPERTIES IMPORTED_LOCATION
         ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libfilabridge.a)
-
-add_library(backend STATIC IMPORTED)
-set_target_properties(backend PROPERTIES IMPORTED_LOCATION
-        ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libbackend.a)
 
 add_library(smol-v STATIC IMPORTED)
 set_target_properties(smol-v PROPERTIES IMPORTED_LOCATION
@@ -44,9 +45,8 @@ add_library(filamat-jni SHARED
 )
 
 target_link_libraries(filamat-jni
-        filamat
+        ${FILAMAT_FLAVOR}
         filabridge
-        backend
         shaders
         utils
         log

@@ -58,12 +58,14 @@ struct MeshReader::MaterialRegistry::MaterialRegistryImpl {
 
 // Create the implementation
 MeshReader::MaterialRegistry::MaterialRegistry()
-    : mImpl(new MaterialRegistryImpl) {
+    : mImpl(new MaterialRegistryImpl()) {
 }
+
 // Deep copy the implementation
 MeshReader::MaterialRegistry::MaterialRegistry(const MaterialRegistry& rhs)
     : mImpl(new MaterialRegistryImpl(*rhs.mImpl)) {
 }
+
 MeshReader::MaterialRegistry& MeshReader::MaterialRegistry::operator=(const MaterialRegistry& rhs) {
     *mImpl = *rhs.mImpl;
     return *this;
@@ -74,10 +76,15 @@ MeshReader::MaterialRegistry::~MaterialRegistry() {
 }
 
 // Default move construction
-MeshReader::MaterialRegistry::MaterialRegistry(MaterialRegistry&&) = default;
+MeshReader::MaterialRegistry::MaterialRegistry(MaterialRegistry&& rhs) 
+    : mImpl(nullptr) {
+    std::swap(mImpl, rhs.mImpl);
+}
 
 MeshReader::MaterialRegistry& MeshReader::MaterialRegistry::operator=(MaterialRegistry&& rhs) {
-    *mImpl = std::move(*rhs.mImpl);
+    delete mImpl;
+    mImpl = nullptr;
+    std::swap(mImpl, rhs.mImpl);
     return *this;
 }
 

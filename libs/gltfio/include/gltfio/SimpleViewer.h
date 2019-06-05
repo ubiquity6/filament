@@ -48,13 +48,18 @@ namespace gltfio {
  */
 class SimpleViewer {
 public:
+
+    static constexpr uint32_t FLAG_COLLAPSED = (1 << 0);
+    static constexpr int DEFAULT_SIDEBAR_WIDTH = 350;
+
     /**
      * Constructs a SimpleViewer that has a fixed association with the given Filament objects.
      *
      * Upon construction, the simple viewer may create some additional Filament objects (such as
      * light sources) that it owns.
      */
-    SimpleViewer(filament::Engine* engine, filament::Scene* scene, filament::View* view);
+    SimpleViewer(filament::Engine* engine, filament::Scene* scene, filament::View* view,
+            uint32_t flags = 0, int sidebarWidth = DEFAULT_SIDEBAR_WIDTH);
 
     /**
      * Destroys the SimpleViewer and any Filament entities that it owns.
@@ -114,7 +119,14 @@ public:
      */
     void setUiCallback(std::function<void()> callback) { mCustomUI = callback; }
 
-    static constexpr int INITIAL_SIDEBAR_WIDTH = 350;
+    void enableWireframe(bool b) { mEnableWireframe = b; }
+    void enableSunlight(bool b) { mEnableSunlight = b; }
+    void enableDithering(bool b) { mEnableDithering = b; }
+    void enablePrepass(bool b) { mEnablePrepass = b; }
+    void enableFxaa(bool b) { mEnableFxaa = b; }
+    void enableMsaa(bool b) { mEnableMsaa = b; }
+    void enableSSAO(bool b) { mEnableSsao = b; }
+    void setIBLIntensity(float brightness) { mIblIntensity = brightness; }
 
 private:
     // Immutable properties set from the constructor.
@@ -137,13 +149,15 @@ private:
     float mIblRotation = 0.0f;
     float mSunlightIntensity = 100000.0f;
     filament::math::float3 mSunlightDirection = {0.6, -1.0, -0.8};
-    bool mShowWireframe = false;
+    bool mEnableWireframe = false;
     bool mEnableSunlight = true;
     bool mEnableDithering = true;
     bool mEnablePrepass = true;
     bool mEnableFxaa = true;
     bool mEnableMsaa = true;
-    int mSidebarWidth = INITIAL_SIDEBAR_WIDTH;
+    bool mEnableSsao = true;
+    int mSidebarWidth;
+    uint32_t mFlags;
 };
 
 filament::math::mat4f fitIntoUnitCube(const filament::Aabb& bounds);
@@ -180,10 +194,12 @@ filament::math::mat4f fitIntoUnitCube(const filament::Aabb& bounds) {
     return mat4f::scaling(float3(scaleFactor)) * mat4f::translation(-center);
 }
 
-SimpleViewer::SimpleViewer(filament::Engine* engine, filament::Scene* scene, filament::View* view) :
+SimpleViewer::SimpleViewer(filament::Engine* engine, filament::Scene* scene, filament::View* view,
+        uint32_t flags, int sidebarWidth) :
         mEngine(engine), mScene(scene), mView(view),
         mNames(new utils::NameComponentManager(utils::EntityManager::get())),
-        mSunlight(utils::EntityManager::get().create()) {
+        mSunlight(utils::EntityManager::get().create()),
+        mFlags(flags), mSidebarWidth(sidebarWidth) {
     using namespace filament;
     LightManager::Builder(LightManager::Type::SUN)
         .color(Color::toLinear<ACCURATE>({0.98, 0.92, 0.89}))
@@ -258,6 +274,8 @@ void SimpleViewer::applyAnimation(double currentTime) {
 
 void SimpleViewer::updateUserInterface() {
     using namespace filament;
+
+    ImGuiTreeNodeFlags headerFlags = (mFlags & FLAG_COLLAPSED) ? 0 : ImGuiTreeNodeFlags_DefaultOpen;
 
     auto& tm = mEngine->getTransformManager();
     auto& rm = mEngine->getRenderableManager();
@@ -336,7 +354,7 @@ void SimpleViewer::updateUserInterface() {
 
     const float width = ImGui::GetIO().DisplaySize.x;
     const float height = ImGui::GetIO().DisplaySize.y;
-    ImGui::SetNextWindowSize(ImVec2(INITIAL_SIDEBAR_WIDTH, height), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(mSidebarWidth, height), ImGuiCond_Once);
     ImGui::SetNextWindowSizeConstraints(ImVec2(20, height), ImVec2(width, height));
 
     ImGui::Begin("Filament", nullptr, ImGuiWindowFlags_NoTitleBar);
@@ -349,6 +367,7 @@ void SimpleViewer::updateUserInterface() {
         ImGui::Checkbox("Depth prepass", &mEnablePrepass);
         ImGui::Checkbox("FXAA", &mEnableFxaa);
         ImGui::Checkbox("MSAA 4x", &mEnableMsaa);
+        ImGui::Checkbox("SSAO", &mEnableSsao);
     }
 
     mView->setDepthPrepass(
@@ -356,8 +375,10 @@ void SimpleViewer::updateUserInterface() {
     mView->setDithering(mEnableDithering ? View::Dithering::TEMPORAL : View::Dithering::NONE);
     mView->setAntiAliasing(mEnableFxaa ? View::AntiAliasing::FXAA : View::AntiAliasing::NONE);
     mView->setSampleCount(mEnableMsaa ? 4 : 1);
+    mView->setAmbientOcclusion(
+            mEnableSsao ? View::AmbientOcclusion::SSAO : View::AmbientOcclusion::NONE);
 
-    if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Light", headerFlags)) {
         ImGui::SliderFloat("IBL intensity", &mIblIntensity, 0.0f, 100000.0f);
         ImGui::SliderAngle("IBL rotation", &mIblRotation);
         ImGui::SliderFloat("Sun intensity", &mSunlightIntensity, 50000.0, 150000.0f);
@@ -374,23 +395,25 @@ void SimpleViewer::updateUserInterface() {
         mScene->remove(mSunlight);
     }
 
-    if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (mAnimator->getAnimationCount() > 0) {
-            intptr_t animationsNodeId = -1;
-            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
-            if (ImGui::TreeNodeEx((const void*) animationsNodeId, flags, "Animations")) {
-                animationsTreeItem();
-                ImGui::TreePop();
+    if (mAsset != nullptr) {
+        if (ImGui::CollapsingHeader("Model", headerFlags)) {
+            if (mAnimator->getAnimationCount() > 0) {
+                intptr_t animationsNodeId = -1;
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
+                if (ImGui::TreeNodeEx((const void*) animationsNodeId, flags, "Animations")) {
+                    animationsTreeItem();
+                    ImGui::TreePop();
+                }
             }
+            ImGui::Checkbox("Wireframe", &mEnableWireframe);
+            treeNode(mAsset->getRoot());
         }
-        ImGui::Checkbox("Wireframe", &mShowWireframe);
-        treeNode(mAsset->getRoot());
-    }
 
-    if (mShowWireframe) {
-        mScene->addEntity(mAsset->getWireframe());
-    } else {
-        mScene->remove(mAsset->getWireframe());
+        if (mEnableWireframe) {
+            mScene->addEntity(mAsset->getWireframe());
+        } else {
+            mScene->remove(mAsset->getWireframe());
+        }
     }
 
     mSidebarWidth = ImGui::GetWindowWidth();

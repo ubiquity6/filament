@@ -68,21 +68,43 @@ enum TargetBufferFlags : uint8_t {
     COLOR = 0x1,                //!< Color buffer selected.
     DEPTH = 0x2,                //!< Depth buffer selected.
     STENCIL = 0x4,              //!< Stencil buffer selected.
-    SHADOW = DEPTH | 0x8,
     COLOR_AND_DEPTH = COLOR | DEPTH,
     COLOR_AND_STENCIL = COLOR | STENCIL,
     DEPTH_AND_STENCIL = DEPTH | STENCIL,
-    ALL = COLOR | DEPTH | STENCIL,
+    ALL = COLOR | DEPTH | STENCIL
 };
+
+// implement requirement of BitmaskType
+inline constexpr TargetBufferFlags operator~(TargetBufferFlags rhs) noexcept {
+    return TargetBufferFlags(~uint8_t(rhs) & uint8_t(TargetBufferFlags::ALL));
+}
+inline constexpr TargetBufferFlags operator|=(TargetBufferFlags& lhs, TargetBufferFlags rhs) noexcept {
+    return lhs = TargetBufferFlags(uint8_t(lhs) | uint8_t(rhs));
+}
+inline constexpr TargetBufferFlags operator&=(TargetBufferFlags& lhs, TargetBufferFlags rhs) noexcept {
+    return lhs = TargetBufferFlags(uint8_t(lhs) & uint8_t(rhs));
+}
+inline constexpr TargetBufferFlags operator^=(TargetBufferFlags& lhs, TargetBufferFlags rhs) noexcept {
+    return lhs = TargetBufferFlags(uint8_t(lhs) ^ uint8_t(rhs));
+}
+inline constexpr TargetBufferFlags operator|(TargetBufferFlags lhs, TargetBufferFlags rhs) noexcept {
+    return TargetBufferFlags(uint8_t(lhs) | uint8_t(rhs));
+}
+inline constexpr TargetBufferFlags operator&(TargetBufferFlags lhs, TargetBufferFlags rhs) noexcept {
+    return TargetBufferFlags(uint8_t(lhs) & uint8_t(rhs));
+}
+inline constexpr TargetBufferFlags operator^(TargetBufferFlags lhs, TargetBufferFlags rhs) noexcept {
+    return TargetBufferFlags(uint8_t(lhs) ^ uint8_t(rhs));
+}
 
 /**
  * Frequency at which a buffer is expected to be modified and used. This is used as an hint
  * for the driver to make better decisions about managing memory internally.
  */
-enum BufferUsage : uint8_t {
-    STATIC,                 //!< content modified once, used many times
-    DYNAMIC,                //!< content modified frequently, used many times
-    STREAM,                 //!< content invalidated and modified frequently, used many times
+enum class BufferUsage : uint8_t {
+    STATIC,      //!< content modified once, used many times
+    DYNAMIC,     //!< content modified frequently, used many times
+    STREAM,      //!< content invalidated and modified frequently, used many times
 };
 
 /**
@@ -95,12 +117,14 @@ struct Viewport {
     int32_t bottom;
     uint32_t width;
     uint32_t height;
+    int32_t right() const noexcept { return left + width; }
+    int32_t top() const noexcept { return bottom + height; }
 };
 
 struct RenderPassFlags {
     uint8_t clear;
-    uint8_t discardStart;
-    uint8_t discardEnd;
+    TargetBufferFlags discardStart;
+    TargetBufferFlags discardEnd;
     uint8_t dependencies;
 
     static constexpr uint8_t DEPENDENCY_BY_REGION = 1; // see "framebuffer-local" in Vulkan spec.
@@ -459,8 +483,32 @@ enum TextureUsage : uint8_t {
     DEPTH_ATTACHMENT    = 0x2,
     STENCIL_ATTACHMENT  = 0x4,
     UPLOADABLE          = 0x8,
-    DEFAULT = UPLOADABLE
+    SAMPLEABLE          = 0x10,
+    DEFAULT = UPLOADABLE | SAMPLEABLE
 };
+
+// implement requirement of BitmaskType
+inline constexpr TextureUsage operator~(TextureUsage rhs) noexcept {
+    return TextureUsage(~uint8_t(rhs) & 0x1Fu);
+}
+inline constexpr TextureUsage operator|=(TextureUsage& lhs, TextureUsage rhs) noexcept {
+    return lhs = TextureUsage(uint8_t(lhs) | uint8_t(rhs));
+}
+inline constexpr TextureUsage operator&=(TextureUsage& lhs, TextureUsage rhs) noexcept {
+    return lhs = TextureUsage(uint8_t(lhs) & uint8_t(rhs));
+}
+inline constexpr TextureUsage operator^=(TextureUsage& lhs, TextureUsage rhs) noexcept {
+    return lhs = TextureUsage(uint8_t(lhs) ^ uint8_t(rhs));
+}
+inline constexpr TextureUsage operator|(TextureUsage lhs, TextureUsage rhs) noexcept {
+    return TextureUsage(uint8_t(lhs) | uint8_t(rhs));
+}
+inline constexpr TextureUsage operator&(TextureUsage lhs, TextureUsage rhs) noexcept {
+    return TextureUsage(uint8_t(lhs) & uint8_t(rhs));
+}
+inline constexpr TextureUsage operator^(TextureUsage lhs, TextureUsage rhs) noexcept {
+    return TextureUsage(uint8_t(lhs) ^ uint8_t(rhs));
+}
 
 //! returns whether this format is an ETC2 compressed format
 static constexpr bool isETC2Compression(TextureFormat format) noexcept {
@@ -631,10 +679,11 @@ struct PolygonOffset {
 };
 
 struct RasterState {
-    using CullingMode = CullingMode;
-    using DepthFunc = SamplerCompareFunc;
-    using BlendEquation = BlendEquation;
-    using BlendFunction = BlendFunction;
+
+    using CullingMode = filament::backend::CullingMode;
+    using DepthFunc = filament::backend::SamplerCompareFunc;
+    using BlendEquation = filament::backend::BlendEquation;
+    using BlendFunction = filament::backend::BlendFunction;
 
     RasterState() noexcept { // NOLINT(cppcoreguidelines-pro-type-member-init)
         static_assert(sizeof(RasterState) == sizeof(uint32_t),

@@ -64,10 +64,15 @@ FilamentApp::~FilamentApp() {
     SDL_Quit();
 }
 
+View* FilamentApp::getGuiView() const noexcept {
+    return mImGuiHelper->getView();
+}
+
 void FilamentApp::run(const Config& config, SetupCallback setupCallback,
         CleanupCallback cleanupCallback, ImGuiCallback imguiCallback,
         PreRenderCallback preRender, PostRenderCallback postRender,
         size_t width, size_t height) {
+    mWindowTitle = config.title;
     std::unique_ptr<FilamentApp::Window> window(
             new FilamentApp::Window(this, config, config.title, width, height));
 
@@ -195,8 +200,13 @@ void FilamentApp::run(const Config& config, SetupCallback setupCallback,
     int sidebarWidth = mSidebarWidth;
 
     SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
+    SDL_Window* sdlWindow = window->getSDLWindow();
 
     while (!mClosed) {
+
+        if (mWindowTitle != SDL_GetWindowTitle(sdlWindow)) {
+            SDL_SetWindowTitle(sdlWindow, mWindowTitle.c_str());
+        }
 
         if (mSidebarWidth != sidebarWidth) {
             window->configureCamerasForWindow();
@@ -515,6 +525,8 @@ FilamentApp::Window::Window(FilamentApp* filamentApp,
     mMainCameraMan.lookAt(at + double3{ 0, 0, 4 }, at);
     mDebugCameraMan.lookAt(at + double3{ 0, 0, 4 }, at);
     mOrthoCameraMan.lookAt(at + double3{ 0, 0, 4 }, at);
+
+    mMainCamera->lookAt({4, 0, -4}, {0, 0, -4}, {0, 1, 0});
 }
 
 FilamentApp::Window::~Window() {

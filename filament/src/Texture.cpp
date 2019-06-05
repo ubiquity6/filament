@@ -84,7 +84,8 @@ Texture::Builder& Texture::Builder::rgbm(bool enabled) noexcept {
 }
 
 Texture::Builder& Texture::Builder::usage(Texture::Usage usage) noexcept {
-    mImpl->mUsage = usage;
+    // for now, the public API only allows UPLOADABLE and SAMPLEABLE textures
+    mImpl->mUsage = Texture::Usage(Texture::Usage::DEFAULT | usage);
     return *this;
 }
 
@@ -120,10 +121,6 @@ FTexture::FTexture(FEngine& engine, const Builder& builder) {
 void FTexture::terminate(FEngine& engine) {
     FEngine::DriverApi& driver = engine.getDriverApi();
     driver.destroyTexture(mHandle);
-}
-
-static inline size_t valueForLevel(size_t level, size_t value) {
-    return std::max(size_t(1), value >> level);
 }
 
 size_t FTexture::getWidth(size_t level) const noexcept {
@@ -219,15 +216,15 @@ void FTexture::generateMipmaps(FEngine& engine) const noexcept {
         uint32_t srcw = mWidth;
         uint32_t srch = mHeight;
         backend::Handle<backend::HwRenderTarget> srcrth = driver.createRenderTarget(TargetBufferFlags::COLOR,
-                srcw, srch, mSampleCount, mFormat, { mHandle, level++, layer }, {}, {});
+                srcw, srch, mSampleCount, { mHandle, level++, layer }, {}, {});
 
         // Perform a blit for all miplevels down to 1x1.
         backend::Handle<backend::HwRenderTarget> dstrth;
         do {
-            uint32_t dstw = std::max(srcw >> 1, 1u);
-            uint32_t dsth = std::max(srch >> 1, 1u);
+            uint32_t dstw = std::max(srcw >> 1u, 1u);
+            uint32_t dsth = std::max(srch >> 1u, 1u);
             dstrth = driver.createRenderTarget(TargetBufferFlags::COLOR, dstw, dsth, mSampleCount,
-                    mFormat, { mHandle, level++, layer }, {}, {});
+                    { mHandle, level++, layer }, {}, {});
             driver.blit(TargetBufferFlags::COLOR,
                     dstrth, { 0, 0, dstw, dsth },
                     srcrth, { 0, 0, srcw, srch },

@@ -16,8 +16,6 @@
 
 #include "PlatformDummyGL.h"
 
-#include "OpenGLDriver.h"
-
 namespace filament {
 
 Driver* PlatformDummyGL::createDriver(void* const sharedGLContext) noexcept {

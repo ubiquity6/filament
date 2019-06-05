@@ -59,10 +59,13 @@ public:
 
     class Builder {
     public:
-        using Attachments = FrameGraphRenderTarget::Attachments;
+        using Attachments = FrameGraphRenderTarget::AttachmentResult;
 
         Builder(Builder const&) = delete;
         Builder& operator=(Builder const&) = delete;
+
+        // Return the name of the pass being built
+        const char* getPassName() const noexcept;
 
         // Create a virtual resource that can eventually turn into a concrete texture or
         // render target
@@ -71,6 +74,14 @@ public:
 
         // Read from a resource (i.e. add a reference to that resource)
         FrameGraphResource read(FrameGraphResource const& input);
+
+        FrameGraphResource::Descriptor const& getDescriptor(FrameGraphResource const& r);
+
+        // get resource's name
+        const char* getName(FrameGraphResource const& r) const noexcept;
+
+        // return resource's sample count
+        uint8_t getSamples(FrameGraphResource const& r) const noexcept;
 
         /*
          * Use this resource as a render target.
@@ -86,8 +97,8 @@ public:
                 FrameGraphRenderTarget::Descriptor const& desc,
                 backend::TargetBufferFlags clearFlags = {}) noexcept;
 
-        // helper for single color attachment
-        Attachments useRenderTarget(FrameGraphResource texture,
+        // helper for single color attachment with WRITE access
+        FrameGraphResource useRenderTarget(FrameGraphResource texture,
                 backend::TargetBufferFlags clearFlags = {}) noexcept;
 
         // Declare that this pass has side effects outside the framegraph (i.e. it can't be culled)
@@ -211,12 +222,12 @@ private:
     fg::ResourceNode& getResource(FrameGraphResource r);
 
     fg::RenderTarget& createRenderTarget(const char* name,
-            FrameGraphRenderTarget::Descriptor const& desc, bool imported) noexcept;
+            FrameGraphRenderTarget::Descriptor const& desc) noexcept;
 
     FrameGraphResource createResourceNode(fg::Resource* resource) noexcept;
 
     enum class DiscardPhase { START, END };
-    uint8_t computeDiscardFlags(DiscardPhase phase,
+    backend::TargetBufferFlags computeDiscardFlags(DiscardPhase phase,
             fg::PassNode const* curr, fg::PassNode const* first,
             fg::RenderTarget const& renderTarget);
 

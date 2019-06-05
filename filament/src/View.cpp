@@ -41,6 +41,7 @@
 
 #include <memory>
 
+
 using namespace filament::math;
 using namespace utils;
 
@@ -626,6 +627,16 @@ void FView::prepareCamera(const CameraInfo& camera, const filament::Viewport& vi
     u.setUniform(offsetof(PerViewUib, cameraPosition), float3{camera.getPosition()});
 }
 
+void FView::prepareSSAO(Handle<HwTexture> ssao) const noexcept {
+    SamplerParams params;
+    params.filterMag = SamplerMagFilter::LINEAR;
+    mPerViewSb.setSampler(PerViewSib::SSAO, ssao, params);
+}
+
+void FView::cleanupSSAO() const noexcept {
+    mPerViewSb.setSampler(PerViewSib::SSAO, {}, {});
+}
+
 void FView::froxelize(FEngine& engine) const noexcept {
     SYSTRACE_CALL();
 
@@ -913,6 +924,22 @@ void View::setDepthPrepass(View::DepthPrepass prepass) noexcept {
 
 void View::setDynamicLightingOptions(float zLightNear, float zLightFar) noexcept {
     upcast(this)->setDynamicLightingOptions(zLightNear, zLightFar);
+}
+
+void View::setAmbientOcclusion(View::AmbientOcclusion ambientOcclusion) noexcept {
+    upcast(this)->setAmbientOcclusion(ambientOcclusion);
+}
+
+View::AmbientOcclusion View::getAmbientOcclusion() const noexcept {
+    return upcast(this)->getAmbientOcclusion();
+}
+
+void View::setAmbientOcclusionOptions(View::AmbientOcclusionOptions const& options) noexcept {
+    upcast(this)->setAmbientOcclusionOptions(options);
+}
+
+View::AmbientOcclusionOptions const& View::getAmbientOcclusionOptions() const noexcept {
+    return upcast(this)->getAmbientOcclusionOptions();
 }
 
 

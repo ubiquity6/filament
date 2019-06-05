@@ -43,6 +43,10 @@ const MaterialInstance* const* FilamentAsset::getMaterialInstances() const noexc
     return upcast(this)->getMaterialInstances();
 }
 
+MaterialInstance* const* FilamentAsset::getMaterialInstances() noexcept {
+    return upcast(this)->getMaterialInstances();
+}
+
 size_t FilamentAsset::getBufferBindingCount() const noexcept {
     return upcast(this)->getBufferBindingCount();
 }
@@ -77,6 +81,10 @@ Engine* FilamentAsset::getEngine() const noexcept {
 
 void FilamentAsset::releaseSourceData() noexcept {
     return upcast(this)->releaseSourceData();
+}
+
+const void* FilamentAsset::getSourceAsset() noexcept {
+    return upcast(this)->getSourceAsset();
 }
 
 } // namespace gltfio

@@ -313,6 +313,11 @@ static void gui(filament::Engine* engine, filament::View*) {
             }
         }
 
+        if (ImGui::CollapsingHeader("Shading AA")) {
+            ImGui::SliderFloat("variance", &params.specularAntiAliasingVariance, 0.0f, 1.0f);
+            ImGui::SliderFloat("threshold", &params.specularAntiAliasingThreshold, 0.0f, 1.0f);
+        }
+
         if (ImGui::CollapsingHeader("Object")) {
             ImGui::Checkbox("castShadows", &params.castShadows);
         }
@@ -327,6 +332,15 @@ static void gui(filament::Engine* engine, filament::View*) {
             ImGui::SliderFloat("ibl", &params.iblIntensity, 0.0f, 50000.0f);
             ImGui::SliderAngle("ibl rotation", &params.iblRotation);
             ImGuiExt::DirectionWidget("direction", &params.lightDirection.x);
+            ImGui::Indent();
+            if (ImGui::CollapsingHeader("SSAO")) {
+                DebugRegistry& debug = engine->getDebugRegistry();
+                ImGui::Checkbox("enabled###ssao", &params.ssao);
+                ImGui::SliderFloat("radius", &params.ssaoOptions.radius, 0.05f, 5.0f);
+                ImGui::SliderFloat("bias", &params.ssaoOptions.bias, 0.0f, 0.1f);
+                ImGui::SliderFloat("power", &params.ssaoOptions.power, 0.0f, 1.0f);
+            }
+            ImGui::Unindent();
         }
 
         if (ImGui::CollapsingHeader("Post-processing")) {
@@ -419,6 +433,9 @@ static void preRender(filament::Engine*, filament::View* view, filament::Scene*,
     view->setToneMapping(g_params.tonemapping ? View::ToneMapping::ACES : View::ToneMapping::LINEAR);
     view->setDithering(g_params.dithering ? View::Dithering::TEMPORAL : View::Dithering::NONE);
     view->setSampleCount((uint8_t) (g_params.msaa ? 4 : 1));
+    view->setAmbientOcclusion(
+            g_params.ssao ? View::AmbientOcclusion::SSAO : View::AmbientOcclusion::NONE);
+    view->setAmbientOcclusionOptions(g_params.ssaoOptions);
 }
 
 int main(int argc, char* argv[]) {

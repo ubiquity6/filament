@@ -23,7 +23,9 @@
 #include <gltfio/FilamentAsset.h>
 #include <gltfio/MaterialProvider.h>
 
-#include <utils/NameComponentManager.h>
+namespace utils {
+    class NameComponentManager;
+}
 
 namespace gltfio {
 
@@ -117,6 +119,19 @@ public:
      * of Filament objects. Returns null on failure.
      */
     FilamentAsset* createAssetFromBinary(const uint8_t* bytes, uint32_t nbytes);
+
+    /**
+     * Takes a pointer to an opaque pipeline object and returns a bundle of Filament objects.
+     *
+     * This exists solely for interop with AssetPipeline, which is optional according to the build
+     * configuration.
+     */
+    FilamentAsset* createAssetFromHandle(const void* cgltf);
+
+    /**
+     * Allows clients to enable diagnostic shading on newly-loaded assets.
+     */
+    void enableDiagnostics(bool enable = true);
 
     /** Destroys the given asset and all of its associated Filament objects. */
     void destroyAsset(const FilamentAsset* asset);

@@ -36,10 +36,11 @@ struct UTILS_PUBLIC MaterialInfo {
     bool hasDoubleSidedCapability;
     bool hasExternalSamplers;
     bool hasShadowMultiplier;
-    bool curvatureToRoughness;
-    bool limitOverInterpolation;
+    bool specularAntiAliasing;
     bool clearCoatIorChange;
     bool flipUV;
+    bool multiBounceAO;
+    bool specularAO;
     filament::AttributeBitset requiredAttributes;
     filament::BlendingMode blendingMode;
     filament::BlendingMode postLightingBlendingMode;

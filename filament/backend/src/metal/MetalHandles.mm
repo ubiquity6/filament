@@ -28,57 +28,39 @@ namespace backend {
 namespace metal {
 
 static inline MTLTextureUsage getMetalTextureUsage(TextureUsage usage) {
-    switch (usage) {
-        case TextureUsage::DEFAULT:
-            return MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
-
-        case TextureUsage::COLOR_ATTACHMENT:
-            return MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget;
-
-        case TextureUsage::DEPTH_ATTACHMENT:
-        case TextureUsage::STENCIL_ATTACHMENT:
-            return MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget;
+    NSUInteger u = 0;
+    if (usage & TextureUsage::COLOR_ATTACHMENT) {
+        u |= MTLTextureUsageRenderTarget;
     }
+    if (usage & TextureUsage::DEPTH_ATTACHMENT) {
+        u |= MTLTextureUsageRenderTarget;
+    }
+    if (usage & TextureUsage::STENCIL_ATTACHMENT) {
+        u |= MTLTextureUsageRenderTarget;
+    }
+
+    // All textures can be blitted from, so they must have the UsageShaderRead flag.
+    u |= MTLTextureUsageShaderRead;
+
+    return MTLTextureUsage(u);
 }
 
-static inline MTLStorageMode getMetalStorageMode(TextureFormat format) {
-    switch (format) {
-        // Depth textures must have a private storage mode.
-        case TextureFormat::DEPTH16:
-        case TextureFormat::DEPTH24:
-        case TextureFormat::DEPTH32F:
-        case TextureFormat::DEPTH24_STENCIL8:
-        case TextureFormat::DEPTH32F_STENCIL8:
-            return MTLStorageModePrivate;
-
-        default:
+static inline MTLStorageMode getMetalStorageMode(TextureUsage usage) {
+    if (usage & TextureUsage::UPLOADABLE) {
 #if defined(IOS)
-            return MTLStorageModeShared;
+        return MTLStorageModeShared;
 #else
-            return MTLStorageModeManaged;
+        return MTLStorageModeManaged;
 #endif
     }
+    return MTLStorageModePrivate;
 }
 
 MetalSwapChain::MetalSwapChain(id<MTLDevice> device, CAMetalLayer* nativeWindow)
         : layer(nativeWindow) {
     layer.device = device;
-
-    // Create a depth buffer for the swap chain.
     CGSize size = layer.drawableSize;
-    MTLTextureDescriptor* depthTextureDesc =
-            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
-                                                               width:(NSUInteger)(size.width)
-                                                              height:(NSUInteger)(size.height)
-                                                           mipmapped:NO];
-    depthTextureDesc.usage = MTLTextureUsageRenderTarget;
-    depthTextureDesc.resourceOptions = MTLResourceStorageModePrivate;
-    depthTexture = [device newTextureWithDescriptor:depthTextureDesc];
     surfaceHeight = (NSUInteger)(size.height);
-}
-
-MetalSwapChain::~MetalSwapChain() {
-    [depthTexture release];
 }
 
 MetalVertexBuffer::MetalVertexBuffer(id<MTLDevice> device, uint8_t bufferCount, uint8_t attributeCount,
@@ -244,12 +226,15 @@ MetalProgram::MetalProgram(id<MTLDevice> device, const Program& program) noexcep
         if (source.empty()) {
             continue;
         }
-        NSString* objcSource = [NSString stringWithCString:(const char*)source.data()
-                                                  encoding:NSUTF8StringEncoding];
+
+        NSString* objcSource = [[NSString alloc] initWithBytes:source.data()
+                                                        length:source.size()
+                                                      encoding:NSUTF8StringEncoding];
         NSError* error = nil;
         id<MTLLibrary> library = [device newLibraryWithSource:objcSource
                                                       options:nil
                                                         error:&error];
+        [objcSource release];
         if (error) {
             auto description =
                     [error.localizedDescription cStringUsingEncoding:NSUTF8StringEncoding];
@@ -270,22 +255,35 @@ MetalProgram::~MetalProgram() {
     [fragmentFunction release];
 }
 
+static MTLPixelFormat decidePixelFormat(id<MTLDevice> device, TextureFormat format) {
+    const MTLPixelFormat metalFormat = getMetalFormat(format);
+#if !defined(IOS)
+    // Some devices do not support the Depth24_Stencil8 format, so we'll fallback to Depth32.
+    if (metalFormat == MTLPixelFormatDepth24Unorm_Stencil8 &&
+        !device.depth24Stencil8PixelFormatSupported) {
+        return MTLPixelFormatDepth32Float;
+    }
+#endif
+    return metalFormat;
+}
+
 MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, uint8_t levels,
         TextureFormat format, uint8_t samples, uint32_t width, uint32_t height, uint32_t depth,
         TextureUsage usage) noexcept
-    : HwTexture(target, levels, samples, width, height, depth, format), context(context),
+    : HwTexture(target, levels, samples, width, height, depth, format, usage), context(context),
         externalImage(context), reshaper(format) {
 
     // Metal does not natively support 3 component textures. We'll emulate support by reshaping the
     // image data and using a 4 component texture.
     const TextureFormat reshapedFormat = reshaper.getReshapedFormat();
-    const MTLPixelFormat pixelFormat = getMetalFormat(reshapedFormat);
+    const MTLPixelFormat pixelFormat = decidePixelFormat(context.device, reshapedFormat);
 
     bytesPerPixel = static_cast<uint8_t>(details::FTexture::getFormatSize(reshapedFormat));
 
     ASSERT_POSTCONDITION(pixelFormat != MTLPixelFormatInvalid, "Pixel format not supported.");
 
     const BOOL mipmapped = levels > 1;
+    const BOOL multisampled = samples > 1;
 
     MTLTextureDescriptor* descriptor;
     if (target == backend::SamplerType::SAMPLER_2D) {
@@ -294,18 +292,20 @@ MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, u
                                                                        height:height
                                                                     mipmapped:mipmapped];
         descriptor.mipmapLevelCount = levels;
-        descriptor.textureType = MTLTextureType2D;
+        descriptor.textureType = multisampled ? MTLTextureType2DMultisample : MTLTextureType2D;
+        descriptor.sampleCount = multisampled ? samples : 1;
         descriptor.usage = getMetalTextureUsage(usage);
-        descriptor.storageMode = getMetalStorageMode(format);
+        descriptor.storageMode = getMetalStorageMode(usage);
         texture = [context.device newTextureWithDescriptor:descriptor];
     } else if (target == backend::SamplerType::SAMPLER_CUBEMAP) {
+        ASSERT_POSTCONDITION(!multisampled, "Multisampled cubemap faces not supported.");
         ASSERT_POSTCONDITION(width == height, "Cubemap faces must be square.");
         descriptor = [MTLTextureDescriptor textureCubeDescriptorWithPixelFormat:pixelFormat
                                                                            size:width
                                                                       mipmapped:mipmapped];
         descriptor.mipmapLevelCount = levels;
         descriptor.usage = getMetalTextureUsage(usage);
-        descriptor.storageMode = getMetalStorageMode(format);
+        descriptor.storageMode = getMetalStorageMode(usage);
         texture = [context.device newTextureWithDescriptor:descriptor];
     } else if (target == backend::SamplerType::SAMPLER_EXTERNAL) {
         // If we're using external textures (CVPixelBufferRefs), we don't need to make any texture
@@ -314,7 +314,6 @@ MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, u
     } else {
         ASSERT_POSTCONDITION(false, "Sampler type not supported.");
     }
-
 }
 
 MetalTexture::~MetalTexture() {
@@ -366,19 +365,45 @@ void MetalTexture::loadCubeImage(const PixelBufferDescriptor& data, const FaceOf
 }
 
 MetalRenderTarget::MetalRenderTarget(MetalContext* context, uint32_t width, uint32_t height,
-        uint8_t samples, TextureFormat format, id<MTLTexture> color, id<MTLTexture> depth)
-        : HwRenderTarget(width, height), context(context), color(color), depth(depth),
-        samples(samples) {
+        uint8_t samples, id<MTLTexture> color, id<MTLTexture> depth, uint8_t level)
+        : HwRenderTarget(width, height), context(context), samples(samples), level(level) {
+    ASSERT_PRECONDITION(color || depth, "Must provide either a color or depth texture.");
+
     [color retain];
     [depth retain];
 
-    if (samples > 1) {
-        multisampledColor =
-                createMultisampledTexture(context->device, format, width, height, samples);
+    if (color) {
+        if (color.textureType == MTLTextureType2DMultisample) {
+            this->multisampledColor = color;
+        } else {
+            this->color = color;
+        }
+    }
 
-        if (depth != nil) {
-            multisampledDepth = createMultisampledTexture(context->device, TextureFormat::DEPTH32F,
-                    width, height, samples);
+    if (depth) {
+        if (depth.textureType == MTLTextureType2DMultisample) {
+            this->multisampledDepth = depth;
+        } else {
+            this->depth = depth;
+        }
+    }
+
+    ASSERT_PRECONDITION(samples > 1 || (!multisampledDepth && !multisampledColor),
+            "MetalRenderTarget was initialized with a MSAA texture, but sample count is %d.", samples);
+
+    // Handle special cases. If we were given a single-sampled texture but the samples parameter
+    // is > 1, we create multisampled textures and do a resolve automatically.
+    if (samples > 1) {
+        if (color && !multisampledColor) {
+            multisampledColor =
+                    createMultisampledTexture(context->device, color.pixelFormat, width, height,
+                            samples);
+        }
+
+        if (depth && !multisampledDepth) {
+            // TODO: we only need to resolve depth if the depth texture is not SAMPLEABLE.
+            multisampledDepth = createMultisampledTexture(context->device, depth.pixelFormat, width,
+                    height, samples);
         }
     }
 }
@@ -387,22 +412,71 @@ id<MTLTexture> MetalRenderTarget::getColor() {
     if (defaultRenderTarget) {
         return acquireDrawable(context).texture;
     }
-    return isMultisampled() ? multisampledColor : color;
-}
-
-id<MTLTexture> MetalRenderTarget::getColorResolve() {
-    return isMultisampled() ? color : nil;
-}
-
-id<MTLTexture> MetalRenderTarget::getDepthResolve() {
-    return isMultisampled() ? depth : nil;
+    if (multisampledColor) {
+        return multisampledColor;
+    }
+    return color;
 }
 
 id<MTLTexture> MetalRenderTarget::getDepth() {
-    if (defaultRenderTarget) {
-        return context->currentSurface->depthTexture;
+    if (multisampledDepth) {
+        return multisampledDepth;
     }
-    return isMultisampled() ? multisampledDepth : depth;
+    return depth;
+}
+
+id<MTLTexture> MetalRenderTarget::getColorResolve() {
+    const bool shouldResolveColor = (multisampledColor && color);
+    return shouldResolveColor ? color : nil;
+}
+
+id<MTLTexture> MetalRenderTarget::getDepthResolve() {
+    const bool shouldResolveDepth = (multisampledDepth && depth);
+    return shouldResolveDepth ? depth : nil;
+}
+
+id<MTLTexture> MetalRenderTarget::getBlitColorSource() {
+    if (color) {
+        return color;
+    }
+    return multisampledColor;
+}
+
+id<MTLTexture> MetalRenderTarget::getBlitDepthSource() {
+    if (depth) {
+        return depth;
+    }
+    return multisampledDepth;
+}
+
+MTLLoadAction MetalRenderTarget::getLoadAction(const RenderPassParams& params,
+        TargetBufferFlags buffer) {
+    const auto clearFlags = (TargetBufferFlags) params.flags.clear;
+    const auto discardStartFlags = params.flags.discardStart;
+    if (clearFlags & buffer) {
+        return MTLLoadActionClear;
+    } else if (discardStartFlags & buffer) {
+        return MTLLoadActionDontCare;
+    }
+    return MTLLoadActionLoad;
+}
+
+MTLStoreAction MetalRenderTarget::getStoreAction(const RenderPassParams& params,
+        TargetBufferFlags buffer) {
+    const auto discardEndFlags = params.flags.discardEnd;
+    if (discardEndFlags & buffer) {
+        return MTLStoreActionDontCare;
+    }
+    if (buffer & TargetBufferFlags::COLOR) {
+        const bool shouldResolveColor = (multisampledColor && color);
+        return shouldResolveColor ? MTLStoreActionMultisampleResolve : MTLStoreActionStore;
+    }
+    if (buffer & TargetBufferFlags::DEPTH) {
+        const bool shouldResolveDepth = (multisampledDepth && depth);
+        return shouldResolveDepth ? MTLStoreActionMultisampleResolve : MTLStoreActionStore;
+    }
+    // Shouldn't get here.
+    return MTLStoreActionStore;
 }
 
 MetalRenderTarget::~MetalRenderTarget() {
@@ -413,12 +487,9 @@ MetalRenderTarget::~MetalRenderTarget() {
 }
 
 id<MTLTexture> MetalRenderTarget::createMultisampledTexture(id<MTLDevice> device,
-        TextureFormat format, uint32_t width, uint32_t height, uint8_t samples) {
-    MTLPixelFormat metalFormat = getMetalFormat(format);
-    ASSERT_POSTCONDITION(metalFormat != MTLPixelFormatInvalid, "Pixel format not supported.");
-
+        MTLPixelFormat format, uint32_t width, uint32_t height, uint8_t samples) {
     MTLTextureDescriptor* descriptor =
-            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:metalFormat
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:format
                                                                width:width
                                                               height:height
                                                             mipmapped:NO];
@@ -432,6 +503,46 @@ id<MTLTexture> MetalRenderTarget::createMultisampledTexture(id<MTLDevice> device
 #endif
 
     return [device newTextureWithDescriptor:descriptor];
+}
+
+
+MetalFence::MetalFence(MetalContext& context) {
+#if METAL_FENCES_SUPPORTED
+    cv = std::make_shared<std::condition_variable>();
+    event = [context.device newSharedEvent];
+    value = context.signalId++;
+    [context.currentCommandBuffer encodeSignalEvent:event value:value];
+
+    // Using a weak_ptr here because the Fence could be deleted before the block executes.
+    std::weak_ptr<std::condition_variable> weakCv = cv;
+    [event notifyListener:context.eventListener atValue:value block:^(id <MTLSharedEvent> o,
+            uint64_t value) {
+        if (auto cv = weakCv.lock()) {
+            cv->notify_all();
+        }
+    }];
+#endif
+}
+
+MetalFence::~MetalFence() {
+#if METAL_FENCES_SUPPORTED
+    [event release];
+#endif
+}
+
+FenceStatus MetalFence::wait(uint64_t timeoutNs) {
+#if METAL_FENCES_SUPPORTED
+    std::unique_lock<std::mutex> guard(mutex);
+    while (event.signaledValue != value) {
+        if (timeoutNs == 0 ||
+            cv->wait_for(guard, std::chrono::nanoseconds(timeoutNs)) == std::cv_status::timeout) {
+            return FenceStatus::TIMEOUT_EXPIRED;
+        }
+    }
+    return FenceStatus::CONDITION_SATISFIED;
+#else
+    return FenceStatus::ERROR;
+#endif
 }
 
 } // namespace metal

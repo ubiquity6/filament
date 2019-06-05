@@ -32,6 +32,7 @@
 #include "fg/FrameGraph.h"
 #include "fg/FrameGraphResource.h"
 
+
 #include <utils/Panic.h>
 #include <utils/Systrace.h>
 #include <utils/vector.h>
@@ -56,6 +57,8 @@ FRenderer::FRenderer(FEngine& engine) :
         mIsRGB8Supported(false),
         mPerRenderPassArena(engine.getPerRenderPassAllocator())
 {
+    FDebugRegistry& debugRegistry = engine.getDebugRegistry();
+    debugRegistry.registerProperty("d.ssao.enabled", &engine.debug.ssao.enabled);
 }
 
 void FRenderer::init() noexcept {
@@ -235,7 +238,8 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
 
     const backend::Handle<backend::HwRenderTarget> viewRenderTarget = getRenderTarget();
     FrameGraphResource output = fg.importResource("viewRenderTarget",
-            { .viewport = vp }, viewRenderTarget, vp.width, vp.height);
+            { .viewport = vp }, viewRenderTarget, vp.width, vp.height,
+            view.getDiscardedTargetBuffers());
 
     /*
      * Depth + Color passes
@@ -250,52 +254,51 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
     view.prepareCamera(cameraInfo, svp);
     view.commitUniforms(driver);
 
-    TargetBufferFlags clearFlags = view.getClearFlags();
-    if (hasPostProcess) {
-        // When using a post-process pass, composition of Views is done during the post-process
-        // pass, which means it's NOT done here. For this reason, we need to clear the depth/stencil
-        // buffers unconditionally. The color buffer must be cleared to what the user asked for,
-        // since it's akin to a drawing command.
-        clearFlags = TargetBufferFlags(uint8_t(clearFlags) | TargetBufferFlags::DEPTH_AND_STENCIL);
+
+    // --------------------------------------------------------------------------------------------
+
+    const bool useSSAO = view.getAmbientOcclusion() != View::AmbientOcclusion::NONE;
+
+    // SSAO pass -- automatically culled if not used
+    if (useSSAO) {
+        pass.appendSortedCommands(RenderPass::CommandTypeFlags::DEPTH);
     }
 
-    RenderPass::CommandTypeFlags commandType;
-    switch (view.getDepthPrepass()) {
-        case View::DepthPrepass::DEFAULT:
-            // TODO: better default strategy (can even change on a per-frame basis)
-            commandType = RenderPass::DEPTH_AND_COLOR;
-#if defined(ANDROID) || defined(__EMSCRIPTEN__)
-            commandType = RenderPass::COLOR;
-#endif
-            break;
-        case View::DepthPrepass::DISABLED:
-            commandType = RenderPass::COLOR;
-            break;
-        case View::DepthPrepass::ENABLED:
-            commandType = RenderPass::DEPTH_AND_COLOR;
-            break;
-    }
+    FrameGraphResource ssao = ppm.ssao(fg, pass, svp, cameraInfo, view.getAmbientOcclusionOptions());
 
-    pass.generateSortedCommands(commandType);
+    // --------------------------------------------------------------------------------------------
 
+    // generate the normal commands
+    RenderPass::CommandTypeFlags commandType = getCommandType(view.getDepthPrepass());
+    Command const* colorPassBegin = commands.end();
+    Command const* colorPassEnd = pass.appendSortedCommands(commandType);
+
+    // We only honor the view's color buffer clear flags, depth/stencil are handled by the framefraph
+    TargetBufferFlags clearFlags = view.getClearFlags() & TargetBufferFlags::COLOR | TargetBufferFlags::DEPTH;
 
     struct ColorPassData {
         FrameGraphResource color;
         FrameGraphResource depth;
+        FrameGraphResource ssao;
     };
 
-    auto& colorPass = fg.addPass<ColorPassData>("Color pass",
-            [&svp, hdrFormat, colorPassNeedsDepthBuffer, msaa, clearFlags]
+    auto& colorPass = fg.addPass<ColorPassData>("Color Pass",
+            [&svp, hdrFormat, colorPassNeedsDepthBuffer, msaa, clearFlags, useSSAO, ssao]
             (FrameGraph::Builder& builder, ColorPassData& data) {
 
-                data.color = builder.createTexture("color buffer",
-                        { .width = svp.width, .height = svp.height, .format = hdrFormat });
+                if (useSSAO) {
+                    data.ssao = builder.read(ssao);
+                }
+
+                data.color = builder.createTexture("Color Buffer",
+                        { .width = svp.width, .height = svp.height, .format = hdrFormat, .samples = msaa });
 
                 if (colorPassNeedsDepthBuffer) {
-                    data.depth = builder.createTexture("depth buffer",
-                            { .width = svp.width, .height = svp.height,
-                              .format = TextureFormat::DEPTH24 // TODO: fg should figure that out automatically
-                            });
+                    data.depth = builder.createTexture("Depth Buffer", {
+                            .width = svp.width, .height = svp.height,
+                            .format = TextureFormat::DEPTH24,
+                            .samples = msaa
+                    });
                 }
 
                 FrameGraphRenderTarget::Descriptor desc{
@@ -304,14 +307,23 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                         .attachments.depth = data.depth
                 };
 
-                auto attachments = builder.useRenderTarget("colorRenderTarget", desc, clearFlags);
+                auto attachments = builder.useRenderTarget("Color Pass Target", desc, clearFlags);
                 data.color = attachments.color;
                 data.depth = attachments.depth;
             },
-            [&pass, jobFroxelize, &js, &view]
+            [&pass, &ppm, colorPassBegin, colorPassEnd, jobFroxelize, &js, &view]
                     (FrameGraphPassResources const& resources,
                             ColorPassData const& data, DriverApi& driver) {
                 auto out = resources.getRenderTarget(data.color);
+                Handle<HwTexture> ssao;
+                if (data.ssao.isValid()) {
+                    ssao = resources.getTexture(data.ssao);
+                } else {
+                    ssao = ppm.getNoSSAOTexture();
+                }
+                view.prepareSSAO(ssao);
+                view.commitUniforms(driver);
+
                 out.params.clearColor = view.getClearColor();
 
                 if (jobFroxelize) {
@@ -320,14 +332,16 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                     view.commitFroxels(driver);
                 }
 
-                Slice<Command> const& commands = pass.getCommands();
-                pass.execute("Color Pass", out.target, out.params,
-                        commands.begin(), commands.end());
+                pass.execute(resources.getPassName(), out.target, out.params,
+                        colorPassBegin, colorPassEnd);
+
+                // Unbind the SSAO sampler, as the frame graph will delete the texture at the end of
+                // the pass.
+                view.cleanupSSAO();
             });
 
     jobFroxelize = nullptr;
     FrameGraphResource input = colorPass.getData().color;
-    UTILS_UNUSED FrameGraphResource depth = colorPass.getData().depth;
 
     /*
      * Post Processing...
@@ -353,13 +367,19 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
         }
     }
 
-    // FIXME: viewRenderTarget doesn't have a depth or multisample buffer,
-    //        so if one is required by the colorPass,
-    //        we must use an intermediate buffer, we do this by forcing a blit -- this will
-    //        only happen if no other post-processing above took place (in which case we would
-    //        already be using an intermediate buffer)
-    if ((msaa > 1 || colorPassNeedsDepthBuffer) && input == colorPass.getData().color) {
-        input = ppm.dynamicScaling(fg, input, ldrFormat);
+    // If we're rendering into the default RenderTarget (viewRenderTarget), we must take care
+    // of a few things:
+    // - since viewRenderTarget doesn't have depth or multi-sample buffer, we have to use an
+    //   intermediate buffer which has one. We do this by forcing a blit.
+    // - however a blit operation cannot move or scale the source, so we must additionally
+    //   do a resolve pass in the multi-sample case.
+    if (input == colorPass.getData().color) {
+        if (msaa > 1) {
+            input = ppm.resolve(fg, input);
+            input = ppm.dynamicScaling(fg, input, ldrFormat);
+        } else if (colorPassNeedsDepthBuffer) {
+            input = ppm.dynamicScaling(fg, input, ldrFormat);
+        }
     }
 
     fg.present(input);
@@ -368,6 +388,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
 
     fg.compile();
     //fg.export_graphviz(slog.d);
+
     fg.execute(driver);
 
     commands.clear();
@@ -562,6 +583,26 @@ void FRenderer::readPixels(uint32_t xoffset, uint32_t yoffset, uint32_t width, u
     FEngine& engine = getEngine();
     FEngine::DriverApi& driver = engine.getDriverApi();
     driver.readPixels(mRenderTarget, xoffset, yoffset, width, height, std::move(buffer));
+}
+
+RenderPass::CommandTypeFlags FRenderer::getCommandType(View::DepthPrepass prepass) const noexcept {
+    RenderPass::CommandTypeFlags commandType;
+    switch (prepass) {
+        case View::DepthPrepass::DEFAULT:
+            // TODO: better default strategy (can even change on a per-frame basis)
+            commandType = RenderPass::COLOR_WITH_DEPTH_PREPASS;
+#if defined(ANDROID) || defined(__EMSCRIPTEN__)
+            commandType = RenderPass::COLOR;
+#endif
+            break;
+        case View::DepthPrepass::DISABLED:
+            commandType = RenderPass::COLOR;
+            break;
+        case View::DepthPrepass::ENABLED:
+            commandType = RenderPass::COLOR_WITH_DEPTH_PREPASS;
+            break;
+    }
+    return commandType;
 }
 
 } // namespace details

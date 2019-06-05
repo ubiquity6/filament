@@ -13,7 +13,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.3.0'
+        classpath 'com.android.tools.build:gradle:3.4.0'
     }
 }
 
@@ -62,6 +62,23 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    flavorDimensions "functionality"
+    productFlavors {
+        full {
+            dimension "functionality"
+        }
+
+        lite {
+            dimension "functionality"
+
+            externalNativeBuild {
+                cmake {
+                    arguments.add("-DFILAMAT_LITE=ON")
+                }
+            }
         }
     }
 

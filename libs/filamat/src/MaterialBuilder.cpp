@@ -27,8 +27,6 @@
 #include <private/filament/SibGenerator.h>
 #include <private/filament/Variant.h>
 
-#include "GLSLPostProcessor.h"
-
 #include "shaders/MaterialInfo.h"
 #include "shaders/ShaderGenerator.h"
 
@@ -42,7 +40,12 @@
 #include "eiff/DictionaryTextChunk.h"
 #include "eiff/DictionarySpirvChunk.h"
 
+#ifndef FILAMAT_LITE
+#include "GLSLPostProcessor.h"
 #include "sca/GLSLTools.h"
+#else
+#include "sca/GLSLToolsLite.h"
+#endif
 
 using namespace utils;
 
@@ -98,12 +101,16 @@ MaterialBuilder::MaterialBuilder() : mMaterialName("Unnamed") {
 
 void MaterialBuilderBase::init() {
     materialBuilderClients++;
+#ifndef FILAMAT_LITE
     GLSLTools::init();
+#endif
 }
 
 void MaterialBuilderBase::shutdown() {
     materialBuilderClients--;
+#ifndef FILAMAT_LITE
     GLSLTools::shutdown();
+#endif
 }
 
 MaterialBuilder& MaterialBuilder::name(const char* name) noexcept {
@@ -237,13 +244,18 @@ MaterialBuilder& MaterialBuilder::shadowMultiplier(bool shadowMultiplier) noexce
     return *this;
 }
 
-MaterialBuilder& MaterialBuilder::curvatureToRoughness(bool curvatureToRoughness) noexcept {
-    mCurvatureToRoughness = curvatureToRoughness;
+MaterialBuilder& MaterialBuilder::specularAntiAliasing(bool specularAntiAliasing) noexcept {
+    mSpecularAntiAliasing = specularAntiAliasing;
     return *this;
 }
 
-MaterialBuilder& MaterialBuilder::limitOverInterpolation(bool limitOverInterpolation) noexcept {
-    mLimitOverInterpolation = limitOverInterpolation;
+MaterialBuilder& MaterialBuilder::specularAntiAliasingVariance(float screenSpaceVariance) noexcept {
+    mSpecularAntiAliasingVariance = screenSpaceVariance;
+    return *this;
+}
+
+MaterialBuilder& MaterialBuilder::specularAntiAliasingThreshold(float threshold) noexcept {
+    mSpecularAntiAliasingThreshold = threshold;
     return *this;
 }
 
@@ -254,6 +266,16 @@ MaterialBuilder& MaterialBuilder::clearCoatIorChange(bool clearCoatIorChange) no
 
 MaterialBuilder& MaterialBuilder::flipUV(bool flipUV) noexcept {
     mFlipUV = flipUV;
+    return *this;
+}
+
+MaterialBuilder& MaterialBuilder::multiBounceAmbientOcclusion(bool multiBounceAO) noexcept {
+    mMultiBounceAO = multiBounceAO;
+    return *this;
+}
+
+MaterialBuilder& MaterialBuilder::specularAmbientOcclusion(bool specularAO) noexcept {
+    mSpecularAO = specularAO;
     return *this;
 }
 
@@ -312,6 +334,11 @@ void MaterialBuilder::prepareToBuild(MaterialInfo& info) noexcept {
         }
     }
 
+    if (mSpecularAntiAliasing) {
+        ibb.add("_specularAntiAliasingVariance", 1, UniformType::FLOAT);
+        ibb.add("_specularAntiAliasingThreshold", 1, UniformType::FLOAT);
+    }
+
     if (mBlendingMode == BlendingMode::MASKED) {
         ibb.add("_maskThreshold", 1, UniformType::FLOAT);
     }
@@ -331,8 +358,7 @@ void MaterialBuilder::prepareToBuild(MaterialInfo& info) noexcept {
     info.isLit = isLit();
     info.hasDoubleSidedCapability = mDoubleSidedCapability;
     info.hasExternalSamplers = hasExternalSampler();
-    info.curvatureToRoughness = mCurvatureToRoughness;
-    info.limitOverInterpolation = mLimitOverInterpolation;
+    info.specularAntiAliasing = mSpecularAntiAliasing;
     info.clearCoatIorChange = mClearCoatIorChange;
     info.flipUV = mFlipUV;
     info.requiredAttributes = mRequiredAttributes;
@@ -340,11 +366,14 @@ void MaterialBuilder::prepareToBuild(MaterialInfo& info) noexcept {
     info.postLightingBlendingMode = mPostLightingBlendingMode;
     info.shading = mShading;
     info.hasShadowMultiplier = mShadowMultiplier;
+    info.multiBounceAO = mMultiBounceAO;
+    info.specularAO = mSpecularAO;
 }
 
 bool MaterialBuilder::runStaticCodeAnalysis() noexcept {
     using namespace filament::backend;
 
+#ifndef FILAMAT_LITE
     GLSLTools glslTools;
 
     // Populate mProperties with the properties set in the shader.
@@ -362,6 +391,29 @@ bool MaterialBuilder::runStaticCodeAnalysis() noexcept {
     shaderCode = peek(ShaderType::FRAGMENT, model, mProperties);
     result = glslTools.analyzeFragmentShader(shaderCode, model, mTargetApi);
     return result;
+#else
+    GLSLToolsLite glslTools;
+    return glslTools.findProperties(mMaterialCode, mProperties);
+#endif
+}
+
+bool MaterialBuilder::checkLiteRequirements() noexcept {
+#ifdef FILAMAT_LITE
+    if (mTargetApi != TargetApi::OPENGL) {
+        utils::slog.e
+                << "Filamat lite only supports building materials for the OpenGL backend."
+                << utils::io::endl;
+        return false;
+    }
+
+    if (mOptimization != Optimization::NONE) {
+        utils::slog.e
+                << "Filamat lite does not support material optimization." << utils::io::endl
+                << "Ensure optimization is set to NONE." << utils::io::endl;
+        return false;
+    }
+#endif
+    return true;
 }
 
 static void showErrorMessage(const char* materialName, uint8_t variant,
@@ -390,7 +442,8 @@ Package MaterialBuilder::build() noexcept {
         return package;
     }
 
-    if (!runStaticCodeAnalysis()) {
+    if (!checkLiteRequirements() ||
+        !runStaticCodeAnalysis()) {
         // Return an empty package to signal a failure to build the material.
         Package package(0);
         package.setValid(false);
@@ -403,7 +456,9 @@ Package MaterialBuilder::build() noexcept {
     prepareToBuild(info);
 
     // Create a postprocessor to optimize / compile to Spir-V if necessary.
+#ifndef FILAMAT_LITE
     GLSLPostProcessor postProcessor(mOptimization, mPrintShaders);
+#endif
 
     // Create chunk tree.
     ChunkContainer container;
@@ -431,13 +486,17 @@ Package MaterialBuilder::build() noexcept {
         container.addChild(&matShadowMultiplier);
     }
 
-    SimpleFieldChunk<bool> matCurvatureToRoughness(
-            ChunkType::MaterialCurvatureToRoughness, mCurvatureToRoughness);
-    container.addChild(&matCurvatureToRoughness);
+    SimpleFieldChunk<bool> matSpecularAntiAliasing(
+            ChunkType::MaterialSpecularAntiAliasing, mSpecularAntiAliasing);
+    container.addChild(&matSpecularAntiAliasing);
 
-    SimpleFieldChunk<bool> matLimitOverInterpolation(
-            ChunkType::MaterialLimitOverInterpolation, mLimitOverInterpolation);
-    container.addChild(&matLimitOverInterpolation);
+    SimpleFieldChunk<float> matSpecularAntiAliasingVariance(
+            ChunkType::MaterialSpecularAntiAliasingVariance, mSpecularAntiAliasingVariance);
+    container.addChild(&matSpecularAntiAliasingVariance);
+
+    SimpleFieldChunk<float> matSpecularAntiAliasingThreshold(
+            ChunkType::MaterialSpecularAntiAliasingThreshold, mSpecularAntiAliasingThreshold);
+    container.addChild(&matSpecularAntiAliasingThreshold);
 
     SimpleFieldChunk<bool> matClearCoatIorChange(
             ChunkType::MaterialClearCoatIorChange, mClearCoatIorChange);
@@ -498,8 +557,10 @@ Package MaterialBuilder::build() noexcept {
     std::vector<SpirvEntry> spirvEntries;
     std::vector<TextEntry> metalEntries;
     LineDictionary glslDictionary;
+#ifndef FILAMAT_LITE
     BlobDictionary spirvDictionary;
     LineDictionary metalDictionary;
+#endif
     std::vector<uint32_t> spirv;
     std::string msl;
 
@@ -558,8 +619,12 @@ Package MaterialBuilder::build() noexcept {
                 std::string vs = sg.createVertexProgram(
                         shaderModel, targetApi, targetLanguage, info, k,
                         mInterpolation, mVertexDomain);
+#ifndef FILAMAT_LITE
                 bool ok = postProcessor.process(vs, filament::backend::ShaderType::VERTEX,
                         shaderModel, &vs, pSpirv, pMsl);
+#else
+                bool ok = true;
+#endif
                 if (!ok) {
                     showErrorMessage(mMaterialName.c_str_safe(), k, targetApi,
                             filament::backend::ShaderType::VERTEX, vs);
@@ -580,6 +645,7 @@ Package MaterialBuilder::build() noexcept {
                     glslEntries.push_back(glslEntry);
                 }
 
+#ifndef FILAMAT_LITE
                 if (targetApi == TargetApi::VULKAN) {
                     assert(!spirv.empty());
                     spirvEntry.stage = filament::backend::ShaderType::VERTEX;
@@ -599,6 +665,7 @@ Package MaterialBuilder::build() noexcept {
                     metalDictionary.addText(metalEntry.shader);
                     metalEntries.push_back(metalEntry);
                 }
+#endif
             }
 
             if (filament::Variant::filterVariantFragment(v) == k) {
@@ -606,8 +673,12 @@ Package MaterialBuilder::build() noexcept {
                 std::string fs = sg.createFragmentProgram(
                         shaderModel, targetApi, targetLanguage, info, k, mInterpolation);
 
+#ifndef FILAMAT_LITE
                 bool ok = postProcessor.process(fs, filament::backend::ShaderType::FRAGMENT,
                         shaderModel, &fs, pSpirv, pMsl);
+#else
+                bool ok = true;
+#endif
                 if (!ok) {
                     showErrorMessage(mMaterialName.c_str_safe(), k, targetApi,
                             filament::backend::ShaderType::FRAGMENT, fs);
@@ -628,6 +699,7 @@ Package MaterialBuilder::build() noexcept {
                     glslEntries.push_back(glslEntry);
                 }
 
+#ifndef FILAMAT_LITE
                 if (targetApi == TargetApi::VULKAN) {
                     assert(!spirv.empty());
                     spirvEntry.stage = filament::backend::ShaderType::FRAGMENT;
@@ -647,6 +719,7 @@ Package MaterialBuilder::build() noexcept {
                     metalDictionary.addText(metalEntry.shader);
                     metalEntries.push_back(metalEntry);
                 }
+#endif
             }
         }
     }
@@ -660,6 +733,7 @@ Package MaterialBuilder::build() noexcept {
     }
 
     // Emit SPIRV chunks (SpirvDictionaryReader and MaterialSpirvChunk).
+#ifndef FILAMAT_LITE
     filamat::DictionarySpirvChunk dicSpirvChunk(spirvDictionary);
     MaterialSpirvChunk spirvChunk(spirvEntries);
     if (!spirvEntries.empty()) {
@@ -674,6 +748,7 @@ Package MaterialBuilder::build() noexcept {
         container.addChild(&dicMetalChunk);
         container.addChild(&metalChunk);
     }
+#endif
 
     // Flatten all chunks in the container into a Package.
     size_t packageSize = container.getSize();

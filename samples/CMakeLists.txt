@@ -32,6 +32,7 @@ add_mesh("assets/models/monkey/monkey.obj" "suzanne.filamesh")
 set(MATERIAL_SRCS
         materials/bakedColor.mat
         materials/bakedTexture.mat
+        materials/aoPreview.mat
         materials/aiDefaultMat.mat
         materials/aiDefaultTrans.mat
         materials/depthVisualizer.mat
@@ -183,7 +184,6 @@ set(APP_SRCS
         app/Cube.cpp
         app/FilamentApp.cpp
         app/IBL.cpp
-        app/Image.cpp
         app/IcoSphere.cpp
         app/Sphere.cpp)
 
@@ -256,11 +256,13 @@ if (NOT ANDROID)
     add_filamesh_demo(sample_normal_map)
     add_filamesh_demo(suzanne)
     add_filamesh_demo(gltf_viewer)
+    add_filamesh_demo(gltf_baker)
 
     # Sample app specific
     target_link_libraries(frame_generator PRIVATE imageio)
     target_link_libraries(suzanne PRIVATE suzanne-resources)
     target_link_libraries(gltf_viewer PRIVATE gltf-resources gltfio)
+    target_link_libraries(gltf_baker PRIVATE gltf-resources gltfio imageio)
 endif()
 
 # ==================================================================================================

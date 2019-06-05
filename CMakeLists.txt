@@ -60,6 +60,30 @@ if (WIN32)
 endif()
 
 # ==================================================================================================
+# Check if embree is available.
+# This is an optional dependency and can be installed with homebrew, apt-get, etc.
+# ==================================================================================================
+
+find_package(embree 3.0 QUIET PATHS /usr/lib64/cmake)
+if (embree_FOUND AND NOT ANDROID)
+    message("Found embree in ${embree_DIR}")
+    set(MKLDNN_THREADING "TBB")
+    include(third_party/OpenImageDenoise/cmake/resource.cmake)
+    include(third_party/OpenImageDenoise/mkl-dnn/cmake/Threading.cmake)
+    include(third_party/OpenImageDenoise/mkl-dnn/cmake/TBB.cmake)
+    find_package(TBB QUIET)
+    if (TBB_FOUND AND "${TBB_VERSION_MAJOR}" VERSION_EQUAL 2019)
+        message("Found TBB ${TBB_VERSION}")
+        add_definitions(-DFILAMENT_HAS_EMBREE)
+        set(DENOISE_LIBRARY OpenImageDenoise)
+    else()
+        message("TBB 2019 not found.")
+    endif()
+else()
+    message("Embree not found, pipeline features are disabled.")
+endif()
+
+# ==================================================================================================
 #  Paths
 # ==================================================================================================
 # Where our external libs are
@@ -120,18 +144,9 @@ endif()
 
 if (LINUX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-    if (FILAMENT_REQUIRES_CXXABI)
-        # Required in CI environment with custom libc++ and libc++abi
-        link_libraries(libc++abi.a)
-    endif()
-    # To distribute our binaries, we must remove the dependency on libc++ and libgcc.
-    if (CMAKE_BUILD_TYPE STREQUAL "Release")
-        link_libraries("-static-libgcc -static-libstdc++")
-    endif()
-else()
-    if (FILAMENT_REQUIRES_CXXABI)
-        message("The option FILAMENT_REQUIRES_CXXABI is unsupported on this platform")
-    endif()
+    link_libraries("-static-libgcc -static-libstdc++")
+    link_libraries(libc++.a)
+    link_libraries(libc++abi.a)
 endif()
 
 if (CYGWIN)
@@ -312,7 +327,9 @@ function(get_resgen_vars ARCHIVE_DIR ARCHIVE_NAME)
         ${ARCHIVE_DIR}/${ARCHIVE_NAME}.apple.S
         ${ARCHIVE_DIR}/${ARCHIVE_NAME}.h
     )
-    set(ASM_ARCH_FLAG "-arch ${DIST_ARCH}")
+    if (IOS)
+        set(ASM_ARCH_FLAG "-arch ${DIST_ARCH}")
+    endif()
     if (APPLE)
         set(ASM_SUFFIX ".apple")
     endif()
@@ -344,6 +361,7 @@ add_subdirectory(${LIBRARIES}/geometry)
 add_subdirectory(${LIBRARIES}/gltfio)
 add_subdirectory(${LIBRARIES}/ibl)
 add_subdirectory(${LIBRARIES}/image)
+add_subdirectory(${LIBRARIES}/rays)
 add_subdirectory(${LIBRARIES}/math)
 add_subdirectory(${LIBRARIES}/utils)
 add_subdirectory(${FILAMENT}/filament)
@@ -353,6 +371,7 @@ add_subdirectory(${EXTERNAL}/smol-v/tnt)
 add_subdirectory(${EXTERNAL}/benchmark/tnt)
 add_subdirectory(${EXTERNAL}/meshoptimizer)
 add_subdirectory(${EXTERNAL}/cgltf/tnt)
+add_subdirectory(${EXTERNAL}/xatlas/tnt)
 add_subdirectory(${EXTERNAL}/stb/tnt)
 
 if (FILAMENT_BUILD_FILAMAT)
@@ -405,7 +424,6 @@ if (NOT ANDROID AND NOT WEBGL AND NOT IOS)
     add_subdirectory(${EXTERNAL}/libz/tnt)
     add_subdirectory(${EXTERNAL}/skylight/tnt)
     add_subdirectory(${EXTERNAL}/tinyexr/tnt)
-
     add_subdirectory(${TOOLS}/cmgen)
     add_subdirectory(${TOOLS}/filamesh)
     add_subdirectory(${TOOLS}/glslminifier)
@@ -417,6 +435,10 @@ if (NOT ANDROID AND NOT WEBGL AND NOT IOS)
     add_subdirectory(${TOOLS}/roughness-prefilter)
     add_subdirectory(${TOOLS}/skygen)
     add_subdirectory(${TOOLS}/specular-color)
+endif()
+
+if (DENOISE_LIBRARY)
+    add_subdirectory(${EXTERNAL}/OpenImageDenoise/tnt)
 endif()
 
 # Generate exported executables for cross-compiled builds (Android, WebGL, and iOS)

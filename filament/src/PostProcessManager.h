@@ -24,12 +24,17 @@
 #include "fg/FrameGraphResource.h"
 
 #include <backend/DriverEnums.h>
+#include <filament/View.h>
 
 namespace filament {
 
 namespace details {
+class FMaterial;
+class FMaterialInstance;
 class FEngine;
 class FView;
+class RenderPass;
+struct CameraInfo;
 } // namespace details
 
 class PostProcessManager {
@@ -51,6 +56,19 @@ public:
     FrameGraphResource dynamicScaling(
             FrameGraph& fg, FrameGraphResource input, backend::TextureFormat outFormat) noexcept;
 
+    FrameGraphResource resolve(
+            FrameGraph& fg, FrameGraphResource input) noexcept;
+
+
+    FrameGraphResource ssao(FrameGraph& fg, details::RenderPass& pass,
+            filament::Viewport const& svp,
+            details::CameraInfo const& cameraInfo,
+            View::AmbientOcclusionOptions const& options) noexcept;
+
+    backend::Handle<backend::HwTexture> getNoSSAOTexture() const {
+        return mNoSSAOTexture;
+    }
+
 private:
     details::FEngine* mEngine = nullptr;
 
@@ -58,6 +76,16 @@ private:
     mutable UniformBuffer mPostProcessUb;
     backend::Handle<backend::HwSamplerGroup> mPostProcessSbh;
     backend::Handle<backend::HwUniformBuffer> mPostProcessUbh;
+
+    details::FMaterial* mSSAOMaterial = nullptr;
+    details::FMaterialInstance* mSSAOMaterialInstance = nullptr;
+    backend::Handle<backend::HwProgram> mSSAOProgram;
+
+    details::FMaterial* mMipmapDepthMaterial = nullptr;
+    details::FMaterialInstance* mMipmapDepthMaterialInstance = nullptr;
+    backend::Handle<backend::HwProgram> mMipmapDepthProgram;
+
+    backend::Handle<backend::HwTexture> mNoSSAOTexture;
 };
 
 } // namespace filament

@@ -103,8 +103,8 @@ public:
     struct GLTexture : public backend::HwTexture {
         using HwTexture::HwTexture;
         struct {
-            GLuint texture_id;
-            mutable GLuint rb = 0;  // multi-sample sidecar buffer
+            GLuint id;              // texture or renderbuffer id
+            mutable GLuint rb = 0;  // multi-sample sidecar renderbuffer
             GLenum target;
             GLenum internalFormat;
             mutable GLsync fence = nullptr;
@@ -113,21 +113,15 @@ public:
             GLfloat anisotropy = 1.0;
             int8_t baseLevel = 127;
             int8_t maxLevel = -1;
-            uint8_t targetIndex = 0;
+            uint8_t targetIndex = 0;    // optimization: index corresponding to target
         } gl;
     };
 
     class DebugMarker {
         OpenGLDriver& driver;
     public:
-        inline DebugMarker(OpenGLDriver& driver, const char* string) noexcept : driver(driver) {
-            const char* const begin = string + sizeof("virtual void filament::OpenGLDriver::") - 1;
-            const char* const end = strchr(begin, '(');
-            driver.pushGroupMarker(begin, end - begin);
-        }
-        inline ~DebugMarker() noexcept {
-            driver.popGroupMarker();
-        }
+        DebugMarker(OpenGLDriver& driver, const char* string) noexcept;
+        ~DebugMarker() noexcept;
     };
 
     struct GLStream : public backend::HwStream {
@@ -172,18 +166,16 @@ public:
         struct GL {
             struct RenderBuffer {
                 GLTexture* texture = nullptr;
-                GLenum internalFormat = 0; // when texture == nullptr
-                GLuint rb = 0;             // when texture == nullptr
+                uint8_t level = 0; // level when attached to a texture
             };
             // field ordering to optimize size on 64-bits
             RenderBuffer color;
             RenderBuffer depth;
             RenderBuffer stencil;
             GLuint fbo = 0;
-            GLuint fbo_read = 0;
-            backend::TargetBufferFlags resolve = backend::TargetBufferFlags::NONE; // attachments in fbo_draw to resolve
+            mutable GLuint fbo_read = 0;
+            mutable backend::TargetBufferFlags resolve = backend::TargetBufferFlags::NONE; // attachments in fbo_draw to resolve
             uint8_t samples : 4;
-            uint8_t colorLevel : 4; // Allows up to 15 levels (max texture size of 32768 x 32768)
         } gl;
     };
 
@@ -203,14 +195,14 @@ private:
     friend class backend::ConcreteDispatcher;
 
 #define DECL_DRIVER_API(methodName, paramsDecl, params) \
-    UTILS_ALWAYS_INLINE void methodName(paramsDecl);
+    UTILS_ALWAYS_INLINE inline void methodName(paramsDecl);
 
 #define DECL_DRIVER_API_SYNCHRONOUS(RetType, methodName, paramsDecl, params) \
     RetType methodName(paramsDecl) override;
 
 #define DECL_DRIVER_API_RETURN(RetType, methodName, paramsDecl, params) \
     RetType methodName##S() noexcept override; \
-    UTILS_ALWAYS_INLINE void methodName##R(RetType, paramsDecl);
+    UTILS_ALWAYS_INLINE inline void methodName##R(RetType, paramsDecl);
 
 #include "private/backend/DriverAPI.inc"
 
@@ -268,6 +260,15 @@ private:
         return static_cast<Dp>(static_cast<void *>(base + offset));
     }
 
+    template<typename Dp, typename B>
+    inline
+    typename std::enable_if<
+            std::is_pointer<Dp>::value &&
+            std::is_base_of<B, typename std::remove_pointer<Dp>::type>::value, Dp>::type
+    handle_cast(backend::Handle<B> const& handle) noexcept {
+        return handle_cast<Dp>(const_cast<backend::Handle<B>&>(handle));
+    }
+
     typedef math::details::TVec4<GLint> vec4gli;
 
     friend class OpenGLProgram;
@@ -287,10 +288,11 @@ private:
 
     /* Misc... */
 
-    void framebufferTexture(backend::TargetBufferInfo& binfo, GLRenderTarget* rt, GLenum attachment) noexcept;
+    void framebufferTexture(backend::TargetBufferInfo const& binfo,
+            GLRenderTarget const* rt, GLenum attachment) noexcept;
 
-    GLuint framebufferRenderbuffer(uint32_t width, uint32_t height, uint8_t samples,
-            GLenum attachment, GLenum internalformat, GLuint fbo) noexcept;
+    void framebufferRenderbuffer(GLTexture const* t,
+            GLRenderTarget const* rt, GLenum attachment) noexcept;
 
     void setRasterStateSlow(backend::RasterState rs) noexcept;
     void setRasterState(backend::RasterState rs) noexcept {
@@ -320,8 +322,8 @@ private:
     /* State tracking GL wrappers... */
 
     constexpr inline size_t getIndexForCap(GLenum cap) noexcept;
-    constexpr inline size_t getIndexForBufferTarget(GLenum target) noexcept;
-    constexpr inline size_t getIndexForTextureTarget(GLuint target) noexcept;
+    constexpr static inline size_t getIndexForBufferTarget(GLenum target) noexcept;
+    constexpr static inline size_t getIndexForTextureTarget(GLuint target) noexcept;
 
     inline void pixelStore(GLenum, GLint) noexcept;
     inline void activeTexture(GLuint unit) noexcept;
@@ -361,7 +363,9 @@ private:
     inline void setClearDepth(GLfloat depth) noexcept;
     inline void setClearStencil(GLint stencil) noexcept;
 
-    void resolve(GLRenderTarget const* rt, backend::TargetBufferFlags discardFlags) noexcept;
+    enum class ResolveAction { LOAD, STORE };
+    void resolvePass(ResolveAction action, GLRenderTarget const* rt,
+            backend::TargetBufferFlags discardFlags) noexcept;
 
     GLuint getSamplerSlow(backend::SamplerParams sp) const noexcept;
 
@@ -572,6 +576,7 @@ private:
     OpenGLBlitter* mOpenGLBlitter = nullptr;
     void updateStream(GLTexture* t, backend::DriverApi* driver) noexcept;
     void updateBuffer(GLenum target, GLBuffer* buffer, backend::BufferDescriptor const& p, uint32_t alignment = 16) noexcept;
+    void updateTextureLodRange(GLTexture* texture, int8_t targetLevel) noexcept;
 };
 
 // ------------------------------------------------------------------------------------------------

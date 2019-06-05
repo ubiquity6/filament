@@ -66,6 +66,7 @@ ShadowMap::~ShadowMap() {
     mEngine.destroy(mDebugCamera->getEntity());
 }
 
+UTILS_NOINLINE
 void ShadowMap::fillWithDebugPattern(backend::DriverApi& driverApi) const noexcept {
     const size_t dim = mShadowMapDimension;
     size_t size = dim * dim;
@@ -103,6 +104,10 @@ void ShadowMap::prepare(DriverApi& driver, SamplerGroup& sb) noexcept {
     // we set a viewport with a 1-texel border for when we index outside of the texture
     // DON'T CHANGE this unless computeLightSpaceMatrix() is updated too.
     // see: computeLightSpaceMatrix()
+    // For floating-point depth textures, the 1-texel border could be set to FLOAT_MAX to avoid
+    // clamping in the shadow shader (see sampleDepth inside shadowing.fs). Unfortunately, the APIs
+    // don't seem let us clear depth attachments to anything greater than 1.0, so we'd need a way to
+    // do this other than clearing.
     mViewport = { 1, 1, dim - 2, dim - 2 };
     mShadowMapResolution.xy = 1.0f / (dim - 2);
 
@@ -124,10 +129,10 @@ void ShadowMap::prepare(DriverApi& driver, SamplerGroup& sb) noexcept {
 
     mShadowMapHandle = driver.createTexture(
             SamplerType::SAMPLER_2D, 1, format, 1, dim, dim, 1,
-            TextureUsage::DEPTH_ATTACHMENT);
+            TextureUsage::DEPTH_ATTACHMENT | TextureUsage::SAMPLEABLE);
 
     mShadowMapRenderTarget = driver.createRenderTarget(
-            TargetBufferFlags::SHADOW, dim, dim, 1, format,
+            TargetBufferFlags::DEPTH, dim, dim, 1,
             {}, { mShadowMapHandle }, {});
 
     SamplerParams s;
@@ -153,7 +158,7 @@ void ShadowMap::render(DriverApi& driver, RenderPass& pass, FView& view) noexcep
 
     // FIXME: in the future this will come from the framegraph
     RenderPassParams params = {};
-    params.flags.clear = TargetBufferFlags::SHADOW;
+    params.flags.clear = TargetBufferFlags::DEPTH;
     params.flags.discardStart = TargetBufferFlags::DEPTH;
     params.flags.discardEnd = TargetBufferFlags::COLOR_AND_STENCIL;
     params.clearDepth = 1.0;
@@ -181,7 +186,7 @@ void ShadowMap::render(DriverApi& driver, RenderPass& pass, FView& view) noexcep
     view.commitUniforms(driver);
 
     pass.overridePolygonOffset(&mPolygonOffset);
-    pass.generateSortedCommands(RenderPass::SHADOW);
+    pass.appendSortedCommands(RenderPass::SHADOW);
     pass.execute("Shadow map Pass", getRenderTarget(), params,
             pass.getCommands().begin(), pass.getCommands().end());
     pass.overridePolygonOffset(nullptr);
@@ -893,7 +898,7 @@ size_t ShadowMap::intersectFrustum(
 }
 
 UTILS_ALWAYS_INLINE
-bool ShadowMap::intersectSegmentWithTriangle(float3& UTILS_RESTRICT p,
+inline bool ShadowMap::intersectSegmentWithTriangle(float3& UTILS_RESTRICT p,
         float3 s0, float3 s1,
         float3 t0, float3 t1, float3 t2) noexcept {
     // See Real-Time Rendering -- Tomas Akenine-Moller, Eric Haines, Naty Hoffman

@@ -38,9 +38,12 @@ public:
         backend::RenderPassParams params;
     };
 
+    // Return the name of the pass being executed
+    const char* getPassName() const noexcept;
+
     backend::Handle<backend::HwTexture> getTexture(FrameGraphResource r) const noexcept;
 
-    RenderTargetInfo getRenderTarget(FrameGraphResource r) const noexcept;
+    RenderTargetInfo getRenderTarget(FrameGraphResource r, uint8_t level = 0) const noexcept;
 
     FrameGraphResource::Descriptor const& getDescriptor(FrameGraphResource r) const noexcept;
 
