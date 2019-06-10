@@ -88,7 +88,7 @@ public:
     const cgltf_data* flattenPrims(const cgltf_data* sourceAsset, uint32_t flags);
 
     // Use xatlas to generate a new UV set and modify topology appropriately.
-    const cgltf_data* parameterize(const cgltf_data* sourceAsset);
+    const cgltf_data* parameterize(const cgltf_data* sourceAsset, int maxIterations);
 
     // Strips materials from a flattened asset and replaces them a simple nonlit material.
     const cgltf_data* generatePreview(const cgltf_data* sourceAsset, const Path& texturePath);
@@ -98,6 +98,9 @@ public:
 
     // Replaces the texture URI for all primitives that have BAKED_UV_ATTRIB.
     void setOcclusionUri(cgltf_data* asset, const Path& texturePath);
+
+    // Replaces the baseColor URI for all materials.
+    void setBaseColorUri(cgltf_data* asset, const Path& texturePath);
 
     // Take ownership of the given asset and free it when the pipeline is destroyed.
     void retainSourceAsset(cgltf_data* asset);
@@ -171,30 +174,6 @@ cgltf_size getNumFloats(cgltf_type type) {
 bool isFlattened(const cgltf_data* asset) {
     return asset && asset->buffers_count == 1 && asset->nodes_count == asset->meshes_count &&
             !strcmp(asset->asset.generator, GENERATOR_ID);
-}
-
-// Returns true if the given cgltf asset has been flattened and has BAKED_UV_ATTRIB.
-bool isParameterized(const cgltf_data* asset) {
-    if (!isFlattened(asset)) {
-        return false;
-    }
-    const size_t numPrims = asset->meshes_count;
-    for (cgltf_size i = 0; i < numPrims; i++) {
-        const cgltf_mesh& mesh = asset->meshes[i];
-        const cgltf_primitive& prim = mesh.primitives[0];
-        bool good = false;
-        for (cgltf_size k = 0; k < prim.attributes_count && !good; ++k) {
-            const cgltf_attribute& attr = prim.attributes[k];
-            if (attr.type == cgltf_attribute_type_texcoord &&
-                    attr.index == gltfio::AssetPipeline::BAKED_UV_ATTRIB_INDEX) {
-                good = true;
-            }
-        }
-        if (!good) {
-            return false;
-        }
-    }
-    return true;
 }
 
 // Returns true if the given primitive should be baked out, false if it should be culled away.
@@ -296,7 +275,9 @@ const cgltf_data* Pipeline::flattenBuffers(const cgltf_data* sourceAsset) {
     // Clone the textures.
     for (size_t i = 0, len = sourceAsset->textures_count; i < len; ++i) {
         auto& texture = textures[i] = sourceAsset->textures[i];
-        texture.image = images + (texture.image - sourceAsset->images);
+        if (texture.image) {
+            texture.image = images + (texture.image - sourceAsset->images);
+        }
     }
 
     // Clone the nodes.
@@ -730,8 +711,11 @@ const cgltf_data* Pipeline::flattenPrims(const cgltf_data* sourceAsset, uint32_t
         }
     }
     for (size_t i = 0; i < resultAsset->textures_count; ++i) {
-        size_t imageIndex = resultAsset->textures[i].image - sourceAsset->images;
-        resultAsset->textures[i].image = images + imageIndex;
+        auto& image = resultAsset->textures[i].image;
+        if (image) {
+            size_t imageIndex = image - sourceAsset->images;
+            image = images + imageIndex;
+        }
     }
 
     return resultAsset;
@@ -1289,7 +1273,7 @@ void Pipeline::cgltfToSimpleMesh(const cgltf_data* sourceAsset, SimpleMesh** mes
     }
 }
 
-const cgltf_data* Pipeline::parameterize(const cgltf_data* sourceAsset) {
+const cgltf_data* Pipeline::parameterize(const cgltf_data* sourceAsset, int maxIterations) {
     if (!isFlattened(sourceAsset)) {
         utils::slog.e << "Only flattened assets can be parameterized." << utils::io::endl;
         return nullptr;
@@ -1302,6 +1286,7 @@ const cgltf_data* Pipeline::parameterize(const cgltf_data* sourceAsset) {
 
     utils::slog.i << "Computing charts..." << utils::io::endl;
     xatlas::ChartOptions coptions;
+    coptions.maxIterations = maxIterations;
     xatlas::ComputeCharts(atlas, coptions);
 
     utils::slog.i << "Parameterizing charts..." << utils::io::endl;
@@ -1611,6 +1596,21 @@ void Pipeline::setOcclusionUri(cgltf_data* asset, const Path& texturePath) {
     }
 }
 
+void Pipeline::setBaseColorUri(cgltf_data* asset, const Path& texturePath) {
+    if (!isFlattened(asset)) {
+        utils::slog.e << "Only flattened assets can be modified." << utils::io::endl;
+    }
+    std::string uri = texturePath;
+    char* pathString = (char*) mStorage.bufferData.alloc(uri.size() + 1);
+    strncpy(pathString, uri.c_str(), uri.size() + 1);
+    for (size_t mindex = 0, len = asset->materials_count; mindex < len; ++mindex) {
+        auto& texview = asset->materials[mindex].pbr_metallic_roughness.base_color_texture;
+        if (texview.texture && texview.texture->image) {
+            texview.texture->image->uri = pathString;
+        }
+    }
+}
+
 void Pipeline::retainSourceAsset(cgltf_data* asset) {
     mSourceAssets.push_back(asset);
 }
@@ -1637,6 +1637,10 @@ AssetPipeline::~AssetPipeline() {
 AssetHandle AssetPipeline::flatten(AssetHandle source, uint32_t flags) {
     Pipeline* impl = (Pipeline*) mImpl;
     const cgltf_data* asset = (const cgltf_data*) source;
+    if (asset->animations_count > 0 || asset->skins_count > 0) {
+        utils::slog.e << "Cannot flatten assets with animation or skinning." << utils::io::endl;
+        return nullptr;
+    }
     if (asset->buffers_count > 1) {
         asset = impl->flattenBuffers(asset);
     }
@@ -1679,35 +1683,44 @@ AssetHandle AssetPipeline::load(const utils::Path& fileOrDirectory) {
     utils::Path abspath = filename.getAbsolutePath();
     if (cgltf_load_buffers(&options, sourceAsset, abspath.c_str()) != cgltf_result_success) {
         utils::slog.e << "Unable to load external buffers." << utils::io::endl;
-        exit(1);
+        return nullptr;
     }
 
     return sourceAsset;
 }
 
-void AssetPipeline::save(AssetHandle handle, const utils::Path& jsonPath,
+bool AssetPipeline::save(AssetHandle handle, const utils::Path& jsonPath,
         const utils::Path& binPath) {
     cgltf_data* asset = (cgltf_data*) handle;
 
     if (!isFlattened(asset)) {
         utils::slog.e << "Only flattened assets can be exported to disk." << utils::io::endl;
-        return;
+        return false;
     }
 
     std::string binName = binPath.getName();
     asset->buffers[0].uri = (char*) (binName.c_str());
     cgltf_options options { cgltf_file_type_gltf };
-    cgltf_write_file(&options, jsonPath.c_str(), asset);
+    if (cgltf_write_file(&options, jsonPath.c_str(), asset) != cgltf_result_success) {
+        utils::slog.e << "Unable to write to " << jsonPath << utils::io::endl;
+        asset->buffers[0].uri = nullptr;
+        return false;
+    }
     asset->buffers[0].uri = nullptr;
 
     FILE* binFile = fopen(binPath.c_str(), "wb");
+    if (!binFile) {
+        utils::slog.e << "Unable to write to " << binPath << utils::io::endl;
+        return false;
+    }
     fwrite((char*) asset->buffers[0].data, asset->buffers[0].size, 1, binFile);
     fclose(binFile);
+    return true;
 }
 
-AssetHandle AssetPipeline::parameterize(AssetHandle source) {
+AssetHandle AssetPipeline::parameterize(AssetHandle source, int maxIterations) {
     Pipeline* impl = (Pipeline*) mImpl;
-    return impl->parameterize((const cgltf_data*) source);
+    return impl->parameterize((const cgltf_data*) source, maxIterations);
 }
 
 AssetHandle AssetPipeline::generatePreview(AssetHandle source, const Path& texture) {
@@ -1723,6 +1736,11 @@ AssetHandle AssetPipeline::replaceOcclusion(AssetHandle source, const Path& text
 void AssetPipeline::setOcclusionUri(AssetHandle asset, const Path& texture) {
     Pipeline* impl = (Pipeline*) mImpl;
     impl->setOcclusionUri((cgltf_data*) asset, texture);
+}
+
+void AssetPipeline::setBaseColorUri(AssetHandle asset, const Path& texture) {
+    Pipeline* impl = (Pipeline*) mImpl;
+    impl->setBaseColorUri((cgltf_data*) asset, texture);
 }
 
 void AssetPipeline::bakeAmbientOcclusion(AssetHandle source, image::LinearImage target,
@@ -1761,10 +1779,6 @@ void AssetPipeline::bakeAllOutputs(AssetHandle source,
 
 bool AssetPipeline::isFlattened(AssetHandle source) {
     return ::isFlattened((const cgltf_data*) source);
-}
-
-bool AssetPipeline::isParameterized(AssetHandle source) {
-    return ::isParameterized((const cgltf_data*) source);
 }
 
 }  // namespace gltfio

@@ -1286,9 +1286,12 @@ void OpenGLDriver::createRenderTargetR(Handle<HwRenderTarget> rth,
 
     rt->gl.samples = samples;
 
+#if !defined(NDEBUG)
+    // Only used by assert() checks below
     auto valueForLevel = [](size_t level, size_t value) {
         return std::max(size_t(1), value >> level);
     };
+#endif
 
     if (targets & TargetBufferFlags::COLOR) {
         // TODO: handle multiple color attachments
@@ -1402,13 +1405,14 @@ void OpenGLDriver::destroyVertexBuffer(Handle<HwVertexBuffer> vbh) {
     if (vbh) {
         GLVertexBuffer const* eb = handle_cast<const GLVertexBuffer*>(vbh);
         GLsizei n = GLsizei(eb->bufferCount);
-        glDeleteBuffers(n, eb->gl.buffers.data());
+        auto& buffers = eb->gl.buffers;
+        glDeleteBuffers(n, buffers.data());
         // bindings of bound buffers are reset to 0
         const size_t targetIndex = getIndexForBufferTarget(GL_ARRAY_BUFFER);
         auto& target = state.buffers.genericBinding[targetIndex];
         #pragma nounroll
-        for (GLuint b : eb->gl.buffers) {
-            if (target == b) {
+        for (GLsizei i = 0; i < n; ++i) {
+            if (target == buffers[i]) {
                 target = 0;
             }
         }

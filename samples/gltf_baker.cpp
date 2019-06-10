@@ -94,6 +94,7 @@ struct BakerApp {
     bool hasTestRender = false;
     bool isWorking = false;
     std::string statusText;
+    ImVec4 statusColor;
     std::string messageBoxText;
     bool requestViewerUpdate = false;
     Visualization visualization = Visualization::MESH_CURRENT;
@@ -102,7 +103,8 @@ struct BakerApp {
     FilamentAsset* viewerAsset = nullptr;
 
     // Available glTF scenes suitable for display, depending on "visualization".
-    gltfio::AssetPipeline::AssetHandle currentAsset = nullptr;
+    gltfio::AssetPipeline::AssetHandle flattenedAsset = nullptr;
+    gltfio::AssetPipeline::AssetHandle parameterizedAsset = nullptr;
     gltfio::AssetPipeline::AssetHandle modifiedAsset = nullptr;
     gltfio::AssetPipeline::AssetHandle previewAoAsset = nullptr;
     gltfio::AssetPipeline::AssetHandle previewUvAsset = nullptr;
@@ -128,6 +130,7 @@ struct BakerApp {
         float aoRayNear = std::numeric_limits<float>::epsilon() * 10.0f;
         bool dilateCharts = true;
         bool applyDenoiser = true;
+        int maxIterations = 2;
     } bakeOptions;
 
     struct {
@@ -301,8 +304,8 @@ static void createQuadRenderable(BakerApp& app) {
 static void updateViewerMesh(BakerApp& app) {
     gltfio::AssetPipeline::AssetHandle handle;
     switch (app.visualization) {
-        case Visualization::MESH_CURRENT: handle = app.currentAsset; break;
-        case Visualization::MESH_VERTEX_NORMALS: handle = app.currentAsset; break;
+        case Visualization::MESH_CURRENT: handle = app.flattenedAsset; break;
+        case Visualization::MESH_VERTEX_NORMALS: handle = app.flattenedAsset; break;
         case Visualization::MESH_MODIFIED: handle = app.modifiedAsset; break;
         case Visualization::MESH_PREVIEW_AO: handle = app.previewAoAsset; break;
         case Visualization::MESH_PREVIEW_UV: handle = app.previewUvAsset; break;
@@ -311,6 +314,7 @@ static void updateViewerMesh(BakerApp& app) {
     }
 
     if (!app.viewerAsset || app.viewerAsset->getSourceAsset() != handle) {
+        auto previousViewerAsset = app.viewerAsset;
         app.viewerAsset = app.loader->createAssetFromHandle(handle);
 
         // Load external textures and buffers.
@@ -324,8 +328,11 @@ static void updateViewerMesh(BakerApp& app) {
         // Load animation data then free the source hierarchy.
         app.viewerAsset->getAnimator();
 
-        // Destroy the old currentAsset and add the renderables to the scene.
+        // Remove old renderables and add new renderables to the scene.
         app.viewer->setAsset(app.viewerAsset, app.names, !app.viewerActualSize);
+
+        // Destory old Filament entities.
+        app.loader->destroyAsset(previousViewerAsset);
     }
 }
 
@@ -409,7 +416,7 @@ static void loadAssetFromDisk(BakerApp& app) {
     gltfio::AssetPipeline::AssetHandle handle = pipeline->load(app.filename);
     if (!handle) {
         delete pipeline;
-        puts("Unable to load model");
+        std::cerr << "Unable to load model" << std::endl;
         exit(1);
     }
 
@@ -417,7 +424,7 @@ static void loadAssetFromDisk(BakerApp& app) {
         handle = pipeline->flatten(handle, AssetPipeline::FILTER_TRIANGLES);
         if (!handle) {
             delete pipeline;
-            puts("Unable to flatten model");
+            std::cerr << "Unable to flatten model" << std::endl;
             exit(1);
         }
     }
@@ -427,7 +434,7 @@ static void loadAssetFromDisk(BakerApp& app) {
     app.pipeline = pipeline;
 
     app.viewer->setIndirectLight(FilamentApp::get().getIBL()->getIndirectLight());
-    app.currentAsset = handle;
+    app.flattenedAsset = handle;
     app.requestViewerUpdate = true;
 
     // Update the window title bar and the default output path.
@@ -439,7 +446,7 @@ static void loadAssetFromDisk(BakerApp& app) {
 static void executeTestRender(BakerApp& app) {
     app.isWorking = true;
     app.hasTestRender = true;
-    gltfio::AssetPipeline::AssetHandle currentAsset = app.currentAsset;
+    gltfio::AssetPipeline::AssetHandle currentAsset = app.flattenedAsset;
 
     // Allocate the render target for the path tracer as well as a GPU texture to display it.
     auto viewportSize = ImGui::GetIO().DisplaySize;
@@ -507,20 +514,19 @@ static void generateUvVisualization(const utils::Path& pngOutputPath) {
 static void executeBakeAo(BakerApp& app) {
     using namespace image;
 
-    app.hasTestRender = false;
-    app.isWorking = true;
-
     auto onRenderTile = makeTileCallback([](BakerApp* app) {
         app->requestViewerUpdate = true;
     });
 
     auto onRenderDone = makeDoneCallback([](BakerApp* app) {
+        gltfio::AssetPipeline* pipeline = app->pipeline;
+        gltfio::AssetPipeline::AssetHandle asset = app->parameterizedAsset;
         app->requestViewerUpdate = true;
 
         // Generate a simple red-green UV visualization texture.
         const utils::Path folder = app->filename.getAbsolutePath().getParent();
         generateUvVisualization(folder + TMP_UV_FILENAME);
-        app->previewUvAsset = app->pipeline->generatePreview(app->currentAsset, TMP_UV_FILENAME);
+        app->previewUvAsset = pipeline->generatePreview(asset, TMP_UV_FILENAME);
 
         // Export the generated AO texture.
         const utils::Path tmpOcclusionPath = folder + TMP_AO_FILENAME;
@@ -534,15 +540,16 @@ static void executeBakeAo(BakerApp& app) {
         ImageEncoder::encode(out, ImageEncoder::Format::PNG_LINEAR, app->meshNormals,
                 "", tmpNormalsPath.c_str());
 
-        app->previewAoAsset = app->pipeline->generatePreview(app->currentAsset, TMP_AO_FILENAME);
-        app->modifiedAsset = app->pipeline->replaceOcclusion(app->currentAsset, TMP_AO_FILENAME);
-        app->normalsAsset = app->pipeline->generatePreview(app->currentAsset, TMP_NORMALS_FILENAME);
+        app->previewAoAsset = pipeline->generatePreview(asset, TMP_AO_FILENAME);
+        app->modifiedAsset = pipeline->replaceOcclusion(asset, TMP_AO_FILENAME);
+        app->normalsAsset = pipeline->generatePreview(asset, TMP_NORMALS_FILENAME);
         app->isWorking = false;
     });
 
     auto doRender = [&app, onRenderTile, onRenderDone] {
         const uint32_t res = app.bakeOptions.resolution;
         app.statusText.clear();
+        app.hasTestRender = false;
         app.visualization = Visualization::IMAGE_OCCLUSION;
         app.ambientOcclusion = image::LinearImage(res, res, 1);
         app.bentNormals = image::LinearImage(res, res, 3);
@@ -551,7 +558,7 @@ static void executeBakeAo(BakerApp& app) {
         image::LinearImage outputs[] = {
             app.ambientOcclusion, app.bentNormals, app.meshNormals, app.meshPositions
         };
-        app.pipeline->bakeAllOutputs(app.currentAsset, outputs, {
+        app.pipeline->bakeAllOutputs(app.parameterizedAsset, outputs, {
             .progress = onRenderTile,
             .done = onRenderDone,
             .userData = &app,
@@ -562,29 +569,25 @@ static void executeBakeAo(BakerApp& app) {
         });
     };
 
-    if (AssetPipeline::isParameterized(app.currentAsset)) {
-        puts("Already parameterized.");
-        doRender();
-        return;
-    }
-
+    app.isWorking = true;
     app.previewAoAsset = nullptr;
     app.modifiedAsset = nullptr;
     app.previewUvAsset = nullptr;
-    app.ambientOcclusion = LinearImage();
+    app.statusColor = ImVec4({0, 1, 0, 1});
     app.statusText = "Parameterizing...";
 
     utils::JobSystem* js = utils::JobSystem::getJobSystem();
     utils::JobSystem::Job* parent = js->createJob();
     utils::JobSystem::Job* prep = utils::jobs::createJob(*js, parent, [&app, doRender] {
-        auto parameterized = app.pipeline->parameterize(app.currentAsset);
+        auto parameterized = app.pipeline->parameterize(app.flattenedAsset,
+                app.bakeOptions.maxIterations);
         auto callback = new BakerAppTask([doRender, parameterized](BakerApp* app) {
             if (!parameterized) {
                 app->messageBoxText = "Unable to parameterize, check terminal output for details.";
                 app->isWorking = false;
                 return;
             }
-            app->currentAsset = parameterized;
+            app->parameterizedAsset = parameterized;
             app->requestViewerUpdate = true;
             doRender();
         });
@@ -605,48 +608,52 @@ static void executeExport(BakerApp& app) {
     auto exportOcclusion = [&app, occlusionPath]() {
         using namespace image;
         std::ofstream out(occlusionPath.c_str(), std::ios::binary | std::ios::trunc);
-        ImageEncoder::encode(out, ImageEncoder::Format::PNG_LINEAR, app.ambientOcclusion, "",
+        return ImageEncoder::encode(out, ImageEncoder::Format::PNG_LINEAR, app.ambientOcclusion, "",
                 occlusionPath.c_str());
     };
 
     auto exportBentNormals = [&app, bentNormalsPath]() {
         using namespace image;
         std::ofstream out(bentNormalsPath.c_str(), std::ios::binary | std::ios::trunc);
-        ImageEncoder::encode(out, ImageEncoder::Format::PNG_LINEAR, app.bentNormals, "",
+        return ImageEncoder::encode(out, ImageEncoder::Format::PNG_LINEAR, app.bentNormals, "",
                 bentNormalsPath.c_str());
     };
 
-    std::string msg = "Exported ";
+    std::string msg;
+    bool error = false;
     const std::string join = ", ";
     switch (options.selection) {
         case Visualization::MESH_CURRENT:
-            app.pipeline->save(app.currentAsset, gltfPath, binPath);
-            msg += options.gltfPath + join + options.binPath;
+            error = error || !app.pipeline->save(app.flattenedAsset, gltfPath, binPath);
+            msg = options.gltfPath + join + options.binPath;
             break;
         case Visualization::MESH_MODIFIED:
-            exportOcclusion();
+            error = error || !exportOcclusion();
             app.pipeline->setOcclusionUri(app.modifiedAsset, options.occlusionPath);
-            app.pipeline->save(app.modifiedAsset, gltfPath, binPath);
-            msg += options.gltfPath + join + options.binPath + join + options.occlusionPath;
+            error = error || !app.pipeline->save(app.modifiedAsset, gltfPath, binPath);
+            app.pipeline->setOcclusionUri(app.modifiedAsset, TMP_AO_FILENAME);
+            msg = options.gltfPath + join + options.binPath + join + options.occlusionPath;
             break;
         case Visualization::MESH_PREVIEW_AO:
-            exportOcclusion();
-            app.pipeline->setOcclusionUri(app.previewAoAsset, options.occlusionPath);
-            app.pipeline->save(app.previewAoAsset, gltfPath, binPath);
-            msg += options.gltfPath + join + options.binPath + join + options.occlusionPath;
+            error = error || !exportOcclusion();
+            app.pipeline->setBaseColorUri(app.previewAoAsset, options.occlusionPath);
+            error = error || !app.pipeline->save(app.previewAoAsset, gltfPath, binPath);
+            app.pipeline->setBaseColorUri(app.previewAoAsset, TMP_AO_FILENAME);
+            msg = options.gltfPath + join + options.binPath + join + options.occlusionPath;
             break;
         case Visualization::IMAGE_OCCLUSION:
-            exportOcclusion();
-            msg += options.occlusionPath;
+            error = error || !exportOcclusion();
+            msg = options.occlusionPath;
             break;
         case Visualization::IMAGE_BENT_NORMALS:
-            exportBentNormals();
-            msg += options.bentNormalsPath;
+            error = error || !exportBentNormals();
+            msg = options.bentNormalsPath;
             break;
         default:
             return;
     }
-    app.statusText = msg;
+    app.statusColor = error ? ImVec4({1, 0, 0, 1}) : ImVec4({0, 1, 0, 1});
+    app.statusText = (error ? "Failed export to " : "Exported ") + msg;
 }
 
 int main(int argc, char** argv) {
@@ -794,7 +801,7 @@ int main(int argc, char** argv) {
             // Status text
             if (app.statusText.size()) {
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {10, 10} );
-                ImGui::TextColored({0, 1, 0, 1}, "%s", app.statusText.c_str());
+                ImGui::TextColored(app.statusColor, "%s", app.statusText.c_str());
                 ImGui::PopStyleVar();
                 if (app.isWorking) {
                     static float fraction = 0;
@@ -860,6 +867,7 @@ int main(int argc, char** argv) {
                         std::numeric_limits<float>::epsilon(),
                         std::numeric_limits<float>::epsilon() * 10.0f, 10);
 
+                ImGui::InputInt("Max segmentation attempts", &app.bakeOptions.maxIterations);
                 ImGui::Checkbox("Dilate charts", &app.bakeOptions.dilateCharts);
                 ImGui::Checkbox("Apply denoiser", &app.bakeOptions.applyDenoiser);
             }
@@ -913,12 +921,23 @@ int main(int argc, char** argv) {
     };
 
     auto cleanup = [&app](Engine* engine, View*, Scene*) {
-        Fence::waitAndDestroy(engine->createFence());
+        std::cout << "Destroying viewer..." << std::endl;
+        app.viewer->removeAsset();
         delete app.viewer;
+        std::cout << "Destroying viewer asset..." << std::endl;
+        app.loader->destroyAsset(app.viewerAsset);
+        app.viewerAsset = nullptr;
+        std::cout << "Destroying pipeline..." << std::endl;
+        delete app.pipeline;
+        std::cout << "Destroying AssetLoader materials..." << std::endl;
         app.materials->destroyMaterials();
         delete app.materials;
+        std::cout << "Destroying AssetLoader..." << std::endl;
         AssetLoader::destroy(&app.loader);
+        std::cout << "Destroying NameComponentManager..." << std::endl;
         delete app.names;
+
+        Fence::waitAndDestroy(engine->createFence());
     };
 
     auto animate = [&app](Engine* engine, View* view, double now) {
@@ -970,7 +989,15 @@ int main(int argc, char** argv) {
 
     filamentApp.setDropHandler([&] (std::string path) {
         app.viewer->removeAsset();
+        app.loader->destroyAsset(app.viewerAsset);
+        app.viewerAsset = nullptr;
         app.filename = path;
+        app.hasTestRender = false;
+        app.ambientOcclusion = image::LinearImage();
+        app.bentNormals = image::LinearImage();
+        app.meshNormals = image::LinearImage();
+        app.meshPositions = image::LinearImage();
+        app.visualization = Visualization::MESH_CURRENT;
         loadAssetFromDisk(app);
         saveIniFile(app);
     });
