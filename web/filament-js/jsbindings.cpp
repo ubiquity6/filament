@@ -452,7 +452,9 @@ class_<View>("View")
     .function("setDepthPrepass", &View::setDepthPrepass)
     .function("setPostProcessingEnabled", &View::setPostProcessingEnabled)
     .function("setAntiAliasing", &View::setAntiAliasing)
-    .function("getAntiAliasing", &View::getAntiAliasing);
+    .function("getAntiAliasing", &View::getAntiAliasing)
+    .function("setClearTargets", &View::setClearTargets)
+    .function("setPostProcessingEnabled", &View::setPostProcessingEnabled);
 
 /// Scene ::core class:: Flat container of renderables and lights.
 /// See also the [Engine] methods `createScene` and `destroyScene`.
