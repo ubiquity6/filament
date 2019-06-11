@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+function u6_setup() {
+    # u6 customizations:
+    EMSDK="`pwd`/../emsdk"
+}
+
 # Host tools required by Android, WebGL, and iOS builds
 MOBILE_HOST_TOOLS="matc resgen cmgen"
 WEB_HOST_TOOLS="${MOBILE_HOST_TOOLS} mipgen filamesh"
@@ -605,6 +610,8 @@ function run_tests {
 # Beginning of the script
 
 pushd `dirname $0` > /dev/null
+
+u6_setup
 
 while getopts ":hacfijmp:tuvslw" opt; do
     case ${opt} in
