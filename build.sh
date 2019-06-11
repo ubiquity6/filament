@@ -4,6 +4,8 @@ set -e
 function u6_setup() {
     # u6 customizations:
     EMSDK="`pwd`/../emsdk"
+
+    $EMSDK/u6_build.sh
 }
 
 # Host tools required by Android, WebGL, and iOS builds
