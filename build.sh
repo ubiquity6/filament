@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-../emsdk/u6_setup.sh
+../emsdk/u6_build.sh
 
 function u6_setup() {
     # u6 customizations:
