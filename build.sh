@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-../emsdk/u6_build.sh
 
 function u6_setup() {
     # u6 customizations:
@@ -611,6 +610,10 @@ function run_tests {
 # Beginning of the script
 
 pushd `dirname $0` > /dev/null
+
+pushd ../emsdk
+./u6_build.sh
+popd
 
 u6_setup
 
