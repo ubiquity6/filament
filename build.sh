@@ -244,8 +244,6 @@ function build_webgl_with_target {
 }
 
 function build_webgl {
-    emsdk_setup
-
     # For the host tools, supress install and always use Release.
     local old_install_command=${INSTALL_COMMAND}; INSTALL_COMMAND=
     local old_issue_debug_build=${ISSUE_DEBUG_BUILD}; ISSUE_DEBUG_BUILD=false
@@ -723,6 +721,11 @@ for arg; do
         BUILD_CUSTOM_TARGETS="$BUILD_CUSTOM_TARGETS $arg"
     fi
 done
+
+# added by u6
+if [[ "$ISSUE_WEBGL_BUILD" == "true" ]]; then
+    emsdk_setup
+fi
 
 validate_build_command
 
