@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-function u6_setup() {
+function emsdk_setup() {
+    pushd ../emsdk
+    ./u6_build.sh
+    popd
+
     # u6 customizations:
     EMSDK="`pwd`/../emsdk"
 }
@@ -240,6 +244,8 @@ function build_webgl_with_target {
 }
 
 function build_webgl {
+    emsdk_setup
+
     # For the host tools, supress install and always use Release.
     local old_install_command=${INSTALL_COMMAND}; INSTALL_COMMAND=
     local old_issue_debug_build=${ISSUE_DEBUG_BUILD}; ISSUE_DEBUG_BUILD=false
@@ -610,12 +616,6 @@ function run_tests {
 # Beginning of the script
 
 pushd `dirname $0` > /dev/null
-
-pushd ../emsdk
-./u6_build.sh
-popd
-
-u6_setup
 
 while getopts ":hacfijmp:tuvslw" opt; do
     case ${opt} in
