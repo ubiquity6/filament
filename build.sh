@@ -431,13 +431,13 @@ function ensure_ios_toolchain {
     echo
     echo "iOS toolchain file does not exist."
     echo "It will automatically be downloaded from http://opensource.apple.com."
-    read -p "Continue? (y/n) " -n 1 -r
-    echo
+    #read -p "Continue? (y/n) " -n 1 -r
+    #echo
 
-    if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
-        echo "Toolchain file must be downloaded to continue."
-        exit 1
-    fi
+    #if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+    #    echo "Toolchain file must be downloaded to continue."
+    #    exit 1
+    #fi
 
     curl -o "${toolchain_path}" "${IOS_TOOLCHAIN_URL}" || {
         echo "Error downloading iOS toolchain file."
