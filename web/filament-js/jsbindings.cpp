@@ -158,6 +158,13 @@ struct BufferDescriptor {
         size_t bufferLength = bd->size;
         return val(typed_memory_view(bufferLength, byteBuffer));
     }
+    val getBytesRange(unsigned int byteOffset, unsigned int byteLength) {
+        unsigned char *byteBuffer = (unsigned char*) bd->buffer;
+        size_t bufferLength = bd->size;
+        assert(byteOffset >= 0 && byteLength > 0);
+        assert(byteOffset + byteLength < bufferLength);
+        return val(typed_memory_view(byteLength, byteBuffer + byteOffset));
+    };
     // In order to match its JavaScript counterpart, the Buffer wrapper needs to use reference
     // counting, and the easiest way to achieve that is with shared_ptr.
     std::shared_ptr<backend::BufferDescriptor> bd;
@@ -182,10 +189,24 @@ struct PixelBufferDescriptor {
         this->pbd.reset(new backend::PixelBufferDescriptor(malloc(byteLength), byteLength,
                 cdtype, imageSize, [](void* buffer, size_t size, void* user) { free(buffer); }));
     }
+    PixelBufferDescriptor(unsigned int byteLength, backend::PixelDataFormat fmt, backend::PixelDataType dtype,
+            bool compressed, bool streamed) {
+        assert(compressed == false);
+        assert(streamed == true);
+        this->pbd.reset(new backend::PixelBufferDescriptor(malloc(byteLength), byteLength,
+                fmt, dtype, [](void* buffer, size_t size, void* user) { free(buffer); }));
+    }
     val getBytes() {
         unsigned char *byteBuffer = (unsigned char*) pbd->buffer;
         size_t bufferLength = pbd->size;
         return val(typed_memory_view(bufferLength, byteBuffer));
+    };
+    val getBytesRange(unsigned int byteOffset, unsigned int byteLength) {
+        unsigned char *byteBuffer = (unsigned char*) pbd->buffer;
+        size_t bufferLength = pbd->size;
+        assert(byteOffset >= 0 && byteLength > 0);
+        assert(byteOffset + byteLength < bufferLength);
+        return val(typed_memory_view(byteLength, byteBuffer + byteOffset));
     };
     // In order to match its JavaScript counterpart, the Buffer wrapper needs to use reference
     // counting, and the easiest way to achieve that is with shared_ptr.
@@ -860,6 +881,10 @@ class_<Texture>("Texture")
             Engine* engine, uint8_t level, PixelBufferDescriptor pbd), {
         self->setImage(*engine, level, std::move(*pbd.pbd));
     }), allow_raw_pointers())
+    .function("_setSubImage", EMBIND_LAMBDA(void, (Texture* self,
+            Engine* engine, uint8_t level, PixelBufferDescriptor pbd, uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height), {
+        self->setImage(*engine, level, xoffset, yoffset, width, height, std::move(*pbd.pbd));
+    }), allow_raw_pointers())
     .function("_setImageCube", EMBIND_LAMBDA(void, (Texture* self,
             Engine* engine, uint8_t level, PixelBufferDescriptor pbd), {
         uint32_t faceSize = pbd.pbd->size / 6;
@@ -960,16 +985,23 @@ class_<BufferDescriptor>("driver$BufferDescriptor")
     .constructor<emscripten::val>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
-    .function("getBytes", &BufferDescriptor::getBytes);
+    .function("getBytes", &BufferDescriptor::getBytes)
+    /// getBytesRange ::method:: Gets a ranged view of the WASM heap referenced by the buffer descriptor.
+    /// ::retval:: Uint8Array
+    .function("getBytesRange", &BufferDescriptor::getBytesRange);
 
 /// PixelBufferDescriptor ::class:: Low level pixel buffer wrapper.
 /// Clients should use the [PixelBuffer] helper function to contruct PixelBufferDescriptor objects.
 class_<PixelBufferDescriptor>("driver$PixelBufferDescriptor")
     .constructor<emscripten::val, backend::PixelDataFormat, backend::PixelDataType>()
     .constructor<emscripten::val, backend::CompressedPixelDataType, int, bool>()
+    .constructor<unsigned int, backend::PixelDataFormat, backend::PixelDataType, bool, bool>()
     /// getBytes ::method:: Gets a view of the WASM heap referenced by the buffer descriptor.
     /// ::retval:: Uint8Array
-    .function("getBytes", &PixelBufferDescriptor::getBytes);
+    .function("getBytes", &PixelBufferDescriptor::getBytes)
+    /// getBytesRange ::method:: Gets a ranged view of the WASM heap referenced by the buffer descriptor.
+    /// ::retval:: Uint8Array
+    .function("getBytesRange", &PixelBufferDescriptor::getBytesRange);
 
 // HELPER TYPES
 // ------------

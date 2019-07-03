@@ -207,6 +207,11 @@ Filament.loadClassExtensions = function() {
         pbd.delete();
     }
 
+    Filament.Texture.prototype.setSubImage = function(engine, level, pbd, xoffset, yoffset, width, height) {
+        this._setSubImage(engine, level, pbd, xoffset, yoffset, width, height);
+        pbd.delete();
+    }
+
     Filament.Texture.prototype.setImageCube = function(engine, level, pbd) {
         this._setImageCube(engine, level, pbd);
         pbd.delete();
