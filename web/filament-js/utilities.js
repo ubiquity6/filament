@@ -79,6 +79,17 @@ Filament.CompressedPixelBuffer = function(typedarray, cdatatype, faceSize) {
     return bd;
 };
 
+/// PixelBufferStream ::function:: Constructs a [PixelBufferDescriptor] with uninitialized data in the \
+/// the WASM heap.
+/// byteLength ::argument:: size of stream buffer to create
+/// format ::argument:: [PixelDataFormat]
+/// datatype ::argument:: [PixelDataType]
+/// ::retval:: [PixelBufferDescriptor]
+Filament.PixelBufferStream = function(byteLength, format, datatype) {
+    console.assert(byteLength > 0);
+    return new Filament.driver$PixelBufferDescriptor(byteLength, format, datatype, false, true);
+};
+
 Filament._loadFilamesh = function(engine, buffer, definstance, matinstances) {
     matinstances = matinstances || {};
     const registry = new Filament.MeshReader$MaterialRegistry();
