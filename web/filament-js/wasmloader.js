@@ -57,12 +57,18 @@ Filament.init = function(assets, onready) {
         Filament.loadMathExtensions();
     }
 
-    // Issue a fetch for each asset. After the last asset is downloaded, trigger the callback.
-    Filament.fetch(assets, null, function(name) {
-        if (--Filament.remainingInitializationTasks == 0 && Filament.onReady) {
-            Filament.onReady();
-        }
-    });
+    // If WebAssembly module is ready and there are no assets, trigger the callback.
+    if (Filament.remainingInitializationTasks === 0) {
+        if (onready)
+          onready();
+    } else {
+        // Issue a fetch for each asset. After the last asset is downloaded, trigger the callback.
+        Filament.fetch(assets, null, function(name) {
+            if (--Filament.remainingInitializationTasks == 0 && Filament.onReady) {
+                Filament.onReady();
+            }
+        });
+    }
 };
 
 // The postRun method is called by emscripten after it finishes compiling and instancing the
