@@ -50,8 +50,8 @@ android {
         externalNativeBuild {
             cmake {
                 arguments.add("-DANDROID_PIE=ON")
-                arguments.add("-DANDROID_PLATFORM=android-21")
-                arguments.add("-DANDROID_STL=c++_static")
+                arguments.add("-DANDROID_PLATFORM=android-28")
+                arguments.add("-DANDROID_STL=c++_shared")
                 arguments.add("-DFILAMENT_DIST_DIR=${filament_path}".toString())
                 cppFlags.add("-std=c++14")
                 if (project.hasProperty('extra_cmake_args')) {
