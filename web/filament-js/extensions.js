@@ -57,6 +57,11 @@ Filament.loadClassExtensions = function() {
         return Filament.Engine._create();
     };
 
+    /// destroy ::method:: Destory Engine
+    Filament.Engine.destroy = function(engine) {
+        Filament.Engine._destroy(engine);
+    };
+
     /// createMaterial ::method::
     /// package ::argument:: asset string, or Uint8Array, or [Buffer] with filamat contents
     /// ::retval:: an instance of [createMaterial]
