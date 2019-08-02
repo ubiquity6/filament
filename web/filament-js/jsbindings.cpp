@@ -324,7 +324,7 @@ class_<Engine>("Engine")
             allow_raw_pointers())
     /// destroy ::static method:: Destroys an engine instance and cleans up resources.
     /// engine ::argument:: the instance to destroy
-    .class_function("destroy", (void (*)(Engine*)) []
+    .class_function("_destroy", (void (*)(Engine*)) []
             (Engine* engine) { Engine::destroy(&engine); }, allow_raw_pointers())
     .function("execute", &Engine::execute)
 
