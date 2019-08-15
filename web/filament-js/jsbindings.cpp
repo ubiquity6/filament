@@ -816,8 +816,8 @@ class_<VertexBuilder>("VertexBuffer$Builder")
 class_<VertexBuffer>("VertexBuffer")
     .class_function("Builder", (VertexBuilder (*)()) [] { return VertexBuilder(); })
     .function("_setBufferAt", EMBIND_LAMBDA(void, (VertexBuffer* self,
-            Engine* engine, uint8_t bufferIndex, BufferDescriptor vbd), {
-        self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd));
+            Engine* engine, uint8_t bufferIndex, BufferDescriptor vbd, uint32_t byteOffset), {
+        self->setBufferAt(*engine, bufferIndex, std::move(*vbd.bd), byteOffset);
     }), allow_raw_pointers());
 
 class_<IndexBuilder>("IndexBuffer$Builder")
@@ -834,8 +834,8 @@ class_<IndexBuilder>("IndexBuffer$Builder")
 class_<IndexBuffer>("IndexBuffer")
     .class_function("Builder", (IndexBuilder (*)()) [] { return IndexBuilder(); })
     .function("_setBuffer", EMBIND_LAMBDA(void, (IndexBuffer* self,
-            Engine* engine, BufferDescriptor ibd), {
-        self->setBuffer(*engine, std::move(*ibd.bd));
+            Engine* engine, BufferDescriptor ibd, uint32_t byteOffset), {
+        self->setBuffer(*engine, std::move(*ibd.bd), byteOffset);
     }), allow_raw_pointers());
 
 class_<Material>("Material")
