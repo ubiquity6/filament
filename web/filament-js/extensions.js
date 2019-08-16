@@ -157,9 +157,9 @@ Filament.loadClassExtensions = function() {
     /// engine ::argument:: [Engine]
     /// bufferIndex ::argument:: non-negative integer
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer]
-    Filament.VertexBuffer.prototype.setBufferAt = function(engine, bufferIndex, buffer) {
+    Filament.VertexBuffer.prototype.setBufferAt = function(engine, bufferIndex, buffer, offset) {
         buffer = getBufferDescriptor(buffer);
-        this._setBufferAt(engine, bufferIndex, buffer);
+        this._setBufferAt(engine, bufferIndex, buffer, offset);
         buffer.delete();
     };
 
@@ -168,9 +168,9 @@ Filament.loadClassExtensions = function() {
     /// setBuffer ::method::
     /// engine ::argument:: [Engine]
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer]
-    Filament.IndexBuffer.prototype.setBuffer = function(engine, buffer) {
+    Filament.IndexBuffer.prototype.setBuffer = function(engine, buffer, offset) {
         buffer = getBufferDescriptor(buffer);
-        this._setBuffer(engine, buffer);
+        this._setBuffer(engine, buffer, offset);
         buffer.delete();
     };
 
