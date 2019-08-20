@@ -48,6 +48,11 @@ export interface Box {
     halfExtent: float3;
 }
 
+export interface Aabb {
+    min: float3;
+    max: float3;
+}
+
 export class LightManager$Instance {
     public delete(): void;
 }
@@ -65,6 +70,7 @@ export class TextureSampler {
 }
 
 export class MaterialInstance {
+    public setBoolParameter(name: string, value: boolean): void;
     public setFloatParameter(name: string, value: number): void;
     public setFloat2Parameter(name: string, value: float2): void;
     public setFloat3Parameter(name: string, value: float3): void;
@@ -115,8 +121,17 @@ export class RenderableManager$Builder {
     public skinning(boneCount: number): RenderableManager$Builder;
     public skinningBones(transforms: RenderableManager$Bone[]): RenderableManager$Builder;
     public skinningMatrices(transforms: mat4[]): RenderableManager$Builder;
+    public morphing(enable: boolean): RenderableManager$Builder;
     public blendOrder(index: number, order: number): RenderableManager$Builder;
     public build(engine: Engine, entity: Entity): void;
+}
+
+export class RenderTarget$Builder {
+    public texture(attachment: RenderTarget$AttachmentPoint, texture: Texture): RenderTarget$Builder;
+    public mipLevel(attachment: RenderTarget$AttachmentPoint, mipLevel: number): RenderTarget$Builder;
+    public face(attachment: RenderTarget$AttachmentPoint, face: Texture$CubemapFace): RenderTarget$Builder;
+    public layer(attachment: RenderTarget$AttachmentPoint, layer: number): RenderTarget$Builder;
+    public build(engine: Engine): RenderTarget;
 }
 
 export class LightManager$Builder {
@@ -153,6 +168,8 @@ export class RenderableManager {
             offset: number): void
     public setBonesFromMatrices(instance: RenderableManager$Instance, transforms: mat4[],
             offset: number): void
+    public setMorphWeights(instance: RenderableManager$Instance, a: number, b: number, c: number,
+            d: number);
     public getAxisAlignedBoundingBox(instance: RenderableManager$Instance): Box;
     public getPrimitiveCount(instance: RenderableManager$Instance): number;
     public setMaterialInstanceAt(instance: RenderableManager$Instance,
@@ -186,6 +203,8 @@ export class Renderer {
 
 export class Material {
     public createInstance(): MaterialInstance;
+    public getDefaultInstance(): MaterialInstance;
+    public getName(): string;
 }
 
 export class Frustum {
@@ -225,6 +244,18 @@ export class Camera {
 
 export class IndirectLight {
     public setIntensity(intensity: number);
+    public getIntensity(): number;
+    public setRotation(value: mat3);
+    public getRotation(): mat3;
+    public getDirectionEstimate(): float3;
+    public getColorEstimate(direction: float3): float4;
+}
+
+export class IcoSphere {
+    constructor(nsubdivs: number);
+    vertices: Float32Array;
+    tangents: Uint16Array;
+    triangles: Uint16Array;
 }
 
 export class Scene {
@@ -236,17 +267,24 @@ export class Scene {
     public setSkybox(sky: Skybox);
 }
 
+export class RenderTarget {
+    public getMipLevel(): number;
+    public getFace(): Texture$CubemapFace;
+    public getLayer(): number;
+}
+
 export class View {
     public setCamera(camera: Camera);
     public setClearColor(color: float4);
     public setScene(scene: Scene);
     public setViewport(viewport: float4);
+    public setRenderTarget(renderTarget: RenderTarget);
 }
 
 export class TransformManager {
     public hasComponent(entity: Entity): boolean;
     public getInstance(entity: Entity): TransformManager$Instance;
-    public create(entity: Entity, parent: TransformManager$Instance, xform: mat4): void;
+    public create(entity: Entity): void;
     public destroy(entity: Entity): void;
     public setParent(instance: TransformManager$Instance, parent: TransformManager$Instance): void;
     public setTransform(instance: TransformManager$Instance, xform: mat4): void;
@@ -274,8 +312,23 @@ export class Engine {
     public createTextureFromJpeg(url: string): Texture;
     public createTextureFromPng(url: string): Texture;
     public createView(): View;
+
+    public destroySwapChain(swapChain: SwapChain): void;
+    public destroyRenderer(renderer: Renderer): void;
+    public destroyView(view: View): void;
+    public destroyScene(scene: Scene): void;
+    public destroyCamera(camera: Camera): void;
+    public destroyMaterial(material: Material): void;
+    public destroyEntity(entity: Entity): void;
+    public destroyIndexBuffer(indexBuffer: IndexBuffer): void;
+    public destroyIndirectLight(indirectLight: IndirectLight): void;
+    public destroyMaterialInstance(materialInstance: MaterialInstance): void;
+    public destroyRenderTarget(renderTarget: RenderTarget): void;
     public destroySkybox(skybox: Skybox): void;
+    public destroyTexture(texture: Texture): void;
+
     public getLightManager(): LightManager;
+    public destroyVertexBuffer(vertexBuffer: VertexBuffer): void;
     public getRenderableManager(): RenderableManager;
     public getSupportedFormatSuffix(suffix: string): void;
     public getTransformManager(): TransformManager;
@@ -383,7 +436,7 @@ export enum PixelDataFormat {
     RGB_INTEGER,
     RGBA,
     RGBA_INTEGER,
-    RGBM,
+    UNUSED,
     DEPTH_COMPONENT,
     DEPTH_STENCIL,
     ALPHA,
@@ -531,14 +584,44 @@ export enum Texture$Usage {
     DEPTH_ATTACHMENT,
 }
 
-export enum VertexAttribute {
-    POSITION,
-    TANGENTS,
+export enum Texture$CubemapFace {
+    POSITIVE_X,
+    NEGATIVE_X,
+    POSITIVE_Y,
+    NEGATIVE_Y,
+    POSITIVE_Z,
+    NEGATIVE_Z,
+}
+
+export enum RenderTarget$AttachmentPoint {
     COLOR,
-    UV0,
-    UV1,
-    BONE_INDICES,
-    BONE_WEIGHTS,
+    DEPTH,
+}
+
+export enum VertexAttribute {
+    POSITION = 0,
+    TANGENTS = 1,
+    COLOR = 2,
+    UV0 = 3,
+    UV1 = 4,
+    BONE_INDICES = 5,
+    BONE_WEIGHTS = 6,
+    CUSTOM0 = 7,
+    CUSTOM1 = 8,
+    CUSTOM2 = 9,
+    CUSTOM3 = 10,
+    CUSTOM4 = 11,
+    CUSTOM5 = 12,
+    CUSTOM6 = 13,
+    CUSTOM7 = 14,
+    MORPH_POSITION_0 = CUSTOM0,
+    MORPH_POSITION_1 = CUSTOM1,
+    MORPH_POSITION_2 = CUSTOM2,
+    MORPH_POSITION_3 = CUSTOM3,
+    MORPH_TANGENTS_0 = CUSTOM4,
+    MORPH_TANGENTS_1 = CUSTOM5,
+    MORPH_TANGENTS_2 = CUSTOM6,
+    MORPH_TANGENTS_3 = CUSTOM7,
 }
 
 export enum VertexBuffer$AttributeType {
@@ -585,4 +668,20 @@ export enum WrapMode {
     CLAMP_TO_EDGE,
     REPEAT,
     MIRRORED_REPEAT,
+}
+
+export function _malloc(size: number): number;
+export function _free(size: number);
+
+interface HeapInterface {
+    set(buffer: any, pointer: number): any;
+    subarray(buffer: any, offset: number): any;
+}
+
+export const HEAPU8 : HeapInterface;
+
+export class SurfaceOrientation$Builder {
+    public vertexCount(count: number): SurfaceOrientation$Builder;
+    public normals(count: number, stride: number): SurfaceOrientation$Builder;
+    public build(): any;
 }

@@ -98,7 +98,15 @@ public class MaterialBuilder {
         UV0,                    // texture coordinates (float2)
         UV1,                    // texture coordinates (float2)
         BONE_INDICES,           // indices of 4 bones (uvec4)
-        BONE_WEIGHTS            // weights of the 4 bones (normalized float4)
+        BONE_WEIGHTS,           // weights of the 4 bones (normalized float4)
+        CUSTOM0,
+        CUSTOM1,
+        CUSTOM2,
+        CUSTOM3,
+        CUSTOM4,
+        CUSTOM5,
+        CUSTOM6,
+        CUSTOM7
     }
 
     public enum BlendingMode {
@@ -144,9 +152,16 @@ public class MaterialBuilder {
     }
 
     public enum TargetApi {
-        ALL,
-        OPENGL,
-        VULKAN,
+        OPENGL      (0x1),
+        VULKAN      (0x2),
+        METAL       (0x4),
+        ALL         (0x7);
+
+        final int number;
+
+        private TargetApi(int number) {
+            this.number = number;
+        }
     }
 
     public enum Optimization {
@@ -347,7 +362,7 @@ public class MaterialBuilder {
 
     @NonNull
     public MaterialBuilder targetApi(@NonNull TargetApi api) {
-        nMaterialBuilderTargetApi(mNativeObject, api.ordinal());
+        nMaterialBuilderTargetApi(mNativeObject, api.number);
         return this;
     }
 

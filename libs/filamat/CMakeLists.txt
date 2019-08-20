@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(filamat)
 
 set(TARGET         filamat)
@@ -41,6 +41,7 @@ set(COMMON_SRCS
         src/shaders/ShaderGenerator.cpp
         src/Enums.cpp
         src/MaterialBuilder.cpp
+        src/MaterialVariants.cpp
         src/PostprocessMaterialBuilder.cpp)
 
 # Sources and headers for filamat

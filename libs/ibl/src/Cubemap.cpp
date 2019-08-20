@@ -34,8 +34,8 @@ size_t Cubemap::getDimensions() const {
 
 void Cubemap::resetDimensions(size_t dim) {
     mDimensions = dim;
-    mScale = 2.0 / dim;
-    mUpperBound = std::nextafter(mDimensions, 0);
+    mScale = 2.0f / dim;
+    mUpperBound = std::nextafter((float) mDimensions, 0.0f);
     for (auto& mFace : mFaces) {
         mFace.reset();
     }
@@ -45,14 +45,14 @@ void Cubemap::setImageForFace(Face face, const Image& image) {
     mFaces[size_t(face)].set(image);
 }
 
-Cubemap::Address Cubemap::getAddressFor(const double3& r) {
+Cubemap::Address Cubemap::getAddressFor(const float3& r) {
     Cubemap::Address addr;
-    double sc, tc, ma;
-    const double rx = std::abs(r.x);
-    const double ry = std::abs(r.y);
-    const double rz = std::abs(r.z);
+    float sc, tc, ma;
+    const float rx = std::abs(r.x);
+    const float ry = std::abs(r.y);
+    const float rz = std::abs(r.z);
     if (rx >= ry && rx >= rz) {
-        ma = rx;
+        ma = 1.0f / rx;
         if (r.x >= 0) {
             addr.face = Face::PX;
             sc = -r.z;
@@ -63,7 +63,7 @@ Cubemap::Address Cubemap::getAddressFor(const double3& r) {
             tc = -r.y;
         }
     } else if (ry >= rx && ry >= rz) {
-        ma = ry;
+        ma = 1.0f / ry;
         if (r.y >= 0) {
             addr.face = Face::PY;
             sc =  r.x;
@@ -74,7 +74,7 @@ Cubemap::Address Cubemap::getAddressFor(const double3& r) {
             tc = -r.z;
         }
     } else {
-        ma = rz;
+        ma = 1.0f / rz;
         if (r.z >= 0) {
             addr.face = Face::PZ;
             sc =  r.x;
@@ -86,8 +86,8 @@ Cubemap::Address Cubemap::getAddressFor(const double3& r) {
         }
     }
     // ma is guaranteed to be >= sc and tc
-    addr.s = (sc / ma + 1) * 0.5f;
-    addr.t = (tc / ma + 1) * 0.5f;
+    addr.s = (sc * ma + 1.0f) * 0.5f;
+    addr.t = (tc * ma + 1.0f) * 0.5f;
     return addr;
 }
 
@@ -169,7 +169,7 @@ void Cubemap::makeSeamless() {
     corners(Face::NY);
 }
 
-Cubemap::Texel Cubemap::filterAt(const Image& image, double x, double y) {
+Cubemap::Texel Cubemap::filterAt(const Image& image, float x, float y) {
     const size_t x0 = size_t(x);
     const size_t y0 = size_t(y);
     // we allow ourselves to read past the width/height of the Image because the data is valid
@@ -188,20 +188,30 @@ Cubemap::Texel Cubemap::filterAt(const Image& image, double x, double y) {
     return (one_minus_u*one_minus_v)*c0 + (u*one_minus_v)*c1 + (one_minus_u*v)*c2 + (u*v)*c3;
 }
 
-Cubemap::Texel Cubemap::trilinearFilterAt(const Cubemap& l0, const Cubemap& l1, double lerp,
-        const double3& L)
+Cubemap::Texel Cubemap::filterAtCenter(const Image& image, size_t x0, size_t y0) {
+    // we allow ourselves to read past the width/height of the Image because the data is valid
+    // and contain the "seamless" data.
+    size_t x1 = x0 + 1;
+    size_t y1 = y0 + 1;
+    const Texel& c0 = sampleAt(image.getPixelRef(x0, y0));
+    const Texel& c1 = sampleAt(image.getPixelRef(x1, y0));
+    const Texel& c2 = sampleAt(image.getPixelRef(x0, y1));
+    const Texel& c3 = sampleAt(image.getPixelRef(x1, y1));
+    return (c0 + c1 + c2 + c3) * 0.25f;
+}
+
+Cubemap::Texel Cubemap::trilinearFilterAt(const Cubemap& l0, const Cubemap& l1, float lerp,
+        const float3& L)
 {
     Cubemap::Address addr(getAddressFor(L));
     const Image& i0 = l0.getImageForFace(addr.face);
-    double x0 = std::min(addr.s * l0.mDimensions, l0.mUpperBound);
-    double y0 = std::min(addr.t * l0.mDimensions, l0.mUpperBound);
-    float3 c0(filterAt(i0, x0, y0));
-    if (&l0 != &l1) {
-        const Image& i1 = l1.getImageForFace(addr.face);
-        double x1 = std::min(addr.s * l1.mDimensions, l1.mUpperBound);
-        double y1 = std::min(addr.t * l1.mDimensions, l1.mUpperBound);
-        c0 += lerp * (filterAt(i1, x1, y1) - c0);
-    }
+    const Image& i1 = l1.getImageForFace(addr.face);
+    float x0 = std::min(addr.s * l0.mDimensions, l0.mUpperBound);
+    float y0 = std::min(addr.t * l0.mDimensions, l0.mUpperBound);
+    float x1 = std::min(addr.s * l1.mDimensions, l1.mUpperBound);
+    float y1 = std::min(addr.t * l1.mDimensions, l1.mUpperBound);
+    float3 c0 = filterAt(i0, x0, y0);
+    c0 += lerp * (filterAt(i1, x1, y1) - c0);
     return c0;
 }
 

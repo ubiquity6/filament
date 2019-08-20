@@ -54,7 +54,7 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
 
     filament::math::float4 resolution; // viewport width, height, 1/width, 1/height
 
-    filament::math::float3 cameraPosition;
+    filament::math::float3 cameraPosition; // this is (0,0,0) when camera_at_origin is enabled
     float time; // time in seconds, with a 1 second period
 
     filament::math::float4 lightColorIntensity; // directional light
@@ -80,13 +80,26 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     alignas(16) filament::math::float4 iblSH[9]; // actually float3 entries (std140 requires float4 alignment)
 
     filament::math::float4 userTime;  // time(s), (double)time - (float)time, 0, 0
+
+    filament::math::float2 iblMaxMipLevel; // maxlevel, float(1<<maxlevel)
+    filament::math::float2 padding0;
+
+    filament::math::float3 worldOffset; // this is (0,0,0) when camera_at_origin is disabled
+    float padding1;
+
+    // bring PerViewUib to 1 KiB
+    filament::math::float4 padding2[15];
 };
 
 
 // PerRenderableUib must have an alignment of 256 to be compatible with all versions of GLES.
 struct alignas(256) PerRenderableUib {
     filament::math::mat4f worldFromModelMatrix;
-    filament::math::mat3f worldFromModelNormalMatrix;
+    filament::math::mat3f worldFromModelNormalMatrix; // this gets expanded to 48 bytes during the copy to the UBO
+    alignas(16) filament::math::float4 morphWeights;
+    uint32_t skinningEnabled; // 0=disabled, 1=enabled, ignored unless variant & SKINNING_OR_MORPHING
+    uint32_t morphingEnabled; // 0=disabled, 1=enabled, ignored unless variant & SKINNING_OR_MORPHING
+    filament::math::float2 padding0;
 };
 
 struct LightsUib {
@@ -105,7 +118,6 @@ struct PostProcessingUib {
     }
     filament::math::float2 uvScale;
     float time;             // time in seconds, with a 1 second period, used for dithering
-    float yOffset;
     int dithering;          // type of dithering 0=none, 1=enabled
 };
 

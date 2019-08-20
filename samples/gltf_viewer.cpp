@@ -54,7 +54,7 @@ struct App {
     bool actualSize = false;
 };
 
-static const char* DEFAULT_IBL = "envs/venetian_crossroads";
+static const char* DEFAULT_IBL = "venetian_crossroads_2k";
 
 static void printUsage(char* name) {
     std::string exec_name(Path(name).getName());
@@ -205,9 +205,12 @@ int main(int argc, char** argv) {
         app.asset->releaseSourceData();
 
         // Add the renderables to the scene.
-        app.viewer->setAsset(app.asset, app.names, !app.actualSize);
+        app.viewer->setAsset(app.asset, !app.actualSize);
 
-        app.viewer->setIndirectLight(FilamentApp::get().getIBL()->getIndirectLight());
+        auto ibl = FilamentApp::get().getIBL();
+        if (ibl) {
+            app.viewer->setIndirectLight(ibl->getIndirectLight());
+        }
     };
 
     auto setup = [&](Engine* engine, View* view, Scene* scene) {

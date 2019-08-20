@@ -45,6 +45,8 @@ using namespace filament;
 using namespace filament::math;
 using namespace utils;
 
+static const auto FREE_CALLBACK = [](void* mem, size_t, void*) { free(mem); };
+
 namespace gltfio {
 
 struct ResourceLoader::Impl {
@@ -95,8 +97,8 @@ private:
 
 using namespace details;
 
-ResourceLoader::ResourceLoader(const ResourceConfiguration& config) : mConfig(config),
-        mPool(new AssetPool), pImpl(new Impl) {}
+ResourceLoader::ResourceLoader(const ResourceConfiguration& config) :
+        mPool(new AssetPool), mConfig(config), pImpl(new Impl) {}
 
 ResourceLoader::~ResourceLoader() {
     mPool->onLoaderDestroyed();
@@ -108,7 +110,8 @@ static void importSkinningData(Skin& dstSkin, const cgltf_skin& srcSkin) {
     dstSkin.inverseBindMatrices.resize(srcSkin.joints_count);
     if (srcMatrices) {
         auto dstMatrices = (uint8_t*) dstSkin.inverseBindMatrices.data();
-        auto srcBuffer = srcMatrices->buffer_view->buffer->data;
+        uint8_t* bytes = (uint8_t*) srcMatrices->buffer_view->buffer->data;
+        auto srcBuffer = (void*) (bytes + srcMatrices->offset + srcMatrices->buffer_view->offset);
         memcpy(dstMatrices, srcBuffer, srcSkin.joints_count * sizeof(mat4f));
     }
 }
@@ -196,6 +199,13 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
 
     #endif
 
+    #ifndef NDEBUG
+    if (cgltf_validate(gltf) != cgltf_result_success) {
+        slog.e << "Failed cgltf validation." << io::endl;
+        return false;
+    }
+    #endif
+
     // To be robust against the glTF conformance suite, we optionally ensure that skinning weights
     // sum to 1.0 at every vertex. Note that if the same weights buffer is shared in multiple
     // places, this will needlessly repeat the work. In the future we would like to remove this
@@ -211,11 +221,11 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
 
     // Upload data to the GPU.
     const BufferBinding* bindings = asset->getBufferBindings();
-    int tangentsSlot = -1;
+    bool needsTangents = false;
     for (size_t i = 0, n = asset->getBufferBindingCount(); i < n; ++i) {
         auto bb = bindings[i];
         if (bb.vertexBuffer && bb.generateTangents) {
-            tangentsSlot = bb.bufferIndex;
+            needsTangents = true;
         } else if (bb.vertexBuffer && !bb.generateDummyData) {
             const uint8_t* data8 = bb.offset + (const uint8_t*) *bb.data;
             mPool->addPendingUpload();
@@ -224,22 +234,19 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
         } else if (bb.vertexBuffer) {
             uint32_t* dummyData = (uint32_t*) malloc(bb.size);
             memset(dummyData, 0xff, bb.size);
-            auto callback = (VertexBuffer::BufferDescriptor::Callback) free;
-            VertexBuffer::BufferDescriptor bd(dummyData, bb.size, callback);
+            VertexBuffer::BufferDescriptor bd(dummyData, bb.size, FREE_CALLBACK);
             bb.vertexBuffer->setBufferAt(*mConfig.engine, bb.bufferIndex, std::move(bd));
         } else if (bb.generateTrivialIndices) {
             uint32_t* data32 = (uint32_t*) malloc(bb.size);
             generateTrivialIndices(data32, bb.size / sizeof(uint32_t));
-            auto callback = (IndexBuffer::BufferDescriptor::Callback) free;
-            IndexBuffer::BufferDescriptor bd(data32, bb.size, callback);
+            IndexBuffer::BufferDescriptor bd(data32, bb.size, FREE_CALLBACK);
             bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
         } else if (bb.convertBytesToShorts) {
             const uint8_t* data8 = bb.offset + (const uint8_t*) *bb.data;
             size_t size16 = bb.size * 2;
             uint16_t* data16 = (uint16_t*) malloc(size16);
             convertBytesToShorts(data16, data8, bb.size);
-            auto callback = (IndexBuffer::BufferDescriptor::Callback) free;
-            IndexBuffer::BufferDescriptor bd(data16, size16, callback);
+            IndexBuffer::BufferDescriptor bd(data16, size16, FREE_CALLBACK);
             bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
         } else if (bb.indexBuffer) {
             const uint8_t* data8 = bb.offset + (const uint8_t*) *bb.data;
@@ -255,8 +262,8 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
     }
 
     // Compute surface orientation quaternions if necessary.
-    if (tangentsSlot > -1) {
-        computeTangents(fasset, tangentsSlot);
+    if (needsTangents) {
+        computeTangents(fasset);
     }
 
     // Finally, load image files and create Filament Textures.
@@ -279,7 +286,7 @@ bool ResourceLoader::createTextures(details::FFilamentAsset* asset) const {
                 size_t(w * h * 4),
                 Texture::Format::RGBA,
                 Texture::Type::UBYTE,
-                (Texture::PixelBufferDescriptor::Callback) &free);
+                [] (void* buffer, size_t, void*) { free(buffer); });
 
         tex->setImage(*mConfig.engine, 0, std::move(pbd));
         tex->generateMipmaps(*mConfig.engine);
@@ -350,7 +357,7 @@ bool ResourceLoader::createTextures(details::FFilamentAsset* asset) const {
     return true;
 }
 
-void ResourceLoader::computeTangents(FFilamentAsset* asset, int tangentsSlot) const {
+void ResourceLoader::computeTangents(FFilamentAsset* asset) const {
     // Declare vectors of normals and tangents, which we'll extract & convert from the source.
     std::vector<float3> fp32Normals;
     std::vector<float4> fp32Tangents;
@@ -358,7 +365,10 @@ void ResourceLoader::computeTangents(FFilamentAsset* asset, int tangentsSlot) co
     std::vector<float2> fp32TexCoords;
     std::vector<uint3> ui32Triangles;
 
-    auto computeQuats = [&](const cgltf_primitive& prim) {
+    constexpr int kMorphTargetUnused = -1;
+
+    auto computeQuats = [&](const cgltf_primitive& prim, VertexBuffer* vb, uint8_t slot,
+            int morphTargetIndex) {
 
         cgltf_size vertexCount = 0;
 
@@ -367,14 +377,23 @@ void ResourceLoader::computeTangents(FFilamentAsset* asset, int tangentsSlot) co
         const cgltf_accessor* accessors[NUM_ATTRIBUTES] = {};
 
         // Collect accessors for normals, tangents, etc.
-        int slot = 0;
-        for (cgltf_size aindex = 0; aindex < prim.attributes_count; aindex++) {
-            const cgltf_attribute& attr = prim.attributes[aindex];
-            if (attr.index == 0) {
-                accessors[attr.type] = attr.data;
-                vertexCount = attr.data->count;
+        if (morphTargetIndex == kMorphTargetUnused) {
+            for (cgltf_size aindex = 0; aindex < prim.attributes_count; aindex++) {
+                const cgltf_attribute& attr = prim.attributes[aindex];
+                if (attr.index == 0) {
+                    accessors[attr.type] = attr.data;
+                    vertexCount = attr.data->count;
+                }
             }
-
+        } else {
+            const cgltf_morph_target& morphTarget = prim.targets[morphTargetIndex];
+            for (cgltf_size aindex = 0; aindex < morphTarget.attributes_count; aindex++) {
+                const cgltf_attribute& attr = prim.attributes[aindex];
+                if (attr.index == 0) {
+                    accessors[attr.type] = attr.data;
+                    vertexCount = attr.data->count;
+                }
+            }
         }
 
         // At a minimum we need normals to generate tangents.
@@ -465,18 +484,43 @@ void ResourceLoader::computeTangents(FFilamentAsset* asset, int tangentsSlot) co
         helper.getQuats(quats, vertexCount);
 
         // Upload quaternions to the GPU.
-        auto callback = (VertexBuffer::BufferDescriptor::Callback) free;
-        VertexBuffer::BufferDescriptor bd(quats, vertexCount * sizeof(short4), callback);
-        VertexBuffer* vb = asset->mPrimMap.at(&prim);
-        vb->setBufferAt(*mConfig.engine, tangentsSlot, std::move(bd));
+        VertexBuffer::BufferDescriptor bd(quats, vertexCount * sizeof(short4), FREE_CALLBACK);
+        vb->setBufferAt(*mConfig.engine, slot, std::move(bd));
     };
 
+    // Collect all TANGENT vertex attribute slots that need to be populated.
+    tsl::robin_map<VertexBuffer*, uint8_t> baseTangents;
+    tsl::robin_map<VertexBuffer*, uint8_t> morphTangents[4];
+    const BufferBinding* bindings = asset->getBufferBindings();
+    for (size_t i = 0, n = asset->getBufferBindingCount(); i < n; ++i) {
+        auto bb = bindings[i];
+        if (bb.vertexBuffer && bb.generateTangents) {
+            if (bb.isMorphTarget) {
+                morphTangents[bb.morphTargetIndex][bb.vertexBuffer] = bb.bufferIndex;
+            } else {
+                baseTangents[bb.vertexBuffer] = bb.bufferIndex;
+            }
+        }
+    }
+
+    // Go through all cgltf primitives and populate their tangents if requested.
     for (auto iter : asset->mNodeMap) {
         const cgltf_mesh* mesh = iter.first->mesh;
         if (mesh) {
             cgltf_size nprims = mesh->primitives_count;
             for (cgltf_size index = 0; index < nprims; ++index) {
-                computeQuats(mesh->primitives[index]);
+                VertexBuffer* vb = asset->mPrimMap.at(mesh->primitives + index);
+                auto iter = baseTangents.find(vb);
+                if (iter != baseTangents.end()) {
+                    computeQuats(mesh->primitives[index], vb, iter->second, kMorphTargetUnused);
+                }
+                for (int morphTarget = 0; morphTarget < 4; morphTarget++) {
+                    const auto& tangents = morphTangents[morphTarget];
+                    auto iter = tangents.find(vb);
+                    if (iter != tangents.end()) {
+                        computeQuats(mesh->primitives[index], vb, iter->second, morphTarget);
+                    }
+                }
             }
         }
     }
@@ -517,6 +561,16 @@ void ResourceLoader::normalizeSkinningWeights(details::FFilamentAsset* asset) co
 void ResourceLoader::updateBoundingBoxes(details::FFilamentAsset* asset) const {
     auto& rm = mConfig.engine->getRenderableManager();
     auto& tm = mConfig.engine->getTransformManager();
+
+    // The purpose of the root node is to give the client a place for custom transforms.
+    // Since it is not part of the source model, it should be ignored when computing the
+    // bounding box.
+    TransformManager::Instance root = tm.getInstance(asset->getRoot());
+    std::vector<Entity> modelRoots(tm.getChildCount(root));
+    tm.getChildren(root, modelRoots.data(), modelRoots.size());
+    for (auto e : modelRoots) {
+        tm.setParent(tm.getInstance(e), 0);
+    }
 
     auto computeBoundingBox = [&](const cgltf_primitive& prim) {
         Aabb aabb;
@@ -569,6 +623,11 @@ void ResourceLoader::updateBoundingBoxes(details::FFilamentAsset* asset) const {
             assetBounds.max = max(assetBounds.max, maxpt);
         }
     }
+
+    for (auto e : modelRoots) {
+        tm.setParent(tm.getInstance(e), root);
+    }
+
     asset->mBoundingBox = assetBounds;
 }
 

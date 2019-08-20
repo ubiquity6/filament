@@ -47,10 +47,11 @@ public:
     size_t getWidth(size_t level = 0) const noexcept;
     size_t getHeight(size_t level = 0) const noexcept;
     size_t getDepth(size_t level = 0) const noexcept;
-    size_t getLevels() const noexcept { return mLevels; }
+    size_t getLevelCount() const noexcept { return mLevelCount; }
+    size_t getMaxLevelCount() const noexcept { return std::ilogbf(std::max(mWidth, mHeight)) + 1; }
     Sampler getTarget() const noexcept { return mTarget; }
     InternalFormat getFormat() const noexcept { return mFormat; }
-    bool isRgbm() const noexcept { return mRgbm; }
+    Usage getUsage() const noexcept { return mUsage; }
 
     void setImage(FEngine& engine, size_t level,
             uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height,
@@ -58,6 +59,10 @@ public:
 
     void setImage(FEngine& engine, size_t level,
             PixelBufferDescriptor&& buffer, const FaceOffsets& faceOffsets) const noexcept;
+
+    void generatePrefilterMipmap(FEngine& engine,
+            PixelBufferDescriptor&& buffer, const FaceOffsets& faceOffsets,
+            PrefilterOptions const* options);
 
     void setExternalImage(FEngine& engine, void* image) noexcept;
     void setExternalStream(FEngine& engine, FStream* stream) noexcept;
@@ -67,6 +72,7 @@ public:
     void setSampleCount(size_t sampleCount) noexcept { mSampleCount = uint8_t(sampleCount); }
     size_t getSampleCount() const noexcept { return mSampleCount; }
     bool isMultisample() const noexcept { return mSampleCount > 1; }
+    bool isCompressed() const noexcept { return backend::isCompressedFormat(mFormat); }
 
     bool isCubemap() const noexcept { return mTarget == Sampler::SAMPLER_CUBEMAP; }
 
@@ -85,9 +91,8 @@ private:
     uint32_t mHeight = 1;
     uint32_t mDepth = 1;
     InternalFormat mFormat = InternalFormat::RGBA8;
-    bool mRgbm = false;
     Sampler mTarget = Sampler::SAMPLER_2D;
-    uint8_t mLevels = 1;
+    uint8_t mLevelCount = 1;
     uint8_t mSampleCount = 1;
     FStream* mStream = nullptr;
     Usage mUsage = Usage::DEFAULT;
