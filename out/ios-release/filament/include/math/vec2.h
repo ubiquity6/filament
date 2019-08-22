@@ -31,14 +31,14 @@ namespace math {
 
 namespace details {
 
-template <typename T>
+template<typename T>
 class MATH_EMPTY_BASES TVec2 :
-                public TVecProductOperators<TVec2, T>,
-                public TVecAddOperators<TVec2, T>,
-                public TVecUnaryOperators<TVec2, T>,
-                public TVecComparisonOperators<TVec2, T>,
-                public TVecFunctions<TVec2, T>,
-                public TVecDebug<TVec2, T> {
+        public TVecProductOperators<TVec2, T>,
+        public TVecAddOperators<TVec2, T>,
+        public TVecUnaryOperators<TVec2, T>,
+        public TVecComparisonOperators<TVec2, T>,
+        public TVecFunctions<TVec2, T>,
+        public TVecDebug<TVec2, T> {
 public:
     typedef T value_type;
     typedef T& reference;
@@ -74,19 +74,19 @@ public:
 
     // handles implicit conversion to a tvec4. must not be explicit.
     template<typename A>
-    constexpr TVec2(A v) : x(v), y(v) { }
+    constexpr TVec2(A v) : v{ T(v), T(v) } {}
 
     template<typename A, typename B>
-    constexpr TVec2(A x, B y) : x(x), y(y) { }
+    constexpr TVec2(A x, B y) : v{ T(x), T(y) } {}
 
     template<typename A>
-    constexpr TVec2(const TVec2<A>& v) : x(v.x), y(v.y) { }
+    constexpr TVec2(const TVec2<A>& v) : v{ T(v[0]), T(v[1]) } {}
 
     // cross product works only on vectors of size 2 or 3
-    template <typename RT>
+    template<typename RT>
     friend inline
     constexpr value_type cross(const TVec2& u, const TVec2<RT>& v) {
-        return value_type(u.x*v.y - u.y*v.x);
+        return value_type(u[0] * v[1] - u[1] * v[0]);
     }
 };
 
@@ -94,7 +94,7 @@ public:
 
 // ----------------------------------------------------------------------------------------
 
-template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value >::type>
+template<typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
 using vec2 = details::TVec2<T>;
 
 using double2 = vec2<double>;
