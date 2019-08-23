@@ -741,6 +741,16 @@ struct RasterState {
     };
 };
 
+struct RenderCapabilities {
+    int32_t mMaxTextures;    
+    int32_t mMaxVertexTextures;
+    int32_t mMaxTextureSize;
+    int32_t mMaxCubemapSize;
+    int32_t mMaxAttributes;
+    int32_t mMaxVertexUniforms;
+    int32_t mMaxFragmentUniforms;
+};
+
 } // namespace backend
 } // namespace filament
 

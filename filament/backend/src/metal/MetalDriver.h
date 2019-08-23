@@ -58,6 +58,8 @@ private:
 
     ShaderModel getShaderModel() const noexcept final;
 
+    void getCapabilities(backend::RenderCapabilities& capabilities) const noexcept final;
+
     /*
      * Driver interface
      */

@@ -777,6 +777,10 @@ bool FEngine::execute() {
     return true;
 }
 
+void FEngine::getCapabilities(backend::RenderCapabilities& capabilities) noexcept {
+    getDriver().getCapabilities(capabilities);
+}
+
 } // namespace details
 
 // ------------------------------------------------------------------------------------------------
@@ -945,6 +949,10 @@ void Engine::execute() {
 
 DebugRegistry& Engine::getDebugRegistry() noexcept {
     return upcast(this)->getDebugRegistry();
+}
+
+void Engine::getCapabilities(backend::RenderCapabilities& capabilities) noexcept {
+    upcast(this)->getCapabilities(capabilities);
 }
 
 

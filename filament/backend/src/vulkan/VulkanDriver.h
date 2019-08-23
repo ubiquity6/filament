@@ -59,6 +59,8 @@ private:
 
     ShaderModel getShaderModel() const noexcept final;
 
+    void getCapabilities(backend::RenderCapabilities& capabilities) const noexcept final;
+
     template<typename T>
     friend class backend::ConcreteDispatcher;
 

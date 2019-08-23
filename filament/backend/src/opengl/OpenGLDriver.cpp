@@ -308,6 +308,16 @@ ShaderModel OpenGLDriver::getShaderModel() const noexcept {
     return mShaderModel;
 }
 
+void OpenGLDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &capabilities.mMaxTextures);
+    glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &capabilities.mMaxVertexTextures);
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &capabilities.mMaxTextureSize);
+    glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &capabilities.mMaxCubemapSize);
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &capabilities.mMaxAttributes);
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &capabilities.mMaxVertexUniforms);
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &capabilities.mMaxFragmentUniforms);
+}
+
 const float2 OpenGLDriver::mClearTriangle[3] = {{ -1.0f,  3.0f },
                                                 { -1.0f, -1.0f },
                                                 {  3.0f, -1.0f }};

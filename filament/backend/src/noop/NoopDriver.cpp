@@ -38,6 +38,9 @@ backend::ShaderModel NoopDriver::getShaderModel() const noexcept {
 #endif
 }
 
+void NoopDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+}
+
 // explicit instantiation of the Dispatcher
 template class backend::ConcreteDispatcher<NoopDriver>;
 

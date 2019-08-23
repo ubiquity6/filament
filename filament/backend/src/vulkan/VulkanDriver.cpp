@@ -200,6 +200,9 @@ ShaderModel VulkanDriver::getShaderModel() const noexcept {
 #endif
 }
 
+void VulkanDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+}
+
 void VulkanDriver::terminate() {
     if (!mContext.instance) {
         return;
