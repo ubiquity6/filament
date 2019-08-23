@@ -21,8 +21,9 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Size;
 
 public class MaterialInstance {
-    private final Material mMaterial;
+    private Material mMaterial;
     private long mNativeObject;
+    private long mNativeMaterial;
 
     public enum BooleanElement {
         BOOL,
@@ -52,8 +53,16 @@ public class MaterialInstance {
         mNativeObject = nativeMaterialInstance;
     }
 
+    MaterialInstance(long nativeMaterial, long nativeMaterialInstance) {
+        mNativeMaterial = nativeMaterial;
+        mNativeObject = nativeMaterialInstance;
+    }
+
     @NonNull
     public Material getMaterial() {
+        if (mMaterial == null) {
+            mMaterial = new Material(mNativeMaterial);
+        }
         return mMaterial;
     }
 
@@ -130,12 +139,14 @@ public class MaterialInstance {
 
     public void setParameter(@NonNull String name, @NonNull Colors.RgbType type,
             float r, float g, float b) {
-        setParameter(name, FloatElement.FLOAT3, Colors.toLinear(type, r, g, b), 0, 1);
+        float[] color = Colors.toLinear(type, r, g, b);
+        nSetParameterFloat3(getNativeObject(), name, color[0], color[1], color[2]);
     }
 
     public void setParameter(@NonNull String name, @NonNull Colors.RgbaType type,
             float r, float g, float b, float a) {
-        setParameter(name, FloatElement.FLOAT4, Colors.toLinear(type, r, g, b, a), 0, 1);
+        float[] color = Colors.toLinear(type, r, g, b, a);
+        nSetParameterFloat4(getNativeObject(), name, color[0], color[1], color[2], color[3]);
     }
 
     public void setScissor(@IntRange(from = 0) int left, @IntRange(from = 0) int bottom,
@@ -167,7 +178,7 @@ public class MaterialInstance {
         nSetDoubleSided(getNativeObject(), doubleSided);
     }
 
-    long getNativeObject() {
+    public long getNativeObject() {
         if (mNativeObject == 0) {
             throw new IllegalStateException("Calling method on destroyed MaterialInstance");
         }

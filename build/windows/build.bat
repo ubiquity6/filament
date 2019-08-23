@@ -1,8 +1,16 @@
-@echo off
+@echo on
 
 :: Install build dependencies
-call %~dp0ci-common.bat
-if errorlevel 1 exit /b %errorlevel%
+if defined KOKORO_BUILD_ID (
+    choco install cmake.install --installargs '"ADD_CMAKE_TO_PATH=User"' -y
+    choco install llvm --version 7.0.1 -y
+
+    :: Refresh PATH after installing packages
+    :: Do ***NOT*** use refreshenv, it exits the current script
+    call RefreshEnv.cmd
+)
+
+echo "%PATH%"
 
 :: Put Visual Studio tools on the PATH
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
@@ -19,9 +27,7 @@ cmake --version
 
 cd github\filament
 
-:: If this is a continuous or release build, build all Filament static library
-:: variants (/MD, /MDd, /MT, /MTd)
-if "%KOKORO_JOB_TYPE%" == "CONTINUOUS_INTEGRATION" (set FILAMENT_BUILD_ALL_VARIANTS=1)
+:: If this is a release build, build all Filament static library variants (/MD, /MDd, /MT, /MTd)
 if "%KOKORO_JOB_TYPE%" == "RELEASE" (set FILAMENT_BUILD_ALL_VARIANTS=1)
 
 if "%FILAMENT_BUILD_ALL_VARIANTS%" == "1" (

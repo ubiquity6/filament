@@ -28,6 +28,7 @@
 #include "details/Allocators.h"
 #include "details/Camera.h"
 #include "details/DebugRegistry.h"
+#include "details/RenderTarget.h"
 #include "details/ResourceList.h"
 #include "details/Skybox.h"
 
@@ -36,6 +37,7 @@
 #include "private/backend/DriverApi.h"
 
 #include <private/filament/EngineEnums.h>
+#include <private/filament/UniformInterfaceBlock.h>
 
 #include <filament/Engine.h>
 #include <filament/VertexBuffer.h>
@@ -44,9 +46,8 @@
 #include <filament/MaterialEnums.h>
 #include <filament/Texture.h>
 #include <filament/Skybox.h>
-#include <filament/Stream.h>
 
-#include <private/filament/UniformInterfaceBlock.h>
+#include <filament/Stream.h>
 
 #include <filaflat/ShaderBuilder.h>
 
@@ -64,13 +65,14 @@ namespace filament {
 class Renderer;
 class MaterialParser;
 
-
 namespace backend {
-
 class Driver;
 class Program;
+} // namespace driver
 
-} // namespac driver
+namespace fg {
+class ResourceAllocator;
+} // namespace fg
 
 
 namespace details {
@@ -134,7 +136,7 @@ public:
     uint32_t getMaterialId() const noexcept { return mMaterialId++; }
 
     const FMaterial* getDefaultMaterial() const noexcept { return mDefaultMaterial; }
-    const FMaterial* getSkyboxMaterial(bool rgbm) const noexcept;
+    const FMaterial* getSkyboxMaterial() const noexcept;
     const FIndirectLight* getDefaultIndirectLight() const noexcept { return mDefaultIbl; }
 
     backend::Handle<backend::HwProgram> getPostProcessProgramSlow(PostProcessStage stage) const noexcept;
@@ -194,6 +196,11 @@ public:
         return mBackend;
     }
 
+    fg::ResourceAllocator& getResourceAllocator() noexcept {
+        assert(mResourceAllocator);
+        return *mResourceAllocator;
+    }
+
     void* streamAlloc(size_t size, size_t alignment) noexcept;
 
     utils::JobSystem& getJobSystem() noexcept { return mJobSystem; }
@@ -216,6 +223,7 @@ public:
     FTexture* createTexture(const Texture::Builder& builder) noexcept;
     FSkybox* createSkybox(const Skybox::Builder& builder) noexcept;
     FStream* createStream(const Stream::Builder& builder) noexcept;
+    FRenderTarget* createRenderTarget(const RenderTarget::Builder& builder) noexcept;
 
     void createRenderable(const RenderableManager::Builder& builder, utils::Entity entity);
     void createLight(const LightManager::Builder& builder, utils::Entity entity);
@@ -244,6 +252,7 @@ public:
     void destroy(const FSkybox* p);
     void destroy(const FStream* p);
     void destroy(const FTexture* p);
+    void destroy(const FRenderTarget* p);
     void destroy(const FSwapChain* p);
     void destroy(const FView* p);
     void destroy(utils::Entity e);
@@ -302,6 +311,7 @@ private:
     FTransformManager mTransformManager;
     FLightManager mLightManager;
     FCameraManager mCameraManager;
+    fg::ResourceAllocator* mResourceAllocator = nullptr;
 
     ResourceList<FRenderer> mRenderers{ "Renderer" };
     ResourceList<FView> mViews{ "View" };
@@ -315,6 +325,7 @@ private:
     ResourceList<FMaterial> mMaterials{ "Material" };
     ResourceList<FTexture> mTextures{ "Texture" };
     ResourceList<FSkybox> mSkyboxes{ "Skybox" };
+    ResourceList<FRenderTarget> mRenderTargets{ "RenderTarget" };
 
     mutable uint32_t mMaterialId = 0;
 
@@ -335,7 +346,7 @@ private:
     Epoch mEngineEpoch;
 
     mutable FMaterial const* mDefaultMaterial = nullptr;
-    mutable FMaterial const* mSkyboxMaterials[2] = { nullptr, nullptr };
+    mutable FMaterial const* mSkyboxMaterial = nullptr;
 
     mutable FTexture* mDefaultIblTexture = nullptr;
     mutable FIndirectLight* mDefaultIbl = nullptr;

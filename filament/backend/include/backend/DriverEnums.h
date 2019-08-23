@@ -42,9 +42,8 @@ namespace backend {
 static constexpr uint64_t SWAP_CHAIN_CONFIG_TRANSPARENT = 0x1;
 static constexpr uint64_t SWAP_CHAIN_CONFIG_READABLE = 0x2;
 
-static constexpr size_t MAX_ATTRIBUTE_BUFFER_COUNT = 8; // FIXME: what should this be?
-static constexpr size_t MAX_VERTEX_ATTRIBUTE_COUNT = 7; // FIXME: what should this be?
-static constexpr size_t MAX_SAMPLER_COUNT = 16;         // Matches the Adreno Vulkan driver.
+static constexpr size_t MAX_VERTEX_ATTRIBUTE_COUNT = 16; // This is guaranteed by OpenGL ES.
+static constexpr size_t MAX_SAMPLER_COUNT = 16;          // Matches the Adreno Vulkan driver.
 
 static constexpr size_t CONFIG_UNIFORM_BINDING_COUNT = 6;
 static constexpr size_t CONFIG_SAMPLER_BINDING_COUNT = 6;
@@ -266,7 +265,7 @@ enum class PixelDataFormat : uint8_t {
     RGB_INTEGER,
     RGBA,
     RGBA_INTEGER,
-    RGBM,
+    UNUSED,                 // used to be rgbm
     DEPTH_COMPONENT,
     DEPTH_STENCIL,
     ALPHA
@@ -281,7 +280,8 @@ enum class PixelDataType : uint8_t {
     INT,
     HALF,
     FLOAT,
-    COMPRESSED
+    COMPRESSED,
+    UINT_10F_11F_11F_REV,
 };
 
 enum class CompressedPixelDataType : uint16_t {
@@ -419,7 +419,7 @@ enum class TextureFormat : uint16_t {
     RG16F, RG16UI, RG16I,
     R11F_G11F_B10F,
     RGBA8, SRGB8_A8,RGBA8_SNORM,
-    UNUSED, // The RGBM InternalFormat has been replaced with a flag (Texture::Builder::rgbm)
+    UNUSED, // used to be rgbm
     RGB10_A2, RGBA8UI, RGBA8I,
     DEPTH32F, DEPTH24_STENCIL8, DEPTH32F_STENCIL8,
 
@@ -508,6 +508,11 @@ inline constexpr TextureUsage operator&(TextureUsage lhs, TextureUsage rhs) noex
 }
 inline constexpr TextureUsage operator^(TextureUsage lhs, TextureUsage rhs) noexcept {
     return TextureUsage(uint8_t(lhs) ^ uint8_t(rhs));
+}
+
+//! returns whether this format a compressed format
+static constexpr bool isCompressedFormat(TextureFormat format) noexcept {
+    return format >= TextureFormat::EAC_R11;
 }
 
 //! returns whether this format is an ETC2 compressed format
@@ -671,7 +676,7 @@ struct Attribute {
     uint8_t flags = 0x0;
 };
 
-using AttributeArray = std::array<Attribute, MAX_ATTRIBUTE_BUFFER_COUNT>;
+using AttributeArray = std::array<Attribute, MAX_VERTEX_ATTRIBUTE_COUNT>;
 
 struct PolygonOffset {
     float slope = 0;        // factor in GL-speak

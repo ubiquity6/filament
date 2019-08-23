@@ -31,6 +31,7 @@
 
 #include "fg/FrameGraph.h"
 #include "fg/FrameGraphResource.h"
+#include "fg/ResourceAllocator.h"
 
 
 #include <utils/Panic.h>
@@ -219,6 +220,8 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
 
     if (view.hasShadowing()) {
         view.getShadowMap().render(driver, pass, view);
+        driver.flush(); // Kick the GPU since we're done with this render target
+        engine.flush(); // Wake-up the driver thread
         commands.clear();
     }
 
@@ -226,7 +229,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
      * Frame graph
      */
 
-    FrameGraph fg;
+    FrameGraph fg(engine.getResourceAllocator());
 
     const TextureFormat hdrFormat = getHdrFormat(view);
 
@@ -236,7 +239,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
     //        so when skipping post-process (which draws directly into it), we can't rely on it.
     const bool colorPassNeedsDepthBuffer = hasPostProcess;
 
-    const backend::Handle<backend::HwRenderTarget> viewRenderTarget = getRenderTarget();
+    const backend::Handle<backend::HwRenderTarget> viewRenderTarget = getRenderTarget(view);
     FrameGraphResource output = fg.importResource("viewRenderTarget",
             { .viewport = vp }, viewRenderTarget, vp.width, vp.height,
             view.getDiscardedTargetBuffers());
@@ -299,17 +302,15 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                             .format = TextureFormat::DEPTH24,
                             .samples = msaa
                     });
+                    data.depth = builder.write(builder.read(data.depth, true));
                 }
 
-                FrameGraphRenderTarget::Descriptor desc{
+                data.color = builder.write(builder.read(data.color, true));
+                builder.createRenderTarget("Color Pass Target", {
                         .samples = msaa,
                         .attachments.color = data.color,
                         .attachments.depth = data.depth
-                };
-
-                auto attachments = builder.useRenderTarget("Color Pass Target", desc, clearFlags);
-                data.color = attachments.color;
-                data.depth = attachments.depth;
+                }, clearFlags);
             },
             [&pass, &ppm, colorPassBegin, colorPassEnd, jobFroxelize, &js, &view]
                     (FrameGraphPassResources const& resources,
@@ -389,23 +390,21 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
     fg.compile();
     //fg.export_graphviz(slog.d);
 
-    fg.execute(driver);
+    fg.execute(engine, driver);
 
     commands.clear();
 
     recordHighWatermark(pass.getCommandsHighWatermark());
 }
 
-void FRenderer::mirrorFrame(FSwapChain* dstSwapChain, filament::Viewport const& dstViewport,
-        filament::Viewport const& srcViewport, MirrorFrameFlag flags) {
+void FRenderer::copyFrame(FSwapChain* dstSwapChain, filament::Viewport const& dstViewport,
+        filament::Viewport const& srcViewport, CopyFrameFlag flags) {
     SYSTRACE_CALL();
 
     assert(mSwapChain);
     assert(dstSwapChain);
     FEngine& engine = getEngine();
     FEngine::DriverApi& driver = engine.getDriverApi();
-
-    const backend::Handle<backend::HwRenderTarget> viewRenderTarget = getRenderTarget();
 
     // Set the current swap chain as the read surface, and the destination
     // swap chain as the draw surface so that blitting between default render
@@ -426,12 +425,12 @@ void FRenderer::mirrorFrame(FSwapChain* dstSwapChain, filament::Viewport const& 
         params.viewport.height = std::numeric_limits<uint32_t>::max();
         params.flags.clear |= RenderPassFlags::IGNORE_SCISSOR;
     }
-    driver.beginRenderPass(viewRenderTarget, params);
+    driver.beginRenderPass(mRenderTarget, params);
 
     // Verify that the source swap chain is readable.
     assert(mSwapChain->isReadable());
     driver.blit(TargetBufferFlags::COLOR,
-            viewRenderTarget, dstViewport, viewRenderTarget, srcViewport, SamplerMagFilter::LINEAR);
+            mRenderTarget, dstViewport, mRenderTarget, srcViewport, SamplerMagFilter::LINEAR);
     if (flags & SET_PRESENTATION_TIME) {
         // TODO: Implement this properly, see https://github.com/google/filament/issues/633
     }
@@ -487,7 +486,7 @@ bool FRenderer::beginFrame(FSwapChain* swapChain) {
 
     // latch the frame time
     std::chrono::duration<double> time{ getUserTime() };
-    float h = (float)time.count();
+    float h = float(time.count());
     float l = float(time.count() - h);
     mShaderUserTime = { h, l, 0, 0 };
 
@@ -522,6 +521,9 @@ void FRenderer::endFrame() {
 
     driver.endFrame(mFrameId);
 
+    // do this before engine.flush()
+    engine.getResourceAllocator().gc();
+
     // Run the component managers' GC in parallel
     // WARNING: while doing this we can't access any component manager
     auto& js = engine.getJobSystem();
@@ -532,7 +534,6 @@ void FRenderer::endFrame() {
 
     // make sure we're done with the gcs
     js.waitAndRelease(job);
-
 
 #if EXTRA_TIMING_INFO
     if (UTILS_UNLIKELY(frameInfoManager.isLapRecordsEnabled())) {
@@ -585,6 +586,11 @@ void FRenderer::readPixels(uint32_t xoffset, uint32_t yoffset, uint32_t width, u
     driver.readPixels(mRenderTarget, xoffset, yoffset, width, height, std::move(buffer));
 }
 
+backend::Handle<backend::HwRenderTarget> FRenderer::getRenderTarget(FView& view) const noexcept {
+    backend::Handle<backend::HwRenderTarget> viewRenderTarget = view.getRenderTarget();
+    return viewRenderTarget ? viewRenderTarget : mRenderTarget;
+}
+
 RenderPass::CommandTypeFlags FRenderer::getCommandType(View::DepthPrepass prepass) const noexcept {
     RenderPass::CommandTypeFlags commandType;
     switch (prepass) {
@@ -625,9 +631,9 @@ bool Renderer::beginFrame(SwapChain* swapChain) {
     return upcast(this)->beginFrame(upcast(swapChain));
 }
 
-void Renderer::mirrorFrame(SwapChain* dstSwapChain, filament::Viewport const& dstViewport,
-        filament::Viewport const& srcViewport, MirrorFrameFlag flags) {
-    upcast(this)->mirrorFrame(upcast(dstSwapChain), dstViewport, srcViewport, flags);
+void Renderer::copyFrame(SwapChain* dstSwapChain, filament::Viewport const& dstViewport,
+        filament::Viewport const& srcViewport, CopyFrameFlag flags) {
+    upcast(this)->copyFrame(upcast(dstSwapChain), dstViewport, srcViewport, flags);
 }
 
 void Renderer::readPixels(uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height,

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(websamples)
 
 set(SERVER_DIR ${PROJECT_BINARY_DIR})
@@ -119,10 +119,8 @@ add_mesh("assets/models/monkey/monkey.obj" "suzanne.filamesh")
 add_mesh("third_party/models/shader_ball/shader_ball.obj" "shader_ball.filamesh")
 
 # Generate IBL and skybox images using cmgen.
-set(CMGEN_ARGS -x . --format=ktx --size=256 --extract-blur=0.1)
-set(CMGEN_ARGS_TINY -x . --format=ktx --size=64 --extract-blur=0.1)
-set(CMGEN_ARGS_S3TC ${CMGEN_ARGS} --compression=s3tc_rgba_dxt5)
-set(CMGEN_ARGS_ETC ${CMGEN_ARGS} --compression=etc_rgba8_rgba_40)
+set(CMGEN_ARGS --quiet -x . --format=ktx --size=256 --extract-blur=0.1)
+set(CMGEN_ARGS_TINY --quiet -x . --format=ktx --size=64 --extract-blur=0.1)
 function(add_envmap SOURCE TARGET)
     set(source_envmap "${ROOT_DIR}/${SOURCE}")
 
@@ -131,26 +129,13 @@ function(add_envmap SOURCE TARGET)
     set(target_skybox "${SERVER_DIR}/${TARGET}/${TARGET}_skybox.ktx")
     set(target_envmap "${SERVER_DIR}/${TARGET}/${TARGET}_ibl.ktx")
 
-    set(target_envmap_etc "${SERVER_DIR}/${TARGET}/${TARGET}_ibl_etc.ktx")
-    set(target_envmap_s3tc "${SERVER_DIR}/${TARGET}/${TARGET}_ibl_s3tc.ktx")
-
     set(target_skybox_tiny "${SERVER_DIR}/${TARGET}/${TARGET}_skybox_tiny.ktx")
 
     set(target_skyboxes ${target_skyboxes} ${target_skybox} ${target_skybox_tiny} PARENT_SCOPE)
 
-    set(target_envmaps ${target_envmaps}
-            ${target_envmap} ${target_envmap_etc} ${target_envmap_s3tc} PARENT_SCOPE)
+    set(target_envmaps ${target_envmaps} ${target_envmap} PARENT_SCOPE)
 
-    add_custom_command(OUTPUT ${target_skybox} ${target_skybox_tiny}
-                ${target_envmap} ${target_envmap_etc} ${target_envmap_s3tc}
-
-        # First create an S3TC-encoded envmap, then rename it.
-        COMMAND cmgen ${CMGEN_ARGS_S3TC} ${source_envmap}
-        COMMAND mv ${target_envmap} ${target_envmap_s3tc}
-
-        # Now create an ETC-encoded envmap, then rename it.
-        COMMAND cmgen ${CMGEN_ARGS_ETC} ${source_envmap}
-        COMMAND mv ${target_envmap} ${target_envmap_etc}
+    add_custom_command(OUTPUT ${target_skybox} ${target_skybox_tiny} ${target_envmap}
 
         # Create a low-resolution skybox, then rename it.
         COMMAND cmgen ${CMGEN_ARGS_TINY} ${source_envmap}
@@ -163,7 +148,6 @@ function(add_envmap SOURCE TARGET)
         DEPENDS cmgen)
 endfunction()
 
-add_envmap("third_party/environments/syferfontein_18d_clear_2k.hdr" "syferfontein_18d_clear_2k")
 add_envmap("third_party/environments/venetian_crossroads_2k.hdr" "venetian_crossroads_2k")
 add_envmap("third_party/environments/pillars_2k.hdr" "pillars_2k")
 

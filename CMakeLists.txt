@@ -1,7 +1,7 @@
 # ==================================================================================================
 # CMake
 # ==================================================================================================
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 
 # ==================================================================================================
 # Project declaration
@@ -18,11 +18,17 @@ option(USE_EXTERNAL_GLES3 "Experimental: Compile Filament against OpenGL ES 3" O
 
 option(GENERATE_JS_DOCS "Build WebGL documentation and tutorials" OFF)
 
+option(ENABLE_LTO "Enable link-time optimizations if supported by the compiler" OFF)
+
 # ==================================================================================================
 # OS specific
 # ==================================================================================================
 if (UNIX AND NOT APPLE AND NOT ANDROID AND NOT WEBGL)
     set(LINUX TRUE)
+endif()
+
+if (ANDROID OR WEBGL OR IOS)
+    set(IS_MOBILE_TARGET TRUE)
 endif()
 
 if (WIN32)
@@ -101,7 +107,7 @@ set(TOOLS ${CMAKE_CURRENT_SOURCE_DIR}/tools)
 # ==================================================================================================
 # Compiler check
 # ==================================================================================================
-set(MIN_CLANG_VERSION "5.0")
+set(MIN_CLANG_VERSION "6.0")
 
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
     if (CMAKE_C_COMPILER_VERSION VERSION_LESS MIN_CLANG_VERSION)
@@ -122,6 +128,20 @@ endif()
 # Detect use of the clang-cl.exe frontend, which does not support all of clangs normal options
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
     set(CLANG_CL true)
+endif()
+
+# ==================================================================================================
+# Link time optimizations (LTO)
+# ==================================================================================================
+if (ENABLE_LTO)
+    include(CheckIPOSupported)
+
+    check_ipo_supported(RESULT IPO_SUPPORT)
+
+    if (IPO_SUPPORT)
+        message(STATUS "LTO support is enabled")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
 endif()
 
 # ==================================================================================================
@@ -259,6 +279,36 @@ if (NOT WEBGL)
 else()
     option(FILAMENT_BUILD_FILAMAT "Build filamat and JNI buildings" OFF)
 endif()
+
+# ==================================================================================================
+# Material compilation flags
+# ==================================================================================================
+
+# Target system.
+if (IS_MOBILE_TARGET)
+    set(MATC_TARGET mobile)
+else()
+    set(MATC_TARGET desktop)
+endif()
+
+set(MATC_API_FLAGS )
+
+# TODO: Add a flag to build Filament without support for OpenGL.
+set(MATC_API_FLAGS ${MATC_API_FLAGS} -a opengl)
+
+if (FILAMENT_SUPPORTS_VULKAN)
+    set(MATC_API_FLAGS ${MATC_API_FLAGS} -a vulkan)
+endif()
+if (FILAMENT_SUPPORTS_METAL)
+    set(MATC_API_FLAGS ${MATC_API_FLAGS} -a metal)
+endif()
+
+# Only optimize materials in Release mode (so error message lines match the source code)
+if (NOT CMAKE_BUILD_TYPE MATCHES Release)
+    set(MATC_OPT_FLAGS -g)
+endif()
+
+set(MATC_BASE_FLAGS ${MATC_API_FLAGS} -p ${MATC_TARGET} ${MATC_OPT_FLAGS})
 
 # ==================================================================================================
 # Distribution

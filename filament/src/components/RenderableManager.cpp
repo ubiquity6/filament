@@ -45,12 +45,14 @@ struct RenderableManager::BuilderDetails {
     bool mCulling : 1;
     bool mCastShadows : 1;
     bool mReceiveShadows : 1;
+    bool mMorphingEnabled : 1;
     size_t mSkinningBoneCount = 0;
     Bone const* mUserBones = nullptr;
     mat4f const* mUserBoneMatrices = nullptr;
 
     explicit BuilderDetails(size_t count)
-            : mEntries(count), mCulling(true), mCastShadows(false), mReceiveShadows(true) {
+            : mEntries(count), mCulling(true), mCastShadows(false), mReceiveShadows(true),
+              mMorphingEnabled(false) {
     }
     // this is only needed for the explicit instantiation below
     BuilderDetails() = default;
@@ -152,6 +154,11 @@ RenderableManager::Builder& RenderableManager::Builder::skinning(
     return *this;
 }
 
+RenderableManager::Builder& RenderableManager::Builder::morphing(bool enable) noexcept {
+    mImpl->mMorphingEnabled = enable;
+    return *this;
+}
+
 RenderableManager::Builder& RenderableManager::Builder::blendOrder(size_t index, uint16_t blendOrder) noexcept {
     if (index < mImpl->mEntries.size()) {
         mImpl->mEntries[index].blendOrder = blendOrder;
@@ -201,7 +208,6 @@ RenderableManager::Builder::Result RenderableManager::Builder::build(Engine& eng
             return Error;
         }
 
-#ifndef NDEBUG
         // this can't be an error because (1) those values are not immutable, so the caller
         // could fix later, and (2) the material's shader will work (i.e. compile), and
         // use the default values for this attribute, which maybe be acceptable.
@@ -212,7 +218,6 @@ RenderableManager::Builder::Result RenderableManager::Builder::build(Engine& eng
                    << "] missing required attributes ("
                    << required << "), declared=" << declared << io::endl;
         }
-#endif
 
         // we have at least one valid primitive
         isEmpty = false;
@@ -276,9 +281,11 @@ void FRenderableManager::create(
         setReceiveShadows(ci, builder->mReceiveShadows);
         setCulling(ci, builder->mCulling);
         setSkinning(ci, false);
+        setMorphing(ci, builder->mMorphingEnabled);
+        setMorphWeights(ci, {0, 0, 0, 0});
 
         const size_t count = builder->mSkinningBoneCount;
-        if (UTILS_UNLIKELY(count)) {
+        if (UTILS_UNLIKELY(count > 0 || builder->mMorphingEnabled)) {
             std::unique_ptr<Bones>& bones = manager[ci].bones;
             // Note that we are sizing the bones UBO according to CONFIG_MAX_BONE_COUNT rather than
             // mSkinningBoneCount. According to the OpenGL ES 3.2 specification in 7.6.3 Uniform
@@ -300,7 +307,7 @@ void FRenderableManager::create(
             });
             assert(bones);
             if (bones) {
-                setSkinning(ci, true);
+                setSkinning(ci, count > 0);
                 if (builder->mUserBones) {
                     setBones(ci, builder->mUserBones, count);
                 } else if (builder->mUserBoneMatrices) {
@@ -390,7 +397,6 @@ void FRenderableManager::setMaterialInstanceAt(Instance instance, uint8_t level,
         Slice<FRenderPrimitive>& primitives = getRenderPrimitives(instance, level);
         if (primitiveIndex < primitives.size()) {
             primitives[primitiveIndex].setMaterialInstance(upcast(mi));
-#ifndef NDEBUG
             AttributeBitset required = mi->getMaterial()->getRequiredAttributes();
             AttributeBitset declared = primitives[primitiveIndex].getEnabledAttributes();
             if (UTILS_UNLIKELY((declared & required) != required)) {
@@ -398,7 +404,6 @@ void FRenderableManager::setMaterialInstanceAt(Instance instance, uint8_t level,
                        << "] missing required attributes ("
                        << required << "), declared=" << declared << io::endl;
             }
-#endif
         }
     }
 }
@@ -492,6 +497,12 @@ void FRenderableManager::setBones(Instance ci,
                 makeBone(&out[i], transforms[i]);
             }
         }
+    }
+}
+
+void FRenderableManager::setMorphWeights(Instance ci, const float4& weights) noexcept {
+    if (ci) {
+        mManager[ci].morphWeights = weights;
     }
 }
 
@@ -614,6 +625,10 @@ void RenderableManager::setBones(Instance instance,
 void RenderableManager::setBones(Instance instance,
         mat4f const* transforms, size_t boneCount, size_t offset) noexcept {
     upcast(this)->setBones(instance, transforms, boneCount, offset);
+}
+
+void RenderableManager::setMorphWeights(Instance instance, float4 const& weights) noexcept {
+    upcast(this)->setMorphWeights(instance, weights);
 }
 
 } // namespace filament

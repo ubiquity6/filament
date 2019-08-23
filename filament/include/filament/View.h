@@ -35,6 +35,7 @@ namespace filament {
 
 class Camera;
 class MaterialInstance;
+class RenderTarget;
 class Scene;
 
 /**
@@ -147,6 +148,7 @@ public:
         float radius = 0.3f;    //!< Ambient Occlusion radius in meters, between 0 and ~10.
         float bias = 0.005f;    //!< Self-occlusion bias in meters. Use to avoid self-occlusion. Between 0 and a few mm.
         float power = 0.0f;     //!< Controls ambient occlusion's contrast. Between 0 (linear) and 1 (squared)
+        float resolution = 0.5; //!< How each dimension of the AO buffer is scaled. Must be positive and <= 1.
     };
 
     /**
@@ -364,7 +366,7 @@ public:
      *
      * Renderable objects can have one or several layers associated to them. Layers are
      * represented with an 8-bits bitmask, where each bit corresponds to a layer.
-     * @see Renderable::setLayer().
+     * @see RenderableManager::setLayerMask().
      *
      * This call sets which of those layers are visible, Renderable in invisible layers won't be
      * rendered.
@@ -390,6 +392,18 @@ public:
     void setShadowsEnabled(bool enabled) noexcept;
 
     /**
+     * Specifies an offscreen render target to render into.
+     *
+     * By default, the view's associated render target is nullptr, which corresponds to the
+     * SwapChain associated with the engine.
+     *
+     * @param renderTarget Render target associated with view, or nullptr for the swap chain.
+     * @param discard Buffers that need to be discarded before rendering.
+     */
+    void setRenderTarget(RenderTarget* renderTarget,
+            TargetBufferFlags discard = TargetBufferFlags::ALL) noexcept;
+
+    /**
      * Specifies which buffers can be discarded before rendering.
      *
      * For performance reasons, the default is to discard all buffers, which is generally
@@ -399,9 +413,6 @@ public:
      * it is necessary to indicate that the color buffer cannot be discarded.
      *
      * @param discard Buffers that need to be discarded before rendering.
-     *
-     * @note
-     * In the future this API will also allow to set the render target.
      */
     void setRenderTarget(TargetBufferFlags discard = TargetBufferFlags::ALL) noexcept;
 
