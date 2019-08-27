@@ -22,8 +22,8 @@
 #include <filament/Viewport.h>
 #include <backend/PixelBufferDescriptor.h>
 
-#include "CallbackUtils.h"
-#include "NioUtils.h"
+#include "common/CallbackUtils.h"
+#include "common/NioUtils.h"
 
 using namespace filament;
 using namespace backend;
@@ -51,7 +51,7 @@ Java_com_google_android_filament_Renderer_nRender(JNIEnv *, jclass, jlong native
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_google_android_filament_Renderer_nMirrorFrame(JNIEnv *, jclass, jlong nativeRenderer,
+Java_com_google_android_filament_Renderer_nCopyFrame(JNIEnv *, jclass, jlong nativeRenderer,
         jlong nativeDstSwapChain,
         jint dstLeft, jint dstBottom, jint dstWidth, jint dstHeight,
         jint srcLeft, jint srcBottom, jint srcWidth, jint srcHeight,
@@ -60,7 +60,7 @@ Java_com_google_android_filament_Renderer_nMirrorFrame(JNIEnv *, jclass, jlong n
     SwapChain *dstSwapChain = (SwapChain *) nativeDstSwapChain;
     const filament::Viewport dstViewport {dstLeft, dstBottom, (uint32_t) dstWidth, (uint32_t) dstHeight};
     const filament::Viewport srcViewport {srcLeft, srcBottom, (uint32_t) srcWidth, (uint32_t) srcHeight};
-    renderer->mirrorFrame(dstSwapChain, dstViewport, srcViewport, (uint32_t) flags);
+    renderer->copyFrame(dstSwapChain, dstViewport, srcViewport, (uint32_t) flags);
 }
 
 extern "C" JNIEXPORT jint JNICALL

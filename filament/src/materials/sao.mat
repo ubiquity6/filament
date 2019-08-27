@@ -50,38 +50,43 @@ vertex {
     void materialVertex(inout MaterialVertexInputs material) {
         // far-plane in view space
         vec4 position = getPosition(); // clip-space
-        position.z = 1.0; // far plane
         material.vertex.xy = (position.xy * 0.5 + 0.5);
         material.vertex.zw = position.xy;
     }
 }
 
 fragment {
-    #define LOG2_LOD_RATE   4
+    #define IMPLEMENTATION_REF          0
+    #define IMPLEMENTATION_REF_TAP      1
+    #define IMPLEMENTATION_LUT_TAP      2
+    #define IMPLEMENTATION              IMPLEMENTATION_LUT_TAP
+
+    #define LOG2_LOD_RATE   3
 
     #define NOISE_NONE      0
     #define NOISE_PATTERN   1
     #define NOISE_RANDOM    2
     #define NOISE_TYPE      NOISE_PATTERN
 
+    const float kSpiralTurns = 7.0; // must match ssaogen.cpp
     const uint kSpiralSampleCount = 7u;
-    const vec3 kSpiralSamples[kSpiralSampleCount] = vec3[](
-        vec3( 0.885456, 0.464723, 0.0769231), vec3( 0.120537,  0.992709, 0.230769),
-        vec3(-0.748511, 0.663123, 0.3846150), vec3(-0.970942, -0.239316, 0.538462),
-        vec3(-0.354605,-0.935016, 0.6923080), vec3( 0.568065, -0.822984, 0.846154),
-        vec3(1, 1.74846e-07, 1)
+    const vec3 kSpiralSamples[] = vec3[](
+        vec3(0.966326, 0.257322, 0.0769231), vec3(-0.69718, 0.716896, 0.230769),
+        vec3(0.975223, 0.221226, 0.384615), vec3(0.982771, 0.184826, 0.538462),
+        vec3(-0.613055, 0.79004, 0.692308), vec3(0.997237, 0.0742889, 0.846154),
+        vec3(1, -1.16027e-06, 1)
     );
 
     const uint kTrigNoiseSampleCount = 16u;
-    const vec3 kTrigNoiseSamples[kTrigNoiseSampleCount] = vec3[](
-        vec3( 0.0759449,  0.997112, 0.03172020), vec3(-0.538980, -0.842318, 0.0879207),
-        vec3( 0.6720690,  0.740488, 0.01769370), vec3(-0.323441, -0.946248, 0.0930107),
-        vec3( 0.3309690,  0.943642, 0.02617500), vec3( 0.341023, -0.940055, 0.1073850),
-        vec3(-0.1970940,  0.980384, 0.03754340), vec3( 0.106268, -0.994338, 0.1022590),
-        vec3( 0.9553940,  0.295335, 0.00636207), vec3( 0.306817,  0.951768, 0.0267157),
-        vec3(-0.8826750,  0.469983, 0.05628400), vec3( 0.671194, -0.741282, 0.1156150),
-        vec3(-0.9583420,  0.285624, 0.06051990), vec3( 0.954541, -0.298078, 0.1269100),
-        vec3(-0.5869240, -0.809642, 0.08668930), vec3( 0.679755, -0.733440, 0.1158610)
+    const vec3 kTrigNoiseSamples[] = vec3[](
+        vec3(-0.401209, 0.915987, 0.0317202), vec3(0.843133, -0.537704, 0.0879207),
+        vec3(0.457543, 0.889188, 0.0176937), vec3(0.976762, -0.214325, 0.0930107),
+        vec3(-0.0596454, 0.99822, 0.026175), vec3(0.704176, 0.710025, 0.107385),
+        vec3(-0.707961, 0.706251, 0.0375434), vec3(0.909426, 0.415866, 0.102259),
+        vec3(0.92462, 0.38089, 0.00636207), vec3(-0.0938624, 0.995585, 0.0267157),
+        vec3(-0.905196, -0.424993, 0.056284), vec3(0.196104, 0.980583, 0.115615),
+        vec3(-0.752002, -0.659161, 0.0605199), vec3(-0.575921, 0.817505, 0.12691),
+        vec3(0.794595, -0.60714, 0.0866893), vec3(0.178844, 0.983877, 0.115861)
     );
 
     vec2 sq(const vec2 a) {
@@ -114,7 +119,6 @@ fragment {
     // see ssaogen.cpp
     vec3 getTrigNoise(const vec2 uv) {
         #if NOISE_TYPE == NOISE_RANDOM
-            const float kSpiralTurns = 7.0; // must match ssaogen.cpp
             const float dalpha = 1.0f / (float(kSpiralSampleCount) - 0.5f);
             float phi = random(uv);
             float dr = phi * dalpha;
@@ -132,27 +136,45 @@ fragment {
         #endif
     }
 
-    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position) {
-        highp vec3 dpdx = dFdx(position);
-        highp vec3 dpdy = dFdy(position);
-        return cross(dpdx, dpdy);
-    }
-
     highp float linearizeDepth(highp float depth) {
+        // Our far plane is at infinity, which causes a division by zero below, which in turn
+        // causes some issues on some GPU. We workaround it by replacing "infinity" by the closest
+        // value representable in  a 24 bit depth buffer.
+        const float preventDiv0 = -1.0 / 16777216.0;
         highp mat4 projection = getClipFromViewMatrix();
         highp float z = depth * 2.0 - 1.0; // depth in clip space
-        return -projection[3].z / (z + projection[2].z);
+        return -projection[3].z / min(preventDiv0, z + projection[2].z);
     }
 
     highp float sampleDepthLinear(const vec2 uv) {
         return linearizeDepth(texture(materialParams_depth, uv, 0.0).r);
     }
 
-    highp vec3 computeViewSpacePositionFromDepth(in vec2 p, highp float linearDepth) {
+    highp vec3 computeViewSpacePositionFromDepth(vec2 p, highp float linearDepth) {
+        p = p * 2.0 - 1.0; // to clip space
         highp mat4 invProjection = getViewFromClipMatrix();
         p.x *= invProjection[0].x;
         p.y *= invProjection[1].y;
         return vec3(p * -linearDepth, linearDepth);
+    }
+
+    // compute normals using derivatives, which essentially results in half-resolution normals
+    // this creates arifacts around geometry edges
+    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position) {
+        highp vec3 dpdx = dFdx(position);
+        highp vec3 dpdy = dFdy(position);
+        return cross(dpdx, dpdy);
+    }
+
+    // compute normals directly from the depth texture, resulting in full resolution normals
+    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position, const vec2 uv) {
+        vec2 uvdx = uv + vec2(materialParams.resolution.z, 0.0);
+        vec2 uvdy = uv + vec2(0.0, materialParams.resolution.w);
+        highp vec3 px = computeViewSpacePositionFromDepth(uvdx, sampleDepthLinear(uvdx));
+        highp vec3 py = computeViewSpacePositionFromDepth(uvdy, sampleDepthLinear(uvdy));
+        highp vec3 dpdx = px - position;
+        highp vec3 dpdy = py - position;
+        return cross(dpdx, dpdy);
     }
 
     // Ambient Occlusion, largely inspired from:
@@ -161,21 +183,37 @@ fragment {
 
     vec3 tapLocationReference(uint i) {
         const float dalpha = 1.0f / (float(kSpiralSampleCount) - 0.5f);
-        float phi = random(variable_vertex.xy) * 0.5 + 0.5;
+        float phi = random(variable_vertex.xy);
         float radius = (float(i) + phi + 0.5) * dalpha;
-        radius *= radius;
-        float angle = radius * (7.0 * 6.28318) + phi * 6.28318;
+        float angle = (radius * radius) * (kSpiralTurns * 6.28318) + phi * 6.28318;
+        return vec3(cos(angle), sin(angle), radius * radius);
+    }
+
+    vec3 tapLocationReferenceNoNoise(uint i) {
+        const float dalpha = 1.0f / (float(kSpiralSampleCount) - 0.5f);
+        float radius = (float(i) + 0.5) * dalpha;
+        float angle = (radius * radius) * (kSpiralTurns * 6.28318);
         return vec3(cos(angle), sin(angle), radius);
     }
 
     vec3 tapLocation(uint i, const vec3 noise) {
-        mat2 M = mat2(noise.xy, vec2(-noise.y, noise.x));
-        float radius = kSpiralSamples[i].z + noise.z;
-        return vec3(M * kSpiralSamples[i].xy, radius * radius);
+        #if IMPLEMENTATION == IMPLEMENTATION_REF
+            return tapLocationReference(i);
+        #else
+            #if IMPLEMENTATION == IMPLEMENTATION_REF_TAP
+                vec3 tap = tapLocationReferenceNoNoise(i);
+            #elif IMPLEMENTATION == IMPLEMENTATION_LUT_TAP
+                vec3 tap = kSpiralSamples[i];
+            #endif
+            mat2 M = mat2(noise.xy, vec2(-noise.y, noise.x));
+            float radius = tap.z + noise.z;
+            return vec3(M * tap.xy, radius * radius);
+        #endif
     }
 
     ivec2 clampToEdge(ivec2 uv, int level) {
-        return clamp(uv, ivec2(0), textureSize(materialParams_depth, level) - ivec2(1));
+        ivec2 size = textureSize(materialParams_depth, level);
+        return clamp(uv, ivec2(0), size - ivec2(1));
     }
 
     float computeAmbientOcclusionSAO(uint i, float ssDiskRadius, const ivec2 ssOrigin,
@@ -189,8 +227,9 @@ fragment {
 
         // level = floor(log2(screenSpaceRadius/rate)))
         int level = clamp(int(floor(log2(ssRadius))) - LOG2_LOD_RATE, 0, materialParams.maxLevel);
-        highp float occlusionDepth = linearizeDepth(texelFetch(materialParams_depth, clampToEdge(ssSamplePos >> level, level), level).r);
-        highp vec3 p = computeViewSpacePositionFromDepth(uvSamplePos * 2.0 - 1.0, occlusionDepth);
+        highp float depth = texelFetch(materialParams_depth, clampToEdge(ssSamplePos >> level, level), level).r;
+        highp float occlusionDepth = linearizeDepth(depth);
+        highp vec3 p = computeViewSpacePositionFromDepth(uvSamplePos, occlusionDepth);
 
         // now we have the sample, compute AO
         vec3 v = p - origin;        // sample vector
@@ -208,40 +247,27 @@ fragment {
         vec2 uv = variable_vertex.xy; // interpolated to pixel center
 
         highp float depth = sampleDepthLinear(uv);
-        highp vec3 origin = computeViewSpacePositionFromDepth(variable_vertex.zw, depth);
-        highp vec3 normal = computeViewSpaceNormalNotNormalized(origin);
-        vec3 noise = getTrigNoise(uv);
+        highp vec3 origin = computeViewSpacePositionFromDepth(uv, depth);
+        highp vec3 normalNotNormalized = computeViewSpaceNormalNotNormalized(origin, uv);
 
-        // attempt to reject "bad" normals that were reconstructed at an edge that cause
-        // false occlusion (black spots)
-        // Normal's length should be small before they're normalized, unless they're bad ones.
-        if (dot(normal, normal) >= (sq(origin.z * origin.z * 0.000061))) {
-            // For now we assume no occlusion, which is wrong in some case, but overall seem to
-            // look better.  Maybe those could be handled in the blur pass instead?
-            material.baseColor.r = 1.0;
-            return;
-        }
+        vec3 normal = normalize(normalNotNormalized);
+        vec3 noise = getTrigNoise(uv);
 
         // Choose the screen-space sample radius
         // proportional to the projected area of the sphere
-        float ssDiskRadius = -materialParams.projectionScaleRadius / origin.z;
-        if (ssDiskRadius <= 1.0) {
-            // There is no way to compute AO at this radius
-            material.baseColor.r = 1.0;
-            return;
-        }
-
-        normal = normalize(normal);
-
+        float ssDiskRadius = -(materialParams.projectionScaleRadius / origin.z);
         ivec2 ssOrigin = ivec2(uv * materialParams.resolution.xy);
+
         float occlusion = 0.0;
         for (uint i = 0u; i < kSpiralSampleCount; i++) {
             occlusion += computeAmbientOcclusionSAO(i, ssDiskRadius, ssOrigin, origin, normal, noise);
         }
 
         float ao = 1.0 - occlusion / float(kSpiralSampleCount);
+
         // simulate user-controled ao^n with n[1, 2]
         ao = mix(ao, ao * ao, materialParams.power);
+
         material.baseColor.r = ao;
     }
 }

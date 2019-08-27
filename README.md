@@ -43,12 +43,22 @@ Here are a few sample materials rendered with Filament:
 ![Damaged Helmet](docs/images/samples/model_damaged_helmet.jpg)
 ![Helmet](docs/images/samples/model_helmet.jpg)
 ![Brushed copper](docs/images/samples/brushed_copper_2.jpg)
-![Chess set](docs/images/samples/chess1.jpg)
 ![Material 1](docs/images/samples/material_01.jpg)
 ![Material 2](docs/images/samples/material_02.jpg)
-![Material 3](docs/images/samples/material_03.jpg)
 ![Material 6](docs/images/samples/material_06.jpg)
 ![Material 8](docs/images/samples/material_08.jpg)
+
+## Applications
+
+Here are a few screenshots of applications that use Filament in production:
+
+### Google Maps AR Navigation
+
+![Google Maps AR Navigation](docs/images/samples/app_gmm_ar_nav.jpg)
+
+### Google Search 3D/AR Viewer on Android
+
+![Google Search 3D/AR Viewer on Android](docs/images/samples/app_google_3d_viewer.jpg)
 
 ## Features
 
@@ -86,7 +96,7 @@ Here are a few sample materials rendered with Filament:
 - ACES-like tone-mapping
 - Temporal dithering
 - FXAA, MSAA and specular anti-aliasing
-- Dynamic resolution (on Android)
+- Dynamic resolution (on Android and iOS)
 
 ### Future
 
@@ -179,7 +189,7 @@ Building the `rays` library (used for light baking) is optional and requires the
 
 To build Filament for Android you must also install the following:
 
-- Android Studio 3.3
+- Android Studio 3.5
 - Android SDK
 - Android NDK 19 or higher
 
@@ -706,8 +716,9 @@ filamesh ./assets/models/monkey/monkey.obj monkey.filamesh
 ```
 
 Most samples accept an IBL that must be generated using the `cmgen` tool (`./tools/filamesh/cmgen`
-in your build directory). These sample apps expect a path to a directory containing the RGBM files
-for the IBL. To generate an IBL simply use this command:
+in your build directory). These sample apps expect a path to a directory containing the '.rgb32f'
+files for the IBL (which are PNGs containing `R11F_G11F_B10F` data). To generate an IBL simply use
+this command:
 
 ```
 cmgen -x ./ibls/ my_ibl.exr
@@ -723,7 +734,7 @@ pre-filtered environment map (one file per cubemap face and per mip level), the 
 texture for the skybox and a text file containing the spherical harmonics for indirect diffuse
 lighting.
 
-If you prefer a blurred background, run `cmgen` with this flag: `--extract-blur=0.5`. The numerical
+If you prefer a blurred background, run `cmgen` with this flag: `--extract-blur=0.1`. The numerical
 value is the desired roughness between 0 and 1.
 
 ## Rendering with Filament

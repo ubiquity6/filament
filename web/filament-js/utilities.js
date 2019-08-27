@@ -253,14 +253,20 @@ Filament.loadMathExtensions = function() {
 Filament._createTextureFromKtx = function(ktxdata, engine, options) {
     options = options || {};
     const ktx = options['ktx'] || new Filament.KtxBundle(ktxdata);
-    const rgbm = !!options['rgbm'];
     const srgb = !!options['srgb'];
-    return Filament.KtxUtility$createTexture(engine, ktx, srgb, rgbm);
+    return Filament.KtxUtility$createTexture(engine, ktx, srgb);
 };
 
 Filament._createIblFromKtx = function(ktxdata, engine, options) {
-    options = options || {'rgbm': true};
+    options = options || {};
     const iblktx = options['ktx'] = new Filament.KtxBundle(ktxdata);
+
+    const format = iblktx.info().glInternalFormat;
+    if (format != this.ctx.R11F_G11F_B10F && format != this.ctx.RGB16F && format != this.ctx.RGB32F) {
+        console.warn('IBL texture format is 0x' + format.toString(16) +
+            ' which is not an expected floating-point format. Please use cmgen to generate IBL.');
+    }
+
     const ibltex = Filament._createTextureFromKtx(ktxdata, engine, options);
     const shstring = iblktx.getMetadata("sh");
     const shfloats = shstring.split(/\s/, 9 * 3).map(parseFloat);
@@ -277,7 +283,6 @@ Filament._createTextureFromPng = function(pngdata, engine, options) {
 
     options = options || {};
     const srgb = !!options['srgb'];
-    const rgbm = !!options['rgbm'];
     const noalpha = !!options['noalpha'];
     const nomips = !!options['nomips'];
 
@@ -290,7 +295,7 @@ Filament._createTextureFromPng = function(pngdata, engine, options) {
         pbtype = Filament.PixelDataType.UBYTE;
     } else {
         texformat = srgb ? TextureFormat.SRGB8_A8 : TextureFormat.RGBA8;
-        pbformat = rgbm ? PixelDataFormat.RGBM : PixelDataFormat.RGBA;
+        pbformat = PixelDataFormat.RGBA;
         pbtype = Filament.PixelDataType.UBYTE;
     }
 
@@ -300,7 +305,6 @@ Filament._createTextureFromPng = function(pngdata, engine, options) {
         .levels(nomips ? 1 : 0xff)
         .sampler(Sampler.SAMPLER_2D)
         .format(texformat)
-        .rgbm(rgbm)
         .build(engine);
 
     const pixelbuffer = Filament.PixelBuffer(decodedpng.data.getBytes(), pbformat, pbtype);

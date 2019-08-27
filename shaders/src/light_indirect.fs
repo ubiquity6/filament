@@ -26,11 +26,7 @@
 //------------------------------------------------------------------------------
 
 vec3 decodeDataForIBL(const vec4 data) {
-#if defined(IBL_USE_RGBM)
-    return decodeRGBM(data);
-#else
     return data.rgb;
-#endif
 }
 
 //------------------------------------------------------------------------------
@@ -89,12 +85,12 @@ vec3 prefilteredRadiance(const vec3 r, float perceptualRoughness) {
     // lod = lod_count * sqrt(roughness), which is the mapping used by cmgen
     // where roughness = perceptualRoughness^2
     // using all the mip levels requires seamless cubemap sampling
-    float lod = IBL_MAX_MIP_LEVEL * perceptualRoughness;
+    float lod = frameUniforms.iblMaxMipLevel.x * perceptualRoughness;
     return decodeDataForIBL(textureLod(light_iblSpecular, r, lod));
 }
 
 vec3 prefilteredRadiance(const vec3 r, float roughness, float offset) {
-    float lod = IBL_MAX_MIP_LEVEL * roughness;
+    float lod = frameUniforms.iblMaxMipLevel.x * roughness;
     return decodeDataForIBL(textureLod(light_iblSpecular, r, lod + offset));
 }
 
@@ -209,17 +205,17 @@ vec3 importanceSamplingVNdfDggx(vec2 u, float roughness, vec3 v) {
     return h;
 }
 
-float prefilteredImportanceSampling(float ipdf) {
+float prefilteredImportanceSampling(float ipdf, vec2 iblMaxMipLevel) {
     // See: "Real-time Shading with Filtered Importance Sampling", Jaroslav Krivanek
     // Prefiltering doesn't work with anisotropy
     const float numSamples = float(IBL_INTEGRATION_IMPORTANCE_SAMPLING_COUNT);
     const float invNumSamples = 1.0 / float(numSamples);
-    const float dim = float(1u << uint(IBL_MAX_MIP_LEVEL));
+    const float dim = iblMaxMipLevel.y;
     const float omegaP = (4.0 * PI) / (6.0 * dim * dim);
     const float invOmegaP = 1.0 / omegaP;
     const float K = 4.0;
     float omegaS = invNumSamples * ipdf;
-    float mipLevel = clamp(log2(K * omegaS * invOmegaP) * 0.5, 0.0, IBL_MAX_MIP_LEVEL);
+    float mipLevel = clamp(log2(K * omegaS * invOmegaP) * 0.5, 0.0, iblMaxMipLevel.x);
     return mipLevel;
 }
 
@@ -235,6 +231,7 @@ vec3 isEvaluateIBL(const PixelParams pixel, vec3 n, vec3 v, float NoV) {
     float roughness = pixel.roughness;
     float a2 = roughness * roughness;
 
+    vec2 iblMaxMipLevel = frameUniforms.iblMaxMipLevel;
     const uint numSamples = uint(IBL_INTEGRATION_IMPORTANCE_SAMPLING_COUNT);
     const float invNumSamples = 1.0 / float(numSamples);
 
@@ -256,13 +253,13 @@ vec3 isEvaluateIBL(const PixelParams pixel, vec3 n, vec3 v, float NoV) {
             // PDF inverse (we must use D_GGX() here, which is used to generate samples)
             float ipdf = (4.0 * LoH) / (D_GGX(roughness, NoH, h) * NoH);
 
-            float mipLevel = prefilteredImportanceSampling(ipdf);
+            float mipLevel = prefilteredImportanceSampling(ipdf, iblMaxMipLevel);
 
             // we use texture() instead of textureLod() to take advantage of mipmapping
             vec3 L = decodeDataForIBL(texture(light_iblSpecular, l, mipLevel));
 
             float D = distribution(roughness, NoH, h);
-            float V = visibility(roughness, NoV, NoL, LoH);
+            float V = visibility(roughness, NoV, NoL);
             vec3  F = fresnel(pixel.f0, LoH);
             vec3 Fr = F * (D * V * NoL * ipdf * invNumSamples);
 

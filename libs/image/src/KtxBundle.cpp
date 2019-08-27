@@ -286,6 +286,24 @@ void KtxBundle::setMetadata(const char* key, const char* value) {
     mMetadata->keyvals.insert({key, value});
 }
 
+bool KtxBundle::getSphericalHarmonics(filament::math::float3* result) {
+    char const* src = getMetadata("sh");
+    if (!src) {
+        return false;
+    }
+    float* flat = &result->x;
+    // 3 bands, 9 RGB coefficients for a total of 27 floats.
+    for (int i = 0; i < 9 * 3; i++) {
+        char* next;
+        *flat++ = std::strtof(src, &next);
+        if (next == src) {
+            return false;
+        }
+        src = next;
+    }
+    return true;
+}
+
 bool KtxBundle::getBlob(KtxBlobIndex index, uint8_t** data, uint32_t* size) const {
     if (index.mipLevel >= mNumMipLevels || index.arrayIndex >= mArrayLength ||
             index.cubeFace >= mNumCubeFaces) {
@@ -321,7 +339,6 @@ bool KtxBundle::allocateBlob(KtxBlobIndex index, uint32_t size) {
         return false;
     }
     uint32_t flatIndex = flatten(this, index);
-    uint32_t blobSize = mBlobs->sizes[flatIndex];
     mBlobs->resize(flatIndex, size);
     return true;
 }

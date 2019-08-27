@@ -20,7 +20,7 @@ counter-increment: h6;margin-right:10px}</style><style>.hljs{display:block;overf
 
 <script type="text/x-mathjax-config">MathJax.Hub.Config({ TeX: { equationNumbers: {autoNumber: "AMS"} } });</script><span style="display:none">$$\newcommand{\n}{\hat{n}}\newcommand{\thetai}{\theta_\mathrm{i}}\newcommand{\thetao}{\theta_\mathrm{o}}\newcommand{\d}[1]{\mathrm{d}#1}\newcommand{\w}{\hat{\omega}}\newcommand{\wi}{\w_\mathrm{i}}\newcommand{\wo}{\w_\mathrm{o}}\newcommand{\wh}{\w_\mathrm{h}}\newcommand{\Li}{L_\mathrm{i}}\newcommand{\Lo}{L_\mathrm{o}}\newcommand{\Le}{L_\mathrm{e}}\newcommand{\Lr}{L_\mathrm{r}}\newcommand{\Lt}{L_\mathrm{t}}\newcommand{\O}{\mathrm{O}}\newcommand{\degrees}{{^{\large\circ}}}\newcommand{\T}{\mathsf{T}}\newcommand{\mathset}[1]{\mathbb{#1}}\newcommand{\Real}{\mathset{R}}\newcommand{\Integer}{\mathset{Z}}\newcommand{\Boolean}{\mathset{B}}\newcommand{\Complex}{\mathset{C}}\newcommand{\un}[1]{\,\mathrm{#1}}$$
 </span>
-<span class="md"><p><title>Physically-Based Rendering in Filament</title></p><div class="title"> Physically-Based Rendering in Filament </div>
+<span class="md"><p><title>Physically Based Rendering in Filament</title></p><div class="title"> Physically Based Rendering in Filament </div>
 
 <div class="afterTitles"></div>
 
@@ -1420,7 +1420,7 @@ f(v,l)=\fDiffuse(n,l) (1 - F_c) + \fSpecular(n,l) (1 - F_c)^2 + f_c(n,l)
 
 </p><p>
 
-Where \(F_c\) is the Fresnel term of the clear coat BRDF and \(f_c\) the clear coat BRDF. The multiplication by \((1 - F_c)^2\) of the specular component is to remain energy conservative as the light enters and exists the clear coat layer. The multiplication by \(1 - F_c\) of the diffuse component is an attempt at energy conservation.
+Where \(F_c\) is the Fresnel term of the clear coat BRDF and \(f_c\) the clear coat BRDF. The multiplication by \((1 - F_c)^2\) of the specular component is to remain energy conservative as the light enters and exits the clear coat layer. The multiplication by \(1 - F_c\) of the diffuse component is an attempt at energy conservation.
 
 </p>
 <a class="target" name="clearcoatparameterization">&#xA0;</a><a class="target" name="materialsystem/clearcoatmodel/clearcoatparameterization">&#xA0;</a><a class="target" name="toc4.9.3">&#xA0;</a><h3>Clear coat parameterization</h3>
@@ -5732,13 +5732,13 @@ The equations above have an extra term \(sin(\theta)^{-|m + 1|}\) but we can com
 <p>
 
 
-SH bases \(y^m_l(s)\) for the first 3 bands:
+Normalized SH basis functions \(y^m_l(s)\) for the first 3 bands:
 </p><div class="table">
 <table class="table"><tbody><tr><th style="text-align:center"> Band </th><th style="text-align:center"> \(m = -2\) </th><th style="text-align:center"> \(m = -1\) </th><th style="text-align:center"> \(m = 0\) </th><th style="text-align:center"> \(m = 1\) </th><th style="text-align:center"> \(m = 2\)                     </th></tr>
 <tr><td style="text-align:center"> \(l = 0\) </td><td style="text-align:center">  </td><td style="text-align:center">  </td><td style="text-align:center"> \(\frac{1}{2}\sqrt{\frac{1}{\pi}}\) </td><td style="text-align:center">  </td><td style="text-align:center">  </td></tr>
 <tr><td style="text-align:center"> \(l = 1\) </td><td style="text-align:center">  </td><td style="text-align:center"> \(-\frac{1}{2}\sqrt{\frac{3}{\pi}}y\) </td><td style="text-align:center"> \(\frac{1}{2}\sqrt{\frac{3}{\pi}}z\) </td><td style="text-align:center"> \(-\frac{1}{2}\sqrt{\frac{3}{\pi}}x\) </td><td style="text-align:center">  </td></tr>
 <tr><td style="text-align:center"> \(l = 2\) </td><td style="text-align:center"> \(\frac{1}{2}\sqrt{\frac{15}{\pi}}xy\) </td><td style="text-align:center"> \(-\frac{1}{2}\sqrt{\frac{15}{\pi}}yz\) </td><td style="text-align:center"> \(\frac{1}{4}\sqrt{\frac{5}{\pi}}(2z^2 - x^2 - y^2)\) </td><td style="text-align:center"> \(-\frac{1}{2}\sqrt{\frac{15}{\pi}}xz\) </td><td style="text-align:center"> \(\frac{1}{4}\sqrt{\frac{15}{\pi}}(x^2 - y^2)\)  </td></tr>
-</tbody></table><div class="tablecaption"><a class="target" name="table_basisfunctions">&#xA0;</a><b style="font-style:normal;">Table&#xA0;20:</b> Basis functions per band</div></div>
+</tbody></table><div class="tablecaption"><a class="target" name="table_basisfunctions">&#xA0;</a><b style="font-style:normal;">Table&#xA0;20:</b> Normalized basis functions per band</div></div>
 
 <p></p>
 <a class="target" name="decompositionandreconstruction">&#xA0;</a><a class="target" name="annex/sphericalharmonics/decompositionandreconstruction">&#xA0;</a><a class="target" name="toc9.6.2">&#xA0;</a><h3>Decomposition and reconstruction</h3>

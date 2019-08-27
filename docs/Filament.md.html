@@ -2,7 +2,7 @@
 
 <style>img { max-width: 100%; }</style>
 
-**Physically-Based Rendering in Filament**
+**Physically Based Rendering in Filament**
 
 ![](images/filament_logo.png)
 
@@ -854,7 +854,7 @@ $$\begin{equation}
 f(v,l)=\fDiffuse(n,l) (1 - F_c) + \fSpecular(n,l) (1 - F_c)^2 + f_c(n,l)
 \end{equation}$$
 
-Where $F_c$ is the Fresnel term of the clear coat BRDF and $f_c$ the clear coat BRDF. The multiplication by $(1 - F_c)^2$ of the specular component is to remain energy conservative as the light enters and exists the clear coat layer. The multiplication by $1 - F_c$ of the diffuse component is an attempt at energy conservation.
+Where $F_c$ is the Fresnel term of the clear coat BRDF and $f_c$ the clear coat BRDF. The multiplication by $(1 - F_c)^2$ of the specular component is to remain energy conservative as the light enters and exits the clear coat layer. The multiplication by $1 - F_c$ of the diffuse component is an attempt at energy conservation.
 
 ### Clear coat parameterization
 
@@ -3802,14 +3802,14 @@ void computeShBasis(
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 [Listing [nonNormalizedSHBasis]: C++ implementation to compute a non-normalized SH basis]
 
-SH bases $y^m_l(s)$ for the first 3 bands:
+Normalized SH basis functions $y^m_l(s)$ for the first 3 bands:
 
    Band  |               $m = -2$               |                $m = -1$               |                      $m = 0$                        |                $m = 1$                |                    $m = 2$                    |
 :-------:|:------------------------------------:|:-------------------------------------:|:---------------------------------------------------:|:-------------------------------------:|:---------------------------------------------:|
 $l = 0$  |                                      |                                       | $\frac{1}{2}\sqrt{\frac{1}{\pi}}$                   |                                       |                                               |
 $l = 1$  |                                      | $-\frac{1}{2}\sqrt{\frac{3}{\pi}}y$   | $\frac{1}{2}\sqrt{\frac{3}{\pi}}z$                  | $-\frac{1}{2}\sqrt{\frac{3}{\pi}}x$   |                                               |
 $l = 2$  | $\frac{1}{2}\sqrt{\frac{15}{\pi}}xy$ | $-\frac{1}{2}\sqrt{\frac{15}{\pi}}yz$ | $\frac{1}{4}\sqrt{\frac{5}{\pi}}(2z^2 - x^2 - y^2)$ | $-\frac{1}{2}\sqrt{\frac{15}{\pi}}xz$ | $\frac{1}{4}\sqrt{\frac{15}{\pi}}(x^2 - y^2)$ |
-[Table [basisFunctions]: Basis functions per band]
+[Table [basisFunctions]: Normalized basis functions per band]
 
 ### Decomposition and reconstruction
 

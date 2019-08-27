@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(filament-samples C ASM)
 
 set(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -32,6 +32,7 @@ add_mesh("assets/models/monkey/monkey.obj" "suzanne.filamesh")
 set(MATERIAL_SRCS
         materials/bakedColor.mat
         materials/bakedTexture.mat
+        materials/pointSprites.mat
         materials/aoPreview.mat
         materials/aiDefaultMat.mat
         materials/aiDefaultTrans.mat
@@ -53,22 +54,13 @@ endif()
 
 file(MAKE_DIRECTORY ${MATERIAL_DIR})
 
-set(MATC_TARGET desktop)
-
-# Optimize materials for performance in Release mode.
-set(MATC_FLAGS -a all)
-if (NOT CMAKE_BUILD_TYPE MATCHES Release)
-    set(MATC_FLAGS -g ${MATC_FLAGS})
-endif()
-
 foreach (mat_src ${MATERIAL_SRCS})
     get_filename_component(localname "${mat_src}" NAME_WE)
     get_filename_component(fullname "${mat_src}" ABSOLUTE)
     set(output_path "${MATERIAL_DIR}/${localname}.filamat")
     add_custom_command(
             OUTPUT ${output_path}
-            COMMAND matc ${MATC_FLAGS} -p ${MATC_TARGET} -m material
-                    -o ${output_path} ${fullname}
+            COMMAND matc ${MATC_BASE_FLAGS} -m material -o ${output_path} ${fullname}
             MAIN_DEPENDENCY ${mat_src}
             DEPENDS matc
             COMMENT "Compiling material ${mat_src} to ${output_path}"
@@ -100,6 +92,29 @@ set(DUMMY_SRC "${RESOURCE_DIR}/dummy.c")
 add_custom_command(OUTPUT ${DUMMY_SRC} COMMAND echo "//" > ${DUMMY_SRC})
 
 add_library(common-resources ${DUMMY_SRC} ${RESGEN_SOURCE})
+
+# ==================================================================================================
+# Invoke cmgen to build KTX files for the default IBL and skybox
+# ==================================================================================================
+
+set(CMGEN_ARGS --quiet -x . --format=ktx --size=256 --extract-blur=0.1)
+
+function(add_envmap SOURCE TARGET)
+    set(source_envmap "${ROOT_DIR}/${SOURCE}")
+
+    set(target_skybox   "${PROJECT_BINARY_DIR}/${TARGET}/${TARGET}_skybox.ktx")
+    set(target_envmap   "${PROJECT_BINARY_DIR}/${TARGET}/${TARGET}_ibl.ktx")
+
+    set(target_envmaps ${target_envmaps} ${target_skybox} PARENT_SCOPE)
+    set(target_envmaps ${target_envmaps} ${target_envmap} PARENT_SCOPE)
+
+    add_custom_command(OUTPUT ${target_skybox} ${target_envmap}
+        COMMAND cmgen ${CMGEN_ARGS} ${source_envmap}
+        MAIN_DEPENDENCY ${source_envmap}
+        DEPENDS cmgen)
+endfunction()
+
+add_envmap("third_party/environments/venetian_crossroads_2k.hdr" "venetian_crossroads_2k")
 
 # ==================================================================================================
 # Build suzanne resources
@@ -149,13 +164,18 @@ endif()
 add_library(suzanne-resources ${DUMMY_SRC} ${RESGEN_SOURCE})
 
 # ==================================================================================================
-# Resources for gltf_viewer
+# Resources for the gltf_viewer and lucy demos
 # ==================================================================================================
 
 get_resgen_vars(${RESOURCE_DIR} gltf)
 
 set(GLTF_RESOURCE_FILES
     ${ROOT_DIR}/third_party/models/DamagedHelmet/DamagedHelmet.glb
+    ${ROOT_DIR}/third_party/models/lucy/lucy.glb
+    ${ROOT_DIR}/third_party/textures/Blue_tiles_01/Blue_tiles_01_AO.png
+    ${ROOT_DIR}/third_party/textures/Blue_tiles_01/Blue_tiles_01_Color.png
+    ${ROOT_DIR}/third_party/textures/Blue_tiles_01/Blue_tiles_01_Normal.png
+    ${ROOT_DIR}/third_party/textures/Blue_tiles_01/Blue_tiles_01_Roughness.png
 )
 
 add_custom_command(
@@ -252,6 +272,7 @@ if (NOT ANDROID)
     add_assimp_demo(material_sandbox)
     add_assimp_demo(sample_full_pbr)
 
+    add_filamesh_demo(point_sprites)
     add_filamesh_demo(sample_cloth)
     add_filamesh_demo(sample_normal_map)
     add_filamesh_demo(suzanne)
@@ -262,7 +283,11 @@ if (NOT ANDROID)
     target_link_libraries(frame_generator PRIVATE imageio)
     target_link_libraries(suzanne PRIVATE suzanne-resources)
     target_link_libraries(gltf_viewer PRIVATE gltf-resources gltfio)
-    target_link_libraries(gltf_baker PRIVATE gltf-resources gltfio imageio)
+    target_link_libraries(gltf_baker PRIVATE gltf-resources gltfio_pipeline imageio)
+
+    add_executable(lucy_bloom lucy_bloom.cpp lucy_utils.h lucy_utils.cpp)
+    target_compile_options(lucy_bloom PRIVATE ${COMPILER_FLAGS})
+    target_link_libraries(lucy_bloom PRIVATE ${APP_LIBS} gltf-resources gltfio)
 endif()
 
 # ==================================================================================================
@@ -313,7 +338,6 @@ endif()
 #    /assets/fonts     copied from REPO/assets
 #    /assets/models    copied from REPO/assets
 #    /textures         copied from REPO/third_party
-#    /envs             copied from REPO/samples/envs
 #
 # ==================================================================================================
 
@@ -327,6 +351,5 @@ file(COPY ../assets DESTINATION ${PROJECT_BINARY_DIR}
 add_custom_target(assets ALL DEPENDS assets)
 add_dependencies(filament assets)
 
-file(COPY ../samples/envs DESTINATION ${PROJECT_BINARY_DIR})
-add_custom_target(envs ALL DEPENDS envs)
+add_custom_target(envs DEPENDS ${target_envmaps})
 add_dependencies(filament envs)

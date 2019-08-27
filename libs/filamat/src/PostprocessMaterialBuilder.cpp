@@ -40,12 +40,21 @@ using namespace filament::backend;
 
 namespace filamat {
 
+inline void assertSingleTargetApi(MaterialBuilderBase::TargetApi api) {
+    // Assert that a single bit is set.
+    uint8_t bits = (uint8_t) api;
+    assert(bits && !(bits & bits - 1));
+}
+
 Package PostprocessMaterialBuilder::build() {
     prepare();
 
     // Create a postprocessor to optimize / compile to Spir-V if necessary.
 #ifndef FILAMAT_LITE
-    GLSLPostProcessor postProcessor(mOptimization, mPrintShaders);
+    uint32_t flags = 0;
+    flags |= mPrintShaders ? GLSLPostProcessor::PRINT_SHADERS : 0;
+    flags |= mGenerateDebugInfo ? GLSLPostProcessor::GENERATE_DEBUG_INFO : 0;
+    GLSLPostProcessor postProcessor(mOptimization, flags);
 #endif
 
     // Create chunk tree.
@@ -70,6 +79,8 @@ Package PostprocessMaterialBuilder::build() {
         const ShaderModel shaderModel = ShaderModel(params.shaderModel);
         const TargetApi targetApi = params.targetApi;
         const TargetLanguage targetLanguage = params.targetLanguage;
+
+        assertSingleTargetApi(targetApi);
 
         // Populate a SamplerBindingMap for the sole purpose of finding where the post-process bindings
         // live within the global namespace of samplers.
@@ -99,7 +110,7 @@ Package PostprocessMaterialBuilder::build() {
             metalEntry.variant = k;
 
             // Vertex Shader
-            std::string vs = ShaderPostProcessGenerator::createPostProcessVertexProgram(
+            std::string vs = ShaderPostProcessGenerator::createPostProcessVertexProgramOld(
                     shaderModel, targetApi, targetLanguage,
                     filament::PostProcessStage(k), firstSampler);
 
@@ -142,7 +153,7 @@ Package PostprocessMaterialBuilder::build() {
 #endif
 
             // Fragment Shader
-            std::string fs = ShaderPostProcessGenerator::createPostProcessFragmentProgram(
+            std::string fs = ShaderPostProcessGenerator::createPostProcessFragmentProgramOld(
                     shaderModel, targetApi, targetLanguage,
                     filament::PostProcessStage(k), firstSampler);
 
@@ -188,27 +199,31 @@ Package PostprocessMaterialBuilder::build() {
 
     // Emit GLSL chunks
     if (!glslEntries.empty()) {
-        container.addChild<filamat::DictionaryTextChunk>(std::move(glslDictionary), ChunkType::DictionaryGlsl);
-        container.addChild<MaterialTextChunk>(std::move(glslEntries), std::move(glslDictionary), ChunkType::MaterialGlsl);
+        const auto& dictionaryChunk = container.addChild<filamat::DictionaryTextChunk>(
+                std::move(glslDictionary), ChunkType::DictionaryGlsl);
+        container.addChild<MaterialTextChunk>(std::move(glslEntries),
+                dictionaryChunk.getDictionary(), ChunkType::MaterialGlsl);
     }
 
 #ifndef FILAMAT_LITE
     // Emit SPIRV chunks
     if (!spirvEntries.empty()) {
-        container.addChild<filamat::DictionarySpirvChunk>(std::move(spirvDictionary));
+        const bool stripInfo = !mGenerateDebugInfo;
+        container.addChild<filamat::DictionarySpirvChunk>(std::move(spirvDictionary), stripInfo);
         container.addChild<MaterialSpirvChunk>(std::move(spirvEntries));
     }
 
     // Emit Metal chunks
     if (!metalEntries.empty()) {
-        container.addChild<filamat::DictionaryTextChunk>(std::move(metalDictionary), ChunkType::DictionaryMetal);
-        container.addChild<MaterialTextChunk>(std::move(metalEntries), std::move(metalDictionary), ChunkType::MaterialMetal);
+        const auto& dictionaryChunk = container.addChild<filamat::DictionaryTextChunk>(
+                std::move(metalDictionary), ChunkType::DictionaryMetal);
+        container.addChild<MaterialTextChunk>(std::move(metalEntries),
+                dictionaryChunk.getDictionary(), ChunkType::MaterialMetal);
     }
 #endif
 
     // Flatten all chunks in the container into a Package.
-    size_t packageSize = container.getSize();
-    Package package(packageSize);
+    Package package(container.getSize());
     Flattener f(package);
     container.flatten(f);
     package.setValid(!errorOccured);

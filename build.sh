@@ -90,6 +90,7 @@ ISSUE_DESKTOP_BUILD=true
 ISSUE_WEBGL_BUILD=false
 
 ISSUE_ARCHIVES=false
+BUILD_JS_DOCS=false
 
 ISSUE_CMAKE_ALWAYS=false
 
@@ -119,8 +120,9 @@ LC_UNAME=`echo ${UNAME} | tr '[:upper:]' '[:lower:]'`
 function build_clean {
     echo "Cleaning build directories..."
     rm -Rf out
-    rm -Rf android/filament-android/build
-    rm -Rf android/filament-android/.externalNativeBuild
+    rm -Rf android/filament-android/build android/filament-android/.externalNativeBuild
+    rm -Rf android/filamat-android/build android/filamat-android/.externalNativeBuild
+    rm -Rf android/gltfio-android/build android/gltfio-android/.externalNativeBuild
 }
 
 function build_desktop_target {
@@ -203,18 +205,17 @@ function build_webgl_with_target {
     fi
 
     if [[ -d "web/filament-js" ]]; then
+
+        if [[ "$BUILD_JS_DOCS" == "true" ]]; then
+            echo "Generating JavaScript documentation..."
+            local DOCS_FOLDER="web/docs"
+            local DOCS_SCRIPT="../../web/docs/build.py"
+            python3 ${DOCS_SCRIPT} --disable-demo \
+                --output-folder ${DOCS_FOLDER} \
+                --build-folder ${PWD}
+        fi
+
         if [[ "$ISSUE_ARCHIVES" == "true" ]]; then
-
-            which -s python3
-            if [[ $? == 0 ]]; then
-                echo "Generating JavaScript documentation..."
-                local DOCS_FOLDER="web/docs"
-                local DOCS_SCRIPT="../../web/docs/build.py"
-                python3 ${DOCS_SCRIPT} --disable-demo \
-                    --output-folder ${DOCS_FOLDER} \
-                    --build-folder ${PWD}
-            fi
-
             echo "Generating out/filament-${lc_target}-web.tgz..."
             # The web archive has the following subfolders:
             # dist...core WASM module and accompanying JS file.
@@ -224,7 +225,6 @@ function build_webgl_with_target {
                     filament-js/filament.js
             tar -rvf ../../filament-${lc_target}-web.tar -s /^filament-js/dist/ \
                     filament-js/filament.wasm
-            tar -rvf ../../filament-${lc_target}-web.tar docs
             cd -
             gzip -c ../filament-${lc_target}-web.tar > ../filament-${lc_target}-web.tgz
             rm ../filament-${lc_target}-web.tar
@@ -313,17 +313,30 @@ function ensure_android_build {
         exit 1
     fi
 
-    local ndk_properties="$ANDROID_HOME/ndk-bundle/source.properties"
+    local ndk_type=0 # 0 = No SDK, 1 = ndk-bundle, 2 = ndk side-by-side
 
-    if [[ ! -f $ndk_properties ]]; then
-        echo "Error: The Android NDK must be properly installed, exiting"
-        exit 1
+    local ndk_properties="$ANDROID_HOME/ndk-bundle/source.properties"
+    if [[ -f $ndk_properties ]]; then
+        ndk_type=1
+        local ndk_version=`sed -En -e "s/^Pkg.Revision *= *([0-9a-f]+).+/\1/p" ${ndk_properties}`
+        if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then
+            echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, found exiting"
+            exit 1
+        fi
+    else
+        local ndk_side_by_side="$ANDROID_HOME/ndk/"
+        if [[ -d $ndk_side_by_side ]]; then
+            ndk_type=2
+            local ndk_version=`ls ${ndk_side_by_side} | sort -V | tail -n 1`
+            if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then
+                echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
+                exit 1
+            fi
+        fi
     fi
 
-    local ndk_version=`sed -En -e "s/^Pkg.Revision *= *([0-9a-f]+).+/\1/p" ${ndk_properties}`
-
-    if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then
-        echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
+    if [[ ${ndk_type} == 0 ]]; then
+        echo "Error: The Android NDK must be properly installed, exiting"
         exit 1
     fi
 
@@ -406,6 +419,31 @@ function build_android {
             echo "Installing out/filamat-android-release.aar..."
             cp build/outputs/aar/filamat-android-full-release.aar ../../out/
             cp build/outputs/aar/filamat-android-lite-release.aar ../../out/
+        fi
+    fi
+
+    cd ../..
+
+
+    cd android/gltfio-android
+
+    if [[ "$ISSUE_DEBUG_BUILD" == "true" ]]; then
+        ./gradlew -Pfilament_dist_dir=../../out/android-debug/filament assembleDebug \
+                    -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
+
+        if [[ "$INSTALL_COMMAND" ]]; then
+            echo "Installing out/gltfio-android-debug.aar..."
+            cp build/outputs/aar/gltfio-android-debug.aar ../../out/
+        fi
+    fi
+
+    if [[ "$ISSUE_RELEASE_BUILD" == "true" ]]; then
+        ./gradlew -Pfilament_dist_dir=../../out/android-release/filament assembleRelease \
+                -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
+
+        if [[ "$INSTALL_COMMAND" ]]; then
+            echo "Installing out/gltfio-android-release.aar..."
+            cp build/outputs/aar/gltfio-android-release.aar ../../out/
         fi
     fi
 
@@ -615,7 +653,6 @@ while getopts ":hacfijmp:tuvslw" opt; do
         a)
             ISSUE_ARCHIVES=true
             INSTALL_COMMAND=install
-            JS_DOCS_OPTION="-DGENERATE_JS_DOCS=ON"
             ;;
         c)
             ISSUE_CLEAN=true

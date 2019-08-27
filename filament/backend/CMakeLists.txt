@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(filament C ASM)
 
 set(TARGET backend)
@@ -18,6 +18,7 @@ set(PUBLIC_HDRS
 )
 
 set(SRCS
+        src/BackendUtils.cpp
         src/CircularBuffer.cpp
         src/CommandBufferQueue.cpp
         src/CommandStream.cpp
@@ -74,6 +75,7 @@ if (NOT USE_EXTERNAL_GLES3)
         list(APPEND SRCS src/opengl/PlatformEGL.cpp)
     elseif (IOS)
         list(APPEND SRCS src/opengl/PlatformCocoaTouchGL.mm)
+        list(APPEND SRCS src/opengl/CocoaTouchExternalImage.mm)
     elseif (APPLE)
         list(APPEND SRCS src/opengl/PlatformCocoaGL.mm)
     elseif (WEBGL)

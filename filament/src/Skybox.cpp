@@ -20,6 +20,7 @@
 #include "details/Texture.h"
 #include "details/VertexBuffer.h"
 #include "details/IndexBuffer.h"
+#include "details/IndirectLight.h"
 #include "details/Material.h"
 #include "details/MaterialInstance.h"
 
@@ -39,6 +40,7 @@ using namespace details;
 
 struct Skybox::BuilderDetails {
     Texture* mEnvironmentMap = nullptr;
+    float mIntensity = FIndirectLight::DEFAULT_INTENSITY;
     bool mShowSun = false;
 };
 
@@ -53,6 +55,11 @@ BuilderType::Builder& BuilderType::Builder::operator=(BuilderType::Builder&& rhs
 
 Skybox::Builder& Skybox::Builder::environment(Texture* cubemap) noexcept {
     mImpl->mEnvironmentMap = cubemap;
+    return *this;
+}
+
+Skybox::Builder& Skybox::Builder::intensity(float envIntensity) noexcept {
+    mImpl->mIntensity = envIntensity;
     return *this;
 }
 
@@ -81,9 +88,10 @@ namespace details {
 
 FSkybox::FSkybox(FEngine& engine, const Builder& builder) noexcept
         : mSkyboxTexture(upcast(builder->mEnvironmentMap)),
-          mRenderableManager(engine.getRenderableManager()) {
+          mRenderableManager(engine.getRenderableManager()),
+          mIntensity(builder->mIntensity) {
 
-    FMaterial const* material = engine.getSkyboxMaterial(mSkyboxTexture->isRgbm());
+    FMaterial const* material = engine.getSkyboxMaterial();
     mSkyboxMaterialInstance = material->createInstance();
 
     TextureSampler sampler(TextureSampler::MagFilter::LINEAR, TextureSampler::WrapMode::REPEAT);
@@ -104,14 +112,7 @@ FSkybox::FSkybox(FEngine& engine, const Builder& builder) noexcept
             .build(engine, mSkybox);
 }
 
-FMaterial const* FSkybox::createMaterial(FEngine& engine, bool rgbm) {
-    // TODO: Merge the two skybox materials into one.
-    if (rgbm) {
-        FMaterial const* material = upcast(Material::Builder().package(
-                MATERIALS_SKYBOXRGBM_DATA, MATERIALS_SKYBOXRGBM_SIZE).build(engine));
-        return material;
-    }
-
+FMaterial const* FSkybox::createMaterial(FEngine& engine) {
     FMaterial const* material = upcast(Material::Builder().package(
             MATERIALS_SKYBOX_DATA, MATERIALS_SKYBOX_SIZE).build(engine));
     return material;
@@ -150,6 +151,10 @@ void Skybox::setLayerMask(uint8_t select, uint8_t values) noexcept {
 
 uint8_t Skybox::getLayerMask() const noexcept {
     return upcast(this)->getLayerMask();
+}
+
+float Skybox::getIntensity() const noexcept {
+    return upcast(this)->getIntensity();
 }
 
 } // namespace filament
