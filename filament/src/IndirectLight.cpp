@@ -223,11 +223,14 @@ float4 FIndirectLight::getColorEstimate(float3 direction) const noexcept {
     return { LdDotLe / intensity, intensity };
 }
 
+std::array<math::float3, 9> FIndirectLight::sDefaultIrradianceCoefs = {};
+
 } // namespace details
 
 // ------------------------------------------------------------------------------------------------
 // Trampoline calling into private implementation
 // ------------------------------------------------------------------------------------------------
+
 
 void IndirectLight::setIntensity(float intensity) noexcept {
     upcast(this)->setIntensity(intensity);

@@ -41,6 +41,8 @@ public:
 
     void terminate(FEngine& engine);
 
+    static math::float3 const* getDefaultSH() noexcept{ return sDefaultIrradianceCoefs.data(); }
+
     backend::Handle<backend::HwTexture> getReflectionMap() const noexcept { return mReflectionsMapHandle; }
     backend::Handle<backend::HwTexture> getIrradianceMap() const noexcept { return mIrradianceMapHandle; }
     math::float3 const* getSH() const noexcept{ return mIrradianceCoefs.data(); }
@@ -59,6 +61,8 @@ private:
     float mIntensity = DEFAULT_INTENSITY;
     math::mat3f mRotation;
     uint8_t mMaxMipLevel = 0;
+    static std::array<math::float3, 9> sDefaultIrradianceCoefs;
+
 };
 
 FILAMENT_UPCAST(IndirectLight)
