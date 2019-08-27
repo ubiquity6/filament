@@ -67,7 +67,7 @@ static string readFile(const Path& inputPath) {
 
     // Copy the file content into the string
     s.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-    return std::move(s);
+    return s;
 }
 
 // This spawns cmgen, telling it to process the environment map located at "inputPath".
@@ -95,7 +95,7 @@ static void processEnvMap(string inputPath, string resultPath, string goldenPath
     resultPath = Path::getCurrentExecutable().getParent() + resultPath;
     goldenPath = Path::getCurrentDirectory() + goldenPath;
 
-    launchTool(std::move(inputPath), "-x " + executableFolder);
+    launchTool(std::move(inputPath), "-f rgbm -x " + executableFolder);
 
     std::cout << "Reading result image from " << resultPath << std::endl;
     checkFileExistence(resultPath);
@@ -112,7 +112,7 @@ static void processEnvMap(string inputPath, string resultPath, string goldenPath
 }
 
 static void compareSh(const string& content, const string& regex,
-        const float3& match, float epsilon = 1e-7f) {
+        const float3& match, float epsilon = 1e-5f) {
     std::smatch smatch;
     if (std::regex_search(content, smatch, std::regex(regex))) {
         float3 sh(std::stof(smatch[1]), std::stof(smatch[2]), std::stof(smatch[3]));

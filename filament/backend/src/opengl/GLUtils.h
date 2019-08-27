@@ -34,6 +34,9 @@ void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_
 #define CHECK_GL_ERROR(out)
 #define CHECK_GL_FRAMEBUFFER_STATUS(out)
 #else
+#ifdef _MSC_VER
+    #define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
 #define CHECK_GL_ERROR(out) { GLUtils::checkGLError(out, __PRETTY_FUNCTION__, __LINE__); }
 #define CHECK_GL_FRAMEBUFFER_STATUS(out) { GLUtils::checkFramebufferStatus(out, __PRETTY_FUNCTION__, __LINE__); }
 #endif
@@ -244,7 +247,7 @@ constexpr inline GLenum getFormat(backend::PixelDataFormat format) noexcept {
         case PixelDataFormat::RGB_INTEGER:      return GL_RGB_INTEGER;
         case PixelDataFormat::RGBA:             return GL_RGBA;
         case PixelDataFormat::RGBA_INTEGER:     return GL_RGBA_INTEGER;
-        case PixelDataFormat::RGBM:             return GL_RGBA;
+        case PixelDataFormat::UNUSED:           return GL_RGBA; // should never happen (used to be rgbm)
         case PixelDataFormat::DEPTH_COMPONENT:  return GL_DEPTH_COMPONENT;
         case PixelDataFormat::DEPTH_STENCIL:    return GL_DEPTH_STENCIL;
         case PixelDataFormat::ALPHA:            return GL_ALPHA;
@@ -262,6 +265,7 @@ constexpr inline GLenum getType(backend::PixelDataType type) noexcept {
         case PixelDataType::INT:                return GL_INT;
         case PixelDataType::HALF:               return GL_HALF_FLOAT;
         case PixelDataType::FLOAT:              return GL_FLOAT;
+        case PixelDataType::UINT_10F_11F_11F_REV:  return GL_UNSIGNED_INT_10F_11F_11F_REV;
         case PixelDataType::COMPRESSED:         return 0; // should never happen
     }
 }

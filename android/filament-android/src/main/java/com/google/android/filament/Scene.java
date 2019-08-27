@@ -52,6 +52,10 @@ public class Scene {
         nAddEntity(getNativeObject(), entity);
     }
 
+    public void addEntities(@Entity int[] entities) {
+        nAddEntities(getNativeObject(), entities);
+    }
+
     public void removeEntity(@Entity int entity) {
         nRemove(getNativeObject(), entity);
     }
@@ -71,7 +75,7 @@ public class Scene {
         return nGetLightCount(getNativeObject());
     }
 
-    long getNativeObject() {
+    public long getNativeObject() {
         if (mNativeObject == 0) {
             throw new IllegalStateException("Calling method on destroyed Scene");
         }
@@ -85,6 +89,7 @@ public class Scene {
     private static native void nSetSkybox(long nativeScene, long nativeSkybox);
     private static native void nSetIndirectLight(long nativeScene, long nativeIndirectLight);
     private static native void nAddEntity(long nativeScene, int entity);
+    private static native void nAddEntities(long nativeScene, int[] entities);
     private static native void nRemove(long nativeScene, int entity);
     private static native int nGetRenderableCount(long nativeScene);
     private static native int nGetLightCount(long nativeScene);

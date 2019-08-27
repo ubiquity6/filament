@@ -31,6 +31,7 @@
 
 #include <math/mat4.h>
 #include <math/vec3.h>
+#include <math/vec4.h>
 
 #include <type_traits>
 
@@ -76,6 +77,7 @@ public:
         Builder& material(size_t index, MaterialInstance const* materialInstance) noexcept;
         // The axis aligned bounding box of the Renderable. Mandatory unless culling is disabled.
         Builder& boundingBox(const Box& axisAlignedBoundingBox) noexcept;
+        // See View::setVisibleLayers().
         Builder& layerMask(uint8_t select, uint8_t values) noexcept;
         // The priority is clamped to the range [0..7], defaults to 4; 7 is lowest priority
         Builder& priority(uint8_t priority) noexcept;
@@ -85,6 +87,7 @@ public:
         Builder& skinning(size_t boneCount) noexcept; // 0 by default, 255 max
         Builder& skinning(size_t boneCount, Bone const* bones) noexcept;
         Builder& skinning(size_t boneCount, math::mat4f const* transforms) noexcept;
+        Builder& morphing(bool enable) noexcept; // false by default
 
         // Sets an ordering index for blended primitives that all live at the same Z value.
         Builder& blendOrder(size_t index, uint16_t order) noexcept; // 0 by default
@@ -130,7 +133,10 @@ public:
     void destroy(utils::Entity e) noexcept;
 
     void setAxisAlignedBoundingBox(Instance instance, const Box& aabb) noexcept;
+
+    // See View::setVisibleLayers
     void setLayerMask(Instance instance, uint8_t select, uint8_t values) noexcept;
+
     void setPriority(Instance instance, uint8_t priority) noexcept;
     void setCastShadows(Instance instance, bool enable) noexcept;
     void setReceiveShadows(Instance instance, bool enable) noexcept;
@@ -142,6 +148,7 @@ public:
     void setBones(Instance instance, Bone const* transforms, size_t boneCount = 1, size_t offset = 0) noexcept;
     void setBones(Instance instance, math::mat4f const* transforms, size_t boneCount = 1, size_t offset = 0) noexcept;
 
+    void setMorphWeights(Instance instance, math::float4 const& weights) noexcept;
 
     // getters...
     const Box& getAxisAlignedBoundingBox(Instance instance) const noexcept;

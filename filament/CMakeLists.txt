@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(filament C ASM)
 
 set(TARGET filament)
@@ -26,6 +26,7 @@ set(PUBLIC_HDRS
         include/filament/Material.h
         include/filament/MaterialInstance.h
         include/filament/RenderableManager.h
+        include/filament/RenderTarget.h
         include/filament/Renderer.h
         include/filament/Scene.h
         include/filament/Skybox.h
@@ -44,6 +45,8 @@ set(SRCS
         src/components/RenderableManager.cpp
         src/components/TransformManager.cpp
         src/fg/FrameGraph.cpp
+        src/fg/fg/TextureResource.cpp
+        src/fg/ResourceAllocator.cpp
         src/Box.cpp
         src/Camera.cpp
         src/Color.cpp
@@ -68,6 +71,7 @@ set(SRCS
         src/Renderer.cpp
         src/RenderPass.cpp
         src/RenderPrimitive.cpp
+        src/RenderTarget.cpp
         src/Scene.cpp
         src/ShadowMap.cpp
         src/Skybox.cpp
@@ -88,6 +92,12 @@ set(PRIVATE_HDRS
         src/fg/FrameGraphPass.h
         src/fg/FrameGraphPassResources.h
         src/fg/FrameGraphResource.h
+        src/fg/fg/PassNode.h
+        src/fg/fg/RenderTarget.h
+        src/fg/fg/TextureResource.h
+        src/fg/fg/ResourceNode.h
+        src/fg/ResourceAllocator.h
+        src/fg/fg/VirtualResource.h
         src/details/Allocators.h
         src/details/Camera.h
         src/details/Culler.h
@@ -103,6 +113,7 @@ set(PRIVATE_HDRS
         src/details/MaterialInstance.h
         src/details/RenderPrimitive.h
         src/details/Renderer.h
+        src/details/RenderTarget.h
         src/details/ResourceList.h
         src/details/Scene.h
         src/details/ShadowMap.h
@@ -124,9 +135,9 @@ set(PRIVATE_HDRS
 
 set(MATERIAL_SRCS
         src/materials/defaultMaterial.mat
+        src/materials/blur.mat
         src/materials/mipmapDepth.mat
         src/materials/skybox.mat
-        src/materials/skyboxRGBM.mat
         src/materials/sao.mat
         src/materials/ssao.mat
 )
@@ -139,9 +150,6 @@ list(APPEND SRCS ${RESGEN_SOURCE})
 # ==================================================================================================
 # Configuration
 # ==================================================================================================
-if (ANDROID OR WEBGL OR IOS)
-    set(IS_MOBILE_TARGET TRUE)
-endif()
 
 # Size of the DFG lookup table
 if (NOT DFG_LUT_SIZE)
@@ -171,25 +179,6 @@ endif()
 set(MATERIAL_BINS)
 file(MAKE_DIRECTORY ${MATERIAL_DIR})
 
-# Target system.
-if (IS_MOBILE_TARGET)
-    set(MATC_TARGET mobile)
-else()
-    set(MATC_TARGET desktop)
-endif()
-
-# Generate shader code for all platforms when Vulkan or Metal is supported.
-if (FILAMENT_SUPPORTS_VULKAN OR FILAMENT_SUPPORTS_METAL)
-    set(MATC_BASE_FLAGS -a all)
-else()
-    set(MATC_BASE_FLAGS -a opengl)
-endif()
-
-# Only optimize materials in Release mode (so error message lines match the source code)
-if (NOT CMAKE_BUILD_TYPE MATCHES Release)
-    set(MATC_OPT_FLAGS -g)
-endif()
-
 foreach (mat_src ${MATERIAL_SRCS})
     get_filename_component(localname "${mat_src}" NAME_WE)
     get_filename_component(fullname "${mat_src}" ABSOLUTE)
@@ -197,8 +186,7 @@ foreach (mat_src ${MATERIAL_SRCS})
 
     add_custom_command(
             OUTPUT ${output_path}
-            COMMAND matc ${MATC_BASE_FLAGS} ${MATC_OPT_FLAGS} -p ${MATC_TARGET} -m material
-                    -o ${output_path} ${fullname}
+            COMMAND matc ${MATC_BASE_FLAGS} -m material -o ${output_path} ${fullname}
             DEPENDS ${fullname} matc
             COMMENT "Compiling material ${mat_src} to ${output_path}"
     )
@@ -208,8 +196,7 @@ endforeach()
 set(output_path "${MATERIAL_DIR}/postprocess.filamat")
 add_custom_command(
         OUTPUT ${output_path}
-        COMMAND matc ${MATC_BASE_FLAGS} ${MATC_OPT_FLAGS} -p ${MATC_TARGET} -m postprocess
-                -o ${output_path}
+        COMMAND matc ${MATC_BASE_FLAGS} -m postprocess -o ${output_path}
         DEPENDS matc
         COMMENT "Compiling post-process material ${output_path}"
 )
@@ -271,6 +258,7 @@ target_link_libraries(${TARGET} PUBLIC geometry) # TODO: remove this dependency 
 target_link_libraries(${TARGET} PUBLIC filaflat)
 target_link_libraries(${TARGET} PUBLIC filabridge)
 target_link_libraries(${TARGET} PUBLIC image_headers)
+target_link_libraries(${TARGET} PUBLIC ibl)
 
 # Android, iOS, and WebGL do not use bluegl.
 if(NOT IOS AND NOT ANDROID AND NOT WEBGL)

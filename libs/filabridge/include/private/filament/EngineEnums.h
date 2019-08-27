@@ -30,6 +30,12 @@ enum class PostProcessStage : uint8_t {
     ANTI_ALIASING_TRANSLUCENT,     // Anti-aliasing stage
 };
 
+static constexpr size_t POST_PROCESS_VARIANT_COUNT = 2;
+enum class PostProcessVariant : uint8_t {
+    OPAQUE,
+    TRANSLUCENT
+};
+
 // Binding points for uniform buffers and sampler buffers.
 // Effectively, these are just names.
 namespace BindingPoints {
@@ -54,10 +60,6 @@ constexpr size_t CONFIG_MAX_LIGHT_INDEX = CONFIG_MAX_LIGHT_COUNT - 1;
 // This value is also limited by UBO size, ES3.0 only guarantees 16 KiB.
 // We store 64 bytes per bone.
 constexpr size_t CONFIG_MAX_BONE_COUNT = 256;
-
-// TODO This should be injected by the engine as a define of the shader.
-static constexpr bool   CONFIG_IBL_RGBM  = true;
-static constexpr size_t CONFIG_IBL_SIZE  = 256;
 
 } // namespace filament
 

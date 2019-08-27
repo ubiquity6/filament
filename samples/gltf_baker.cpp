@@ -69,7 +69,7 @@ enum class Visualization : int {
     IMAGE_GBUFFER_NORMALS
 };
 
-static const char* DEFAULT_IBL = "envs/venetian_crossroads";
+static const char* DEFAULT_IBL = "venetian_crossroads_2k";
 static const char* INI_FILENAME = "gltf_baker.ini";
 static const char* TMP_UV_FILENAME = "gltf_baker_tmp_uv.png";
 static const char* TMP_AO_FILENAME = "gltf_baker_tmp_ao.png";
@@ -253,7 +253,7 @@ static void createQuadRenderable(BakerApp& app) {
     static OverlayVertex kVertices[4] = {
         {{0, 0}, {0, 0}}, {{ 1000, 0}, {1, 0}}, {{0,  1000}, {0, 1}}, {{ 1000,  1000}, {1, 1}}
     };
-    static constexpr uint16_t kInidices[6] = { 0, 1, 2, 3, 2, 1 };
+    static constexpr uint16_t kIndices[6] = { 0, 1, 2, 3, 2, 1 };
 
     if (!app.overlayQuad.entity) {
         app.overlayQuad.vb = VertexBuffer::Builder()
@@ -267,7 +267,7 @@ static void createQuadRenderable(BakerApp& app) {
                 .bufferType(IndexBuffer::IndexType::USHORT)
                 .build(engine);
         app.overlayQuad.ib->setBuffer(engine,
-                IndexBuffer::BufferDescriptor(kInidices, 12, nullptr));
+                IndexBuffer::BufferDescriptor(kIndices, 12, nullptr));
         auto mat = Material::Builder()
                 .package(RESOURCES_AOPREVIEW_DATA, RESOURCES_AOPREVIEW_SIZE)
                 .build(engine);
@@ -329,7 +329,7 @@ static void updateViewerMesh(BakerApp& app) {
         app.viewerAsset->getAnimator();
 
         // Remove old renderables and add new renderables to the scene.
-        app.viewer->setAsset(app.viewerAsset, app.names, !app.viewerActualSize);
+        app.viewer->setAsset(app.viewerAsset, !app.viewerActualSize);
 
         // Destory old Filament entities.
         app.loader->destroyAsset(previousViewerAsset);
@@ -718,7 +718,7 @@ int main(int argc, char** argv) {
             saveIniFile(app);
         }
 
-        app.viewer->setUiCallback([&app, scene] () {
+        app.viewer->setUiCallback([&app] () {
             const ImU32 disabledColor = ImColor(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
             const ImU32 hoveredColor = ImColor(ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered]);
             const ImU32 enabledColor = ImColor(0.5f, 0.5f, 0.0f);

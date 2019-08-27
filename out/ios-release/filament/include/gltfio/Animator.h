@@ -31,8 +31,6 @@ struct AnimatorImpl;
  * according to glTF skin definitions.
  *
  * For a usage example, see the comment block for AssetLoader.
- *
- * TODO: add support for morphing.
  */
 class Animator {
 public:
@@ -56,7 +54,7 @@ public:
     const char* getAnimationName(size_t animationIndex) const;
 
 private:
-    friend class details::FFilamentAsset;
+    friend struct details::FFilamentAsset;
     Animator(FilamentAsset* asset);
     ~Animator();
     AnimatorImpl* mImpl;

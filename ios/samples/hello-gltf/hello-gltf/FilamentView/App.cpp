@@ -84,15 +84,15 @@ void App::setupFilament() {
 }
 
 void App::setupIbl() {
-    image::KtxBundle* iblBundle = new image::KtxBundle(RESOURCES_VENETIAN_CROSSROADS_IBL_DATA,
-                                                       RESOURCES_VENETIAN_CROSSROADS_IBL_SIZE);
+    image::KtxBundle* iblBundle = new image::KtxBundle(RESOURCES_VENETIAN_CROSSROADS_2K_IBL_DATA,
+                                                       RESOURCES_VENETIAN_CROSSROADS_2K_IBL_SIZE);
     float3 harmonics[9];
-    parseSphereHarmonics(iblBundle->getMetadata("sh"), harmonics);
-    app.iblTexture = image::KtxUtility::createTexture(engine, iblBundle, false, true);
+    iblBundle->getSphericalHarmonics(harmonics);
+    app.iblTexture = image::KtxUtility::createTexture(engine, iblBundle, false);
 
-    image::KtxBundle* skyboxBundle = new image::KtxBundle(RESOURCES_VENETIAN_CROSSROADS_SKYBOX_DATA,
-                                                          RESOURCES_VENETIAN_CROSSROADS_SKYBOX_SIZE);
-    app.skyboxTexture = image::KtxUtility::createTexture(engine, skyboxBundle, false, true);
+    image::KtxBundle* skyboxBundle = new image::KtxBundle(RESOURCES_VENETIAN_CROSSROADS_2K_SKYBOX_DATA,
+                                                          RESOURCES_VENETIAN_CROSSROADS_2K_SKYBOX_SIZE);
+    app.skyboxTexture = image::KtxUtility::createTexture(engine, skyboxBundle, false);
 
     app.skybox = Skybox::Builder()
         .environment(app.skyboxTexture)
@@ -148,19 +148,4 @@ void App::setupView() {
 
     // Even FXAA anti-aliasing is overkill on iOS retina screens. This saves a few ms.
     view->setAntiAliasing(View::AntiAliasing::NONE);
-}
-
-void App::parseSphereHarmonics(const char* str, float3 harmonics[9]) {
-    std::istringstream iss(str);
-    std::string read;
-    for (int i = 0; i < 9; i++) {
-        float3 harmonic;
-        iss >> read;
-        harmonic.x = std::stof(read);
-        iss >> read;
-        harmonic.y = std::stof(read);
-        iss >> read;
-        harmonic.z = std::stof(read);
-        harmonics[i] = std::move(harmonic);
-    }
 }

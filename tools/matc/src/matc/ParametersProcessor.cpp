@@ -252,12 +252,21 @@ static bool processVariables(MaterialBuilder& builder, const JsonishValue& value
 }
 
 static bool processRequires(MaterialBuilder& builder, const JsonishValue& value) {
-    static const std::unordered_map<std::string, filament::VertexAttribute> strToEnum {
-        { "color", filament::VertexAttribute::COLOR },
-        { "position", filament::VertexAttribute::POSITION },
-        { "tangents", filament::VertexAttribute::TANGENTS },
-        { "uv0", filament::VertexAttribute::UV0 },
-        { "uv1", filament::VertexAttribute::UV1 },
+    using Attribute = filament::VertexAttribute;
+    static const std::unordered_map<std::string, Attribute> strToEnum {
+        { "color", Attribute::COLOR },
+        { "position", Attribute::POSITION },
+        { "tangents", Attribute::TANGENTS },
+        { "uv0", Attribute::UV0 },
+        { "uv1", Attribute::UV1 },
+        { "custom0", Attribute::CUSTOM0 },
+        { "custom1", Attribute(Attribute::CUSTOM0 + 1) },
+        { "custom2", Attribute(Attribute::CUSTOM0 + 2) },
+        { "custom3", Attribute(Attribute::CUSTOM0 + 3) },
+        { "custom4", Attribute(Attribute::CUSTOM0 + 4) },
+        { "custom5", Attribute(Attribute::CUSTOM0 + 5) },
+        { "custom6", Attribute(Attribute::CUSTOM0 + 6) },
+        { "custom7", Attribute(Attribute::CUSTOM0 + 7) },
     };
     for (auto v : value.toJsonArray()->getElements()) {
         if (v->getType() != JsonishValue::Type::STRING) {
@@ -441,6 +450,20 @@ static bool processShading(MaterialBuilder& builder, const JsonishValue& value) 
     return true;
 }
 
+static bool processDomain(MaterialBuilder& builder, const JsonishValue& value) {
+    static const std::unordered_map<std::string, MaterialBuilder::MaterialDomain> strToEnum {
+        { "surface",            MaterialBuilder::MaterialDomain::SURFACE },
+        { "postprocess",        MaterialBuilder::MaterialDomain::POST_PROCESS },
+    };
+    auto jsonString = value.toJsonString();
+    if (!isStringValidEnum(strToEnum, jsonString->getString())) {
+        return logEnumIssue("domain", *jsonString, strToEnum);
+    }
+
+    builder.materialDomain(stringToEnum(strToEnum, jsonString->getString()));
+    return true;
+}
+
 static bool processVariantFilter(MaterialBuilder& builder, const JsonishValue& value) {
     // We avoid using an initializer list for this particular map to avoid build errors that are
     // due to static initialization ordering.
@@ -449,7 +472,7 @@ static bool processVariantFilter(MaterialBuilder& builder, const JsonishValue& v
         strToEnum["directionalLighting"] = filament::Variant::DIRECTIONAL_LIGHTING;
         strToEnum["dynamicLighting"] = filament::Variant::DYNAMIC_LIGHTING;
         strToEnum["shadowReceiver"] = filament::Variant::SHADOW_RECEIVER;
-        strToEnum["skinning"] = filament::Variant::SKINNING;
+        strToEnum["skinning"] = filament::Variant::SKINNING_OR_MORPHING;
         return strToEnum;
     }();
     uint8_t variantFilter = 0;
@@ -505,6 +528,7 @@ ParametersProcessor::ParametersProcessor() {
     mParameters["flipUV"]                        = { &processFlipUV, Type::BOOL };
     mParameters["multiBounceAmbientOcclusion"]   = { &processMultiBounceAO, Type::BOOL };
     mParameters["specularAmbientOcclusion"]      = { &processSpecularAmbientOcclusion, Type::BOOL };
+    mParameters["domain"]                        = { &processDomain, Type::STRING };
 }
 
 bool ParametersProcessor::process(MaterialBuilder& builder, const JsonishObject& jsonObject) {

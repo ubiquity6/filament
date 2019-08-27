@@ -17,8 +17,9 @@
 #include <filament/Camera.h>
 #include <filament/Color.h>
 #include <filament/IndexBuffer.h>
-#include <filament/RenderableManager.h>
 #include <filament/LightManager.h>
+#include <filament/RenderableManager.h>
+#include <filament/RenderTarget.h>
 #include <filament/Texture.h>
 #include <filament/VertexBuffer.h>
 #include <filament/View.h>
@@ -48,7 +49,23 @@ enum_<VertexAttribute>("VertexAttribute")
     .value("UV0", UV0)
     .value("UV1", UV1)
     .value("BONE_INDICES", BONE_INDICES)
-    .value("BONE_WEIGHTS", BONE_WEIGHTS);
+    .value("BONE_WEIGHTS", BONE_WEIGHTS)
+    .value("CUSTOM0", CUSTOM0)
+    .value("CUSTOM1", CUSTOM1)
+    .value("CUSTOM2", CUSTOM2)
+    .value("CUSTOM3", CUSTOM3)
+    .value("CUSTOM4", CUSTOM4)
+    .value("CUSTOM5", CUSTOM5)
+    .value("CUSTOM6", CUSTOM6)
+    .value("CUSTOM7", CUSTOM7)
+    .value("MORPH_POSITION_0", MORPH_POSITION_0)
+    .value("MORPH_POSITION_1", MORPH_POSITION_1)
+    .value("MORPH_POSITION_2", MORPH_POSITION_2)
+    .value("MORPH_POSITION_3", MORPH_POSITION_3)
+    .value("MORPH_TANGENTS_0", MORPH_TANGENTS_0)
+    .value("MORPH_TANGENTS_1", MORPH_TANGENTS_1)
+    .value("MORPH_TANGENTS_2", MORPH_TANGENTS_2)
+    .value("MORPH_TANGENTS_3", MORPH_TANGENTS_3);
 
 enum_<VertexBuffer::AttributeType>("VertexBuffer$AttributeType")
     .value("BYTE", VertexBuffer::AttributeType::BYTE)
@@ -227,7 +244,22 @@ enum_<Texture::InternalFormat>("Texture$InternalFormat") // aka backend::Texture
 enum_<Texture::Usage>("Texture$Usage") // aka backend::TextureUsage
     .value("DEFAULT", Texture::Usage::DEFAULT)
     .value("COLOR_ATTACHMENT", Texture::Usage::COLOR_ATTACHMENT)
-    .value("DEPTH_ATTACHMENT", Texture::Usage::DEPTH_ATTACHMENT);
+    .value("DEPTH_ATTACHMENT", Texture::Usage::DEPTH_ATTACHMENT)
+    .value("STENCIL_ATTACHMENT", Texture::Usage::STENCIL_ATTACHMENT)
+    .value("UPLOADABLE", Texture::Usage::UPLOADABLE)
+    .value("SAMPLEABLE", Texture::Usage::SAMPLEABLE);
+
+enum_<Texture::CubemapFace>("Texture$CubemapFace") // aka backend::TextureCubemapFace
+    .value("POSITIVE_X", Texture::CubemapFace::POSITIVE_X)
+    .value("NEGATIVE_X", Texture::CubemapFace::NEGATIVE_X)
+    .value("POSITIVE_Y", Texture::CubemapFace::POSITIVE_Y)
+    .value("NEGATIVE_Y", Texture::CubemapFace::NEGATIVE_Y)
+    .value("POSITIVE_Z", Texture::CubemapFace::POSITIVE_Z)
+    .value("NEGATIVE_Z", Texture::CubemapFace::NEGATIVE_Z);
+
+enum_<RenderTarget::AttachmentPoint>("RenderTarget$AttachmentPoint")
+    .value("COLOR", RenderTarget::AttachmentPoint::COLOR)
+    .value("DEPTH", RenderTarget::AttachmentPoint::DEPTH);
 
 enum_<backend::PixelDataFormat>("PixelDataFormat")
     .value("R", backend::PixelDataFormat::R)
@@ -238,7 +270,6 @@ enum_<backend::PixelDataFormat>("PixelDataFormat")
     .value("RGB_INTEGER", backend::PixelDataFormat::RGB_INTEGER)
     .value("RGBA", backend::PixelDataFormat::RGBA)
     .value("RGBA_INTEGER", backend::PixelDataFormat::RGBA_INTEGER)
-    .value("RGBM", backend::PixelDataFormat::RGBM)
     .value("DEPTH_COMPONENT", backend::PixelDataFormat::DEPTH_COMPONENT)
     .value("DEPTH_STENCIL", backend::PixelDataFormat::DEPTH_STENCIL)
     .value("ALPHA", backend::PixelDataFormat::ALPHA);

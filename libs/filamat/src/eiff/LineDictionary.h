@@ -38,7 +38,7 @@ public:
     }
 
     constexpr bool isEmpty() const noexcept {
-        return mStrings.size() == 0;
+        return mStrings.empty();
     }
 
     const std::string& getString(size_t index) const noexcept;
@@ -49,7 +49,7 @@ private:
 
     std::unordered_map<std::string, size_t> mLineIndices;
     std::vector<std::string> mStrings;
-    size_t mStorageSize;
+    size_t mStorageSize = 0;
 };
 
 } // namespace filamat

@@ -74,7 +74,7 @@ Filament.loadClassExtensions = function() {
 
     /// createTextureFromKtx ::method:: Utility function that creates a [Texture] from a KTX file.
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer] with KTX file contents
-    /// options ::argument:: Options dictionary. For now, the `rgbm` boolean is the only option.
+    /// options ::argument:: Options dictionary.
     /// ::retval:: [Texture]
     Filament.Engine.prototype.createTextureFromKtx = function(buffer, options) {
         buffer = getBufferDescriptor(buffer);
@@ -85,7 +85,7 @@ Filament.loadClassExtensions = function() {
 
     /// createIblFromKtx ::method:: Utility that creates an [IndirectLight] from a KTX file.
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer] with KTX file contents
-    /// options ::argument:: Options dictionary. For now, the `rgbm` boolean is the only option.
+    /// options ::argument:: Options dictionary.
     /// ::retval:: [IndirectLight]
     Filament.Engine.prototype.createIblFromKtx = function(buffer, options) {
         buffer = getBufferDescriptor(buffer);
@@ -96,17 +96,16 @@ Filament.loadClassExtensions = function() {
 
     /// createSkyFromKtx ::method:: Utility function that creates a [Skybox] from a KTX file.
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer] with KTX file contents
-    /// options ::argument:: Options dictionary. For now, the `rgbm` boolean is the only option.
+    /// options ::argument:: Options dictionary.
     /// ::retval:: [Skybox]
     Filament.Engine.prototype.createSkyFromKtx = function(buffer, options) {
-        options = options || {'rgbm': true};
         const skytex = this.createTextureFromKtx(buffer, options);
         return Filament.Skybox.Builder().environment(skytex).build(this);
     };
 
     /// createTextureFromPng ::method:: Creates a 2D [Texture] from the raw contents of a PNG file.
     /// buffer ::argument:: asset string, or Uint8Array, or [Buffer] with PNG file contents
-    /// options ::argument:: object with optional `srgb`, `rgbm`, `noalpha`, and `nomips` keys.
+    /// options ::argument:: object with optional `srgb`, `noalpha`, and `nomips` keys.
     /// ::retval:: [Texture]
     Filament.Engine.prototype.createTextureFromPng = function(buffer, options) {
         buffer = getBufferDescriptor(buffer);
@@ -120,6 +119,7 @@ Filament.loadClassExtensions = function() {
     /// options ::argument:: JavaScript object with optional `srgb` and `nomips` keys.
     /// ::retval:: [Texture]
     Filament.Engine.prototype.createTextureFromJpeg = function(image, options) {
+        options = options || {};
         if ('string' == typeof image || image instanceof String) {
             image = Filament.assets[image];
         }
@@ -182,6 +182,7 @@ Filament.loadClassExtensions = function() {
             return result;
         };
 
+    Filament.RenderTarget$Builder.prototype.build =
     Filament.VertexBuffer$Builder.prototype.build =
     Filament.IndexBuffer$Builder.prototype.build =
     Filament.Texture$Builder.prototype.build =
@@ -229,6 +230,9 @@ Filament.loadClassExtensions = function() {
     };
 
     Filament.gltfio$AssetLoader.prototype.createAssetFromJson = function(buffer) {
+        if ('string' == typeof buffer && buffer.endsWith('.glb')) {
+            console.error('Please use createAssetFromBinary for glb files.');
+        }
         buffer = getBufferDescriptor(buffer);
         const result = this._createAssetFromJson(buffer);
         buffer.delete();
@@ -236,6 +240,9 @@ Filament.loadClassExtensions = function() {
     };
 
     Filament.gltfio$AssetLoader.prototype.createAssetFromBinary = function(buffer) {
+        if ('string' == typeof buffer && buffer.endsWith('.gltf')) {
+            console.error('Please use createAssetFromJson for gltf files.');
+        }
         buffer = getBufferDescriptor(buffer);
         const result = this._createAssetFromBinary(buffer);
         buffer.delete();
@@ -252,19 +259,32 @@ Filament.loadClassExtensions = function() {
     //
     // "Finalization" refers to decoding texture data, converting the format of the
     // vertex data if needed, and potentially computing tangents.
-    Filament.gltfio$FilamentAsset.prototype.loadResources = function(onDone, onFetched) {
+    //
+    // Takes an optional base path for resolving the URI strings in the glTF file, which is
+    // typically the path to the parent glTF file. The given base path cannot itself be a relative
+    // URL, but clients can do the following to resolve a relative URL:
+    //    const basePath = '' + new URL(myRelativeUrl, document.location);
+    // If the given base path is null, document.location is used as the base.
+    Filament.gltfio$FilamentAsset.prototype.loadResources = function(onDone, onFetched, basePath) {
         const asset = this;
         const engine = this.getEngine();
-        const urlkeys = this.getResourceUrls();
+        const names = this.getResourceUrls();
         const urlset = new Set();
-        for (var i = 0; i < urlkeys.size(); i++) {
-            const url = urlkeys.get(i);
-            if (url) {
+        const urlToName = {};
+
+        basePath = basePath || document.location;
+
+        for (var i = 0; i < names.size(); i++) {
+            const name = names.get(i);
+            if (name) {
+                const url = '' + new URL(name, basePath);
+                urlToName[url] = name;
                 urlset.add(url);
             }
         }
         const resourceLoader = new Filament.gltfio$ResourceLoader(engine);
-        Filament.fetch(Array.from(urlset), function() {
+
+        const onComplete = function() {
             const finalize = function() {
                 resourceLoader.loadResources(asset);
 
@@ -275,15 +295,22 @@ Filament.loadClassExtensions = function() {
                         resourceLoader.delete();
                     });
                 });
-
             };
             if (onDone) {
                 onDone(finalize);
             } else {
                 finalize();
             }
-        }, function(name) {
-            var buffer = getBufferDescriptor(name);
+        };
+
+        if (urlset.size == 0) {
+            onComplete();
+            return;
+        }
+
+        Filament.fetch(Array.from(urlset), onComplete, function(url) {
+            const buffer = getBufferDescriptor(url);
+            const name = urlToName[url];
             resourceLoader.addResourceData(name, buffer);
             buffer.delete();
             if (onFetched) {
