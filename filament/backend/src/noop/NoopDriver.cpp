@@ -39,6 +39,7 @@ backend::ShaderModel NoopDriver::getShaderModel() const noexcept {
 }
 
 void NoopDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+    memset(&capabilities, 0, sizeof(capabilities));
 }
 
 // explicit instantiation of the Dispatcher

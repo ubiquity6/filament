@@ -302,6 +302,7 @@ void OpenGLDriver::terminate() {
         unbindSampler(item.second);
         glDeleteSamplers(1, &item.second);
     }
+
     mSamplerMap.clear();
     if (mOpenGLBlitter) {
         mOpenGLBlitter->terminate();
@@ -315,6 +316,8 @@ ShaderModel OpenGLDriver::getShaderModel() const noexcept {
 }
 
 void OpenGLDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+    memset(&capabilities, 0, sizeof(capabilities));
+
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &capabilities.mMaxTextures);
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &capabilities.mMaxVertexTextures);
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &capabilities.mMaxTextureSize);
