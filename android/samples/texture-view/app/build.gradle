@@ -22,7 +22,7 @@ android {
     compileSdkVersion 28
     defaultConfig {
         applicationId "com.google.android.filament.textureview"
-        minSdkVersion 21
+        minSdkVersion 28
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
@@ -81,4 +81,5 @@ dependencies {
 
     // Depend on Filament
     implementation 'com.google.android.filament:filament-android'
+    implementation 'com.android.support:appcompat-v7:28.0.0'
 }

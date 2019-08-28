@@ -20,6 +20,8 @@ import android.animation.ValueAnimator
 import android.app.Activity
 import android.opengl.Matrix
 import android.os.Bundle
+import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.TextureView
@@ -47,6 +49,7 @@ class MainActivity : Activity() {
 
     // The View we want to render into
     private lateinit var textureView: TextureView
+    private lateinit var textureRecorder: TextureRecorder
     // UiHelper is provided by Filament to manage SurfaceView and SurfaceTexture
     private lateinit var uiHelper: UiHelper
     // Choreographer is used to schedule new frames
@@ -84,7 +87,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         textureView = TextureView(this)
-        setContentView(textureView)
+        // setContentView(textureView)
+        textureRecorder = TextureRecorder()
 
         choreographer = Choreographer.getInstance()
 
@@ -109,6 +113,7 @@ class MainActivity : Activity() {
         scene = engine.createScene()
         view = engine.createView()
         camera = engine.createCamera()
+        swapChain = engine.createSwapChain(textureRecorder.surface)
     }
 
     private fun setupView() {
@@ -125,6 +130,9 @@ class MainActivity : Activity() {
 
         // Tell the view which scene we want to render
         view.scene = scene
+
+        // set size
+        view.viewport = Viewport(0, 0, 1920, 1280)
     }
 
     private fun setupScene() {
@@ -280,38 +288,48 @@ class MainActivity : Activity() {
         engine.destroy()
     }
 
+    var i = 0
     inner class FrameCallback : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
+            if(i == 0) {
+                textureRecorder.startRecording();
+            }
+            if (i >= 500) {
+                textureRecorder.endRecording()
+                return;
+            }
+
             // Schedule the next frame
             choreographer.postFrameCallback(this)
-
+            ++i
             // This check guarantees that we have a swap chain
-            if (uiHelper.isReadyToRender) {
+//            if (uiHelper.isReadyToRender) {
                 // If beginFrame() returns false you should skip the frame
                 // This means you are sending frames too quickly to the GPU
                 if (renderer.beginFrame(swapChain!!)) {
+                    Log.e("RANDY", "rendering frame " + i)
                     renderer.render(view)
                     renderer.endFrame()
                 }
-            }
+//            }
         }
     }
 
     inner class SurfaceCallback : UiHelper.RendererCallback {
         override fun onNativeWindowChanged(surface: Surface) {
-            swapChain?.let { engine.destroySwapChain(it) }
-            swapChain = engine.createSwapChain(surface, uiHelper.swapChainFlags)
+//            swapChain?.let { engine.destroySwapChain(it) }
+//            swapChain = engine.createSwapChain(surface, uiHelper.swapChainFlags)
         }
 
         override fun onDetachedFromSurface() {
-            swapChain?.let {
-                engine.destroySwapChain(it)
-                // Required to ensure we don't return before Filament is done executing the
-                // destroySwapChain command, otherwise Android might destroy the Surface
-                // too early
-                engine.flushAndWait()
-                swapChain = null
-            }
+//            swapChain?.let {
+//                engine.destroySwapChain(it)
+//                // Required to ensure we don't return before Filament is done executing the
+//                // destroySwapChain command, otherwise Android might destroy the Surface
+//                // too early
+//                engine.flushAndWait()
+//                swapChain = null
+//            }
         }
 
         override fun onResized(width: Int, height: Int) {
