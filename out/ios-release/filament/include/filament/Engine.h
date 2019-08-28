@@ -389,7 +389,7 @@ public:
         destroy(camera->getEntity());
     }
 
-   /**
+    /**
      * Invokes one iteration of the render loop, used only on single-threaded platforms.
      * 
      * This should be called every time the windowing system needs to paint (e.g. at 60 Hz).
@@ -397,6 +397,14 @@ public:
     void execute();
 
     DebugRegistry& getDebugRegistry() noexcept;
+
+    /**`
+     * Query platform capabilities
+     * 
+     * * @param capabilities - structure to fill out
+     */
+    
+    void getCapabilities(backend::RenderCapabilities& capabilities) noexcept;
 
 protected:
     //! \privatesection

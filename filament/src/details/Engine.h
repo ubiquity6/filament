@@ -277,6 +277,8 @@ public:
 
     bool execute();
 
+    void getCapabilities(backend::RenderCapabilities& capabilities) noexcept;
+
 private:
     FEngine(Backend backend, Platform* platform, void* sharedGLContext);
     void init();

@@ -55,6 +55,8 @@ public:
 
     virtual Dispatcher& getDispatcher() noexcept = 0;
 
+    virtual void getCapabilities(RenderCapabilities& capabilities) const noexcept = 0;
+
 #ifndef NDEBUG
     virtual void debugCommand(const char* methodName) {}
 #endif

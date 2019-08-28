@@ -200,6 +200,21 @@ ShaderModel VulkanDriver::getShaderModel() const noexcept {
 #endif
 }
 
+void VulkanDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+    memset(&capabilities, 0, sizeof(capabilities));
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(mContext.physicalDevice, &properties);
+
+    capabilities.mMaxTextures = properties.limits.maxPerStageResources;
+    capabilities.mMaxVertexTextures = properties.limits.maxPerStageResources;
+    capabilities.mMaxTextureSize = properties.limits.maxImageDimension2D;
+    capabilities.mMaxCubemapSize = properties.limits.maxImageDimensionCube;
+    capabilities.mMaxAttributes = properties.limits.maxVertexInputAttributes;
+    capabilities.mMaxVertexUniforms = properties.limits.maxUniformBufferRange;
+    capabilities.mMaxFragmentUniforms = properties.limits.maxUniformBufferRange;
+}
+
 void VulkanDriver::terminate() {
     if (!mContext.instance) {
         return;

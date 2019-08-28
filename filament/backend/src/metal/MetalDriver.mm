@@ -369,6 +369,115 @@ ShaderModel MetalDriver::getShaderModel() const noexcept {
 #endif
 }
 
+void MetalDriver::getCapabilities(backend::RenderCapabilities& capabilities) const noexcept {
+    memset(&capabilities, 0, sizeof(capabilities));
+
+    //must keep up to date: https://developer.apple.com/documentation/metal/mtlfeatureset/mtlfeatureset_ios_gpufamily1_v1?language=objc
+
+#if defined(IOS)  
+    const NSUInteger MaxKnownFeatureSet = MTLFeatureSet_iOS_GPUFamily5_v1;
+
+    //get highest feature set    
+    MTLFeatureSet featureSet = MTLFeatureSet_iOS_GPUFamily1_v2;
+    for (int set = MaxKnownFeatureSet; set >= 0; --set) {
+        if ([mContext->device supportsFeatureSet:(MTLFeatureSet)set]) {
+            featureSet = (MTLFeatureSet)set;
+            break;
+        }
+    }
+
+    //set capabilities from tables in link above
+    switch (featureSet) {
+    case MTLFeatureSet_iOS_GPUFamily5_v1:
+        capabilities.mMaxTextures = 31;
+        capabilities.mMaxVertexTextures = 31;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 124;
+        capabilities.mMaxFragmentUniforms = 124;
+        break;
+    case MTLFeatureSet_iOS_GPUFamily4_v1:
+    case MTLFeatureSet_iOS_GPUFamily4_v2:
+        capabilities.mMaxTextures = 31;
+        capabilities.mMaxVertexTextures = 31;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 124;
+        capabilities.mMaxFragmentUniforms = 124;
+        break;
+    case MTLFeatureSet_iOS_GPUFamily3_v1:
+    case MTLFeatureSet_iOS_GPUFamily3_v2:
+    case MTLFeatureSet_iOS_GPUFamily3_v3:
+    case MTLFeatureSet_iOS_GPUFamily3_v4:
+        capabilities.mMaxTextures = 31;
+        capabilities.mMaxVertexTextures = 31;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 60;
+        capabilities.mMaxFragmentUniforms = 60;
+        break;
+    case MTLFeatureSet_iOS_GPUFamily2_v1:
+    case MTLFeatureSet_iOS_GPUFamily2_v2:
+    case MTLFeatureSet_iOS_GPUFamily2_v3:
+    case MTLFeatureSet_iOS_GPUFamily2_v4:
+    case MTLFeatureSet_iOS_GPUFamily2_v5:
+        capabilities.mMaxTextures = 31;
+        capabilities.mMaxVertexTextures = 31;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 60;
+        capabilities.mMaxFragmentUniforms = 60;
+        break;
+    default:
+        capabilities.mMaxTextures = 31;
+        capabilities.mMaxVertexTextures = 31;
+        capabilities.mMaxTextureSize = 8192;
+        capabilities.mMaxCubemapSize = 8192;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 60;
+        capabilities.mMaxFragmentUniforms = 60;
+        break;
+    }
+#else
+    const NSUInteger MaxKnownFeatureSet = MTLFeatureSet_macOS_GPUFamily2_v1;
+
+    //get highest feature set    
+    MTLFeatureSet featureSet = MTLFeatureSet_macOS_GPUFamily1_v1;
+    for (int set = MaxKnownFeatureSet; set >= 0; --set) {
+        if ([mContext->device supportsFeatureSet:(MTLFeatureSet)set]) {
+            featureSet = (MTLFeatureSet)set;
+            break;
+        }
+    }
+
+    //set capabilities from tables in link above
+    switch (featureSet) {
+    case MTLFeatureSet_macOS_GPUFamily2_v1:
+        capabilities.mMaxTextures = 128;
+        capabilities.mMaxVertexTextures = 128;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 32;
+        capabilities.mMaxFragmentUniforms = 32;
+        break;
+    default:
+        capabilities.mMaxTextures = 128;
+        capabilities.mMaxVertexTextures = 128;
+        capabilities.mMaxTextureSize = 16384;
+        capabilities.mMaxCubemapSize = 16384;
+        capabilities.mMaxAttributes = 31;
+        capabilities.mMaxVertexUniforms = 32;
+        capabilities.mMaxFragmentUniforms = 32;
+        break;
+    }
+#endif
+}
+
 Handle<HwStream> MetalDriver::createStream(void* stream) {
     return {};
 }
