@@ -206,7 +206,7 @@ void VulkanDriver::getCapabilities(backend::RenderCapabilities& capabilities) co
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(mContext.physicalDevice, &properties);
 
-    capabilities.mMaxTextures = properties.limits.maxImageDimension2D;
+    capabilities.mMaxTextures = properties.limits.maxPerStageResources;
     capabilities.mMaxVertexTextures = properties.limits.maxPerStageResources;
     capabilities.mMaxTextureSize = properties.limits.maxImageDimension2D;
     capabilities.mMaxCubemapSize = properties.limits.maxImageDimensionCube;
