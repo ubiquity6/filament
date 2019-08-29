@@ -95,6 +95,13 @@ Java_com_google_android_filament_View_nSetShadowsEnabled(JNIEnv*, jclass,
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_View_nSetRenderTarget(JNIEnv*, jclass,
+        jlong nativeView, jlong nativeTarget) {
+    View* view = (View*) nativeView;
+    view->setRenderTarget((RenderTarget*) nativeTarget);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_View_nSetSampleCount(JNIEnv*, jclass,
         jlong nativeView, jint count) {
     View* view = (View*) nativeView;
@@ -234,8 +241,8 @@ Java_com_google_android_filament_View_nGetAmbientOcclusion(JNIEnv*, jclass, jlon
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_View_nSetAmbientOcclusionOptions(JNIEnv*, jclass,
-    jlong nativeView, jfloat radius, jfloat bias, jfloat power) {
+    jlong nativeView, jfloat radius, jfloat bias, jfloat power, jfloat resolution) {
     View* view = (View*) nativeView;
-    View::AmbientOcclusionOptions options = { .radius = radius, .bias = bias, .power = power};
+    View::AmbientOcclusionOptions options = { .radius = radius, .bias = bias, .power = power, .resolution = resolution};
     view->setAmbientOcclusionOptions(options);
 }

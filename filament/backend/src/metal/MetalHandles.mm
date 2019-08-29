@@ -18,7 +18,7 @@
 
 #include "MetalEnums.h"
 
-#include <details/Texture.h> // for FTexture::getFormatSize
+#include "private/backend/BackendUtils.h"
 
 #include <utils/Panic.h>
 #include <utils/trap.h>
@@ -151,7 +151,15 @@ void MetalUniformBuffer::copyIntoBuffer(void* src, size_t size) {
 
 id<MTLBuffer> MetalUniformBuffer::getGpuBufferForDraw() {
     if (!bufferPoolEntry) {
-        return nil;
+        // If there's a CPU buffer, then we return nil here, as the CPU-side buffer will be bound
+        // separately.
+        if (cpuBuffer) {
+            return nil;
+        }
+
+        // If there isn't a CPU buffer, it means no data has been loaded into this uniform yet. To
+        // avoid an error, we'll allocate an empty buffer.
+        bufferPoolEntry = context.bufferPool->acquireBuffer(size);
     }
 
     // This uniform is being used in a draw call, so we retain it so it's not released back into the
@@ -190,6 +198,17 @@ void MetalRenderPrimitive::setBuffers(MetalVertexBuffer* vertexBuffer, MetalInde
     uint32_t bufferIndex = 0;
     for (uint32_t attributeIndex = 0; attributeIndex < attributeCount; attributeIndex++) {
         if (!(enabledAttributes & (1U << attributeIndex))) {
+            // If the attribute is not enabled, bind it to the zero buffer. It's a Metal error for a
+            // shader to read from missing vertex attributes.
+            vertexDescription.attributes[attributeIndex] = {
+                    .format = MTLVertexFormatChar4,
+                    .buffer = ZERO_VERTEX_BUFFER,
+                    .offset = 0
+            };
+            vertexDescription.layouts[ZERO_VERTEX_BUFFER] = {
+                    .step = MTLVertexStepFunctionConstant,
+                    .stride = 4
+            };
             continue;
         }
         const auto& attribute = vertexBuffer->attributes[attributeIndex];
@@ -204,6 +223,7 @@ void MetalRenderPrimitive::setBuffers(MetalVertexBuffer* vertexBuffer, MetalInde
                 .offset = 0
         };
         vertexDescription.layouts[bufferIndex] = {
+                .step = MTLVertexStepFunctionPerVertex,
                 .stride = attribute.stride
         };
 
@@ -231,16 +251,21 @@ MetalProgram::MetalProgram(id<MTLDevice> device, const Program& program) noexcep
                                                         length:source.size()
                                                       encoding:NSUTF8StringEncoding];
         NSError* error = nil;
+        MTLCompileOptions* options = [MTLCompileOptions new];
+        options.languageVersion = MTLLanguageVersion1_1;
         id<MTLLibrary> library = [device newLibraryWithSource:objcSource
                                                       options:nil
                                                         error:&error];
         [objcSource release];
-        if (error) {
-            auto description =
-                    [error.localizedDescription cStringUsingEncoding:NSUTF8StringEncoding];
-            utils::slog.w << description << utils::io::endl;
+        [options release];
+        if (library == nil) {
+            if (error) {
+                auto description =
+                        [error.localizedDescription cStringUsingEncoding:NSUTF8StringEncoding];
+                utils::slog.w << description << utils::io::endl;
+            }
+            ASSERT_POSTCONDITION(false, "Unable to compile Metal shading library.");
         }
-        ASSERT_POSTCONDITION(library != nil, "Unable to compile Metal shading library.");
 
         *shaderFunctions[i] = [library newFunctionWithName:@"main0"];
 
@@ -278,7 +303,7 @@ MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, u
     const TextureFormat reshapedFormat = reshaper.getReshapedFormat();
     const MTLPixelFormat pixelFormat = decidePixelFormat(context.device, reshapedFormat);
 
-    bytesPerPixel = static_cast<uint8_t>(details::FTexture::getFormatSize(reshapedFormat));
+    bytesPerPixel = static_cast<uint8_t>(getFormatSize(reshapedFormat));
 
     ASSERT_POSTCONDITION(pixelFormat != MTLPixelFormatInvalid, "Pixel format not supported.");
 
@@ -297,6 +322,7 @@ MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, u
         descriptor.usage = getMetalTextureUsage(usage);
         descriptor.storageMode = getMetalStorageMode(usage);
         texture = [context.device newTextureWithDescriptor:descriptor];
+        ASSERT_POSTCONDITION(texture != nil, "Could not create Metal texture. Out of memory?");
     } else if (target == backend::SamplerType::SAMPLER_CUBEMAP) {
         ASSERT_POSTCONDITION(!multisampled, "Multisampled cubemap faces not supported.");
         ASSERT_POSTCONDITION(width == height, "Cubemap faces must be square.");
@@ -307,6 +333,7 @@ MetalTexture::MetalTexture(MetalContext& context, backend::SamplerType target, u
         descriptor.usage = getMetalTextureUsage(usage);
         descriptor.storageMode = getMetalStorageMode(usage);
         texture = [context.device newTextureWithDescriptor:descriptor];
+        ASSERT_POSTCONDITION(texture != nil, "Could not create Metal texture. Out of memory?");
     } else if (target == backend::SamplerType::SAMPLER_EXTERNAL) {
         // If we're using external textures (CVPixelBufferRefs), we don't need to make any texture
         // allocations.
@@ -365,8 +392,9 @@ void MetalTexture::loadCubeImage(const PixelBufferDescriptor& data, const FaceOf
 }
 
 MetalRenderTarget::MetalRenderTarget(MetalContext* context, uint32_t width, uint32_t height,
-        uint8_t samples, id<MTLTexture> color, id<MTLTexture> depth, uint8_t level)
-        : HwRenderTarget(width, height), context(context), samples(samples), level(level) {
+        uint8_t samples, id<MTLTexture> color, id<MTLTexture> depth, uint8_t colorLevel,
+        uint8_t depthLevel) : HwRenderTarget(width, height), context(context), samples(samples),
+        colorLevel(colorLevel), depthLevel(depthLevel) {
     ASSERT_PRECONDITION(color || depth, "Must provide either a color or depth texture.");
 
     [color retain];

@@ -23,6 +23,7 @@
 #include "details/IndirectLight.h"
 #include "details/MaterialInstance.h"
 #include "details/Renderer.h"
+#include "details/RenderTarget.h"
 #include "details/Scene.h"
 #include "details/Skybox.h"
 
@@ -32,9 +33,9 @@
 #include <private/filament/UibGenerator.h>
 
 #include <utils/Allocator.h>
-#include <utils/Systrace.h>
 #include <utils/Profiler.h>
 #include <utils/Slice.h>
+#include <utils/Systrace.h>
 
 #include <math/scalar.h>
 #include <math/fast.h>
@@ -338,7 +339,9 @@ void FView::prepareLighting(FEngine& engine, FEngine::DriverApi& driver, ArenaSc
 
     // IBL
     FIndirectLight const* const ibl = scene->getIndirectLight();
-    if (ibl) {
+    if (UTILS_LIKELY(ibl)) {
+        float2 iblMaxMipLevel{ ibl->getMaxMipLevel(), 1u << ibl->getMaxMipLevel() };
+        u.setUniform(offsetof(PerViewUib, iblMaxMipLevel), iblMaxMipLevel);
         u.setUniform(offsetof(PerViewUib, iblLuminance), ibl->getIntensity() * exposure);
         u.setUniformArray(offsetof(PerViewUib, iblSH), ibl->getSH(), 9);
         if (ibl->getReflectionMap()) {
@@ -349,8 +352,10 @@ void FView::prepareLighting(FEngine& engine, FEngine::DriverApi& driver, ArenaSc
                     { ibl->getReflectionMap(), reflectionSamplerParams });
         }
     } else {
-        u.setUniform(offsetof(PerViewUib, iblLuminance),
-                FIndirectLight::DEFAULT_INTENSITY * exposure);
+        FSkybox const* const skybox = scene->getSkybox();
+        const float intensity = skybox ? skybox->getIntensity() : FIndirectLight::DEFAULT_INTENSITY;
+        u.setUniform(offsetof(PerViewUib, iblLuminance), intensity * exposure);
+        u.setUniformArray(offsetof(PerViewUib, iblSH), FIndirectLight::getDefaultSH(), 9);
     }
 
     // Directional light (always at index 0)
@@ -456,6 +461,8 @@ void FView::prepare(FEngine& engine, backend::DriverApi& driver, ArenaScope& are
             .zf                 = camera->getCullingFar(),
             // exposure
             .ev100              = Exposure::ev100(*camera),
+            // world offset to allow users to determine the API-level camera position
+            .worldOffset        = camera->getPosition(),
             // world origin transform, use only for debugging
             .worldOrigin        = worldOriginCamera
     };
@@ -607,7 +614,7 @@ void FView::prepareCamera(const CameraInfo& camera, const filament::Viewport& vi
     const mat4f projectionMatrix(camera.projection);
 
     const mat4f clipFromView(projectionMatrix);
-    const mat4f viewFromClip(Camera::inverseProjection(clipFromView));
+    const mat4f viewFromClip(inverse(clipFromView));
     const mat4f clipFromWorld(clipFromView * viewFromWorld);
     const mat4f worldFromClip(worldFromView * viewFromClip);
 
@@ -625,6 +632,7 @@ void FView::prepareCamera(const CameraInfo& camera, const filament::Viewport& vi
     u.setUniform(offsetof(PerViewUib, origin), float2{ viewport.left, viewport.bottom });
 
     u.setUniform(offsetof(PerViewUib, cameraPosition), float3{camera.getPosition()});
+    u.setUniform(offsetof(PerViewUib, worldOffset), camera.worldOffset);
 }
 
 void FView::prepareSSAO(Handle<HwTexture> ssao) const noexcept {
@@ -848,6 +856,10 @@ Camera const* View::getDirectionalLightCamera() const noexcept {
 
 void View::setShadowsEnabled(bool enabled) noexcept {
     upcast(this)->setShadowsEnabled(enabled);
+}
+
+void View::setRenderTarget(RenderTarget* renderTarget, TargetBufferFlags discard) noexcept {
+    upcast(this)->setRenderTarget(upcast(renderTarget), discard);
 }
 
 void View::setRenderTarget(TargetBufferFlags discard) noexcept {

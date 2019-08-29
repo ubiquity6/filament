@@ -51,6 +51,16 @@ public:
     void render(const FilamentArFrame& frame);
     void setObjectTransform(const mat4f& transform);
 
+    struct FilamentArPlaneGeometry {
+        mat4f transform;
+        float4* vertices;
+        uint16_t* indices;
+        size_t vertexCount;
+        size_t indexCount;
+    };
+
+    void updatePlaneGeometry(const FilamentArPlaneGeometry& geometry);
+
 private:
 
     void setupFilament();
@@ -59,8 +69,6 @@ private:
     void setupMesh();
     void setupView();
     void setupCameraFeedTriangle();
-
-    static void parseSphereHarmonics(const char* str, float3 harmonics[9]);
 
     void* nativeLayer = nullptr;
     uint32_t width, height;
@@ -84,6 +92,11 @@ private:
         Entity renderable;
         Entity sun;
         FullScreenTriangle* cameraFeedTriangle = nullptr;
+
+        VertexBuffer* planeVertices = nullptr;
+        IndexBuffer* planeIndices = nullptr;
+        Entity planeGeometry;
+        Material* shadowPlane = nullptr;
     } app;
 
 };

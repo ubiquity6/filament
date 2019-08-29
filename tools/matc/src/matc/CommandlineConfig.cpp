@@ -52,7 +52,9 @@ static void usage(char* name) {
             "   --optimize-size, -S\n"
             "       Optimize generated shader code for size instead of just performance\n\n"
             "   --api, -a\n"
-            "       Specify the target API: opengl (default), vulkan, metal, or all\n\n"
+            "       Specify the target API: opengl (default), vulkan, metal, or all\n"
+            "       This flag can be repeated to individually select APIs for inclusion:\n"
+            "           MATC --api opengl --api metal ...\n\n"
             "   --reflect, -r\n"
             "       Reflect the specified metadata as JSON: parameters\n\n"
             "   --variant-filter=<filter>, -V <filter>\n"
@@ -100,7 +102,7 @@ static uint8_t parseVariantFilter(const std::string& arg) {
         } else if (item == "shadowReceiver") {
             variantFilter |= filament::Variant::SHADOW_RECEIVER;
         } else if (item == "skinning") {
-            variantFilter |= filament::Variant::SKINNING;
+            variantFilter |= filament::Variant::SKINNING_OR_MORPHING;
         }
     }
     return variantFilter;
@@ -194,13 +196,13 @@ bool CommandlineConfig::parse() {
                 break;
             case 'a':
                 if (arg == "opengl") {
-                    mTargetApi = TargetApi::OPENGL;
+                    mTargetApi |= TargetApi::OPENGL;
                 } else if (arg == "vulkan") {
-                    mTargetApi = TargetApi::VULKAN;
-                } else if (arg == "all") {
-                    mTargetApi = TargetApi::ALL;
+                    mTargetApi |= TargetApi::VULKAN;
                 } else if (arg == "metal") {
-                    mTargetApi = TargetApi::METAL;
+                    mTargetApi |= TargetApi::METAL;
+                } else if (arg == "all") {
+                    mTargetApi |= TargetApi::ALL;
                 } else {
                     std::cerr << "Unrecognized target API. Must be 'opengl'|'vulkan'|'metal'|'all'."
                             << std::endl;
@@ -246,6 +248,7 @@ bool CommandlineConfig::parse() {
     if (mArgc - optind > 0) {
         mInput = new FilesystemInput(mArgv[optind]);
     }
+
     return true;
 }
 

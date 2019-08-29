@@ -18,23 +18,26 @@ if [[ "$KOKORO_BUILD_ID" ]]; then
     if [[ "$FILAMENT_ANDROID_CI_BUILD" ]]; then
         # Update NDK
         yes | $ANDROID_HOME/tools/bin/sdkmanager "ndk-bundle" > /dev/null
-
-        # Install CMake
-        mkdir -p cmake
-        cd cmake
-
-        sudo wget https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-Linux-x86_64.sh
-        sudo chmod +x ./cmake-$CMAKE_VERSION-Linux-x86_64.sh
-        sudo ./cmake-$CMAKE_VERSION-Linux-x86_64.sh --skip-license > /dev/null
-        sudo update-alternatives --install /usr/bin/cmake cmake `pwd`/bin/cmake 1000 --force
-
-        cd ..
     fi
+
+    # Install CMake
+    mkdir -p cmake
+    cd cmake
+
+    sudo wget https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-Linux-x86_64.sh
+    sudo chmod +x ./cmake-$CMAKE_VERSION-Linux-x86_64.sh
+    sudo ./cmake-$CMAKE_VERSION-Linux-x86_64.sh --skip-license > /dev/null
+    sudo update-alternatives --install /usr/bin/cmake cmake `pwd`/bin/cmake 1000 --force
+
+    cd ..
 
     # Install clang
     # This may or may not be needed...
     # sudo apt-key adv --keyserver apt.llvm.org --recv-keys 15CF4D18AF4F7421
     sudo apt-add-repository "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-$CLANG_VERSION main"
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+    sudo rm -f /etc/apt/sources.list.d/cuda.list
+    sudo rm -f /etc/apt/sources.list.d/nvidia-ml.list
     sudo apt-get update -y
     sudo apt-get --assume-yes --force-yes install clang-$CLANG_VERSION
 

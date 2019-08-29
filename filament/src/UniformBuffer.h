@@ -21,6 +21,7 @@
 
 #include "private/backend/DriverApi.h"
 
+#include <utils/Allocator.h>
 #include <utils/compiler.h>
 #include <utils/Log.h>
 
@@ -123,8 +124,13 @@ public:
     // offset in bytes, and count is the number of elements to invalidate
     template <typename T, typename = typename is_supported_type<T>::type>
     void setUniformArray(size_t offset, T const* UTILS_RESTRICT begin, size_t count) noexcept {
-        T* UTILS_RESTRICT p = static_cast<T*>(invalidateUniforms(offset, sizeof(T) * count));
-        std::copy_n(begin, count, p);
+        // we need to align array elements to the size of a vec4 (see std140 layout)
+        constexpr size_t stride = (sizeof(T) + 0xF) & ~0xF;
+        T* UTILS_RESTRICT p = static_cast<T*>(invalidateUniforms(offset, stride * count));
+        for (size_t i = 0; i < count; i++) {
+            *p = begin[i];
+            p = utils::pointermath::add(p, stride);
+        }
     }
 
     template <typename T, typename = typename is_supported_type<T>::type>
@@ -183,19 +189,6 @@ private:
     uint32_t mSize = 0;
     mutable bool mSomethingDirty = false;
 };
-
-// specialization for float3 (which has a different alignment)
-template<>
-inline void
-UniformBuffer::setUniformArray(size_t offset, math::float3 const* begin, size_t count) noexcept {
-    math::float4* p = static_cast<math::float4*>(invalidateUniforms(offset,
-            sizeof(math::float4) * count));
-    math::float3 const* const end = begin + count;
-    while (begin != end) {
-        p->xyz = *begin++;
-        ++p;
-    }
-}
 
 // specialization for mat3f (which has a different alignment, see std140 layout rules)
 template<>

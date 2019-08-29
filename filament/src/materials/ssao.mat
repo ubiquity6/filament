@@ -50,7 +50,6 @@ vertex {
     void materialVertex(inout MaterialVertexInputs material) {
         // far-plane in view space
         vec4 position = getPosition(); // clip-space
-        position.z = 1.0; // far plane
         material.vertex.xy = (position.xy * 0.5 + 0.5);
         material.vertex.zw = position.xy;
     }
@@ -63,7 +62,7 @@ fragment {
     #define NOISE_TYPE      NOISE_PATTERN
 
     const uint kSphereSampleCount = 16u;
-    const vec3 kSphereSamples[16] = vec3[](
+    const vec3 kSphereSamples[] = vec3[](
         vec3(-1.60954e-06,  3.93118e-07,  1.51895e-06), vec3(-0.09508890,  0.00458908, -0.0312535),
         vec3( 0.015179900, -0.025586400,  0.003764530), vec3( 0.07342620,  0.02180220,  0.0027781),
         vec3( 0.094587400,  0.043218400,  0.089147500), vec3(-0.00950861,  0.05136860,  0.0196730),
@@ -75,7 +74,7 @@ fragment {
     );
 
     const uint kNoiseSampleCount = 16u;
-    const vec3 kNoiseSamples[kNoiseSampleCount] = vec3[](
+    const vec3 kNoiseSamples[] = vec3[](
         vec3(-0.0782473, -0.749924, -0.6568800), vec3(-0.5723190, -0.1023790, -0.813615),
         vec3( 0.0486527, -0.380791,  0.9233800), vec3( 0.2812020, -0.6566640, -0.699799),
         vec3( 0.7119110, -0.235841, -0.6614850), vec3(-0.4458930,  0.6110630,  0.654050),
@@ -108,12 +107,6 @@ fragment {
         #endif
     }
 
-    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position) {
-        highp vec3 dpdx = dFdx(position);
-        highp vec3 dpdy = dFdy(position);
-        return cross(dpdx, dpdy);
-    }
-
     highp float linearizeDepth(highp float depth) {
         highp mat4 projection = getClipFromViewMatrix();
         highp float z = depth * 2.0 - 1.0; // depth in clip space
@@ -125,10 +118,30 @@ fragment {
     }
 
     highp vec3 computeViewSpacePositionFromDepth(in vec2 p, highp float linearDepth) {
+        p = p * 2.0 - 1.0; // to clip space
         highp mat4 invProjection = getViewFromClipMatrix();
         p.x *= invProjection[0].x;
         p.y *= invProjection[1].y;
         return vec3(p * -linearDepth, linearDepth);
+    }
+
+    // compute normals using derivatives, which essentially results in half-resolution normals
+    // this creates arifacts around geometry edges
+    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position) {
+        highp vec3 dpdx = dFdx(position);
+        highp vec3 dpdy = dFdy(position);
+        return cross(dpdx, dpdy);
+    }
+
+    // compute normals directly from the depth texture, resulting in full resolution normals
+    highp vec3 computeViewSpaceNormalNotNormalized(const highp vec3 position, const vec2 uv) {
+        vec2 uvdx = uv + vec2(materialParams.resolution.z, 0.0);
+        vec2 uvdy = uv + vec2(0.0, materialParams.resolution.w);
+        highp vec3 px = computeViewSpacePositionFromDepth(uvdx, sampleDepthLinear(uvdx));
+        highp vec3 py = computeViewSpacePositionFromDepth(uvdy, sampleDepthLinear(uvdy));
+        highp vec3 dpdx = px - position;
+        highp vec3 dpdy = py - position;
+        return cross(dpdx, dpdy);
     }
 
     // Ambient Occlusion, largely inspired from:
@@ -162,21 +175,12 @@ fragment {
         vec2 uv = variable_vertex.xy; // interpolated to pixel center
 
         highp float depth = sampleDepthLinear(uv);
-        highp vec3 origin = computeViewSpacePositionFromDepth(variable_vertex.zw, depth);
-        highp vec3 normal = computeViewSpaceNormalNotNormalized(origin);
-        vec3 noise = getNoise(uv);
-
-        // attempt to reject "bad" normals that were reconstructed at an edge that cause
-        // false occlusion (black spots)
-        // Normal's length should be small before they're normalized, unless they're bad ones.
-        if (dot(normal, normal) >= (sq(origin.z * origin.z * 0.000061))) {
-            // For now we assume no occlusion, which is wrong in some case, but overall seem to
-            // look better.  Maybe those could be handled in the blur pass instead?
-            material.baseColor.r = 1.0;
-            return;
-        }
+        highp vec3 origin = computeViewSpacePositionFromDepth(uv, depth);
+        highp vec3 normal = computeViewSpaceNormalNotNormalized(origin, uv);
 
         normal = normalize(normal);
+        vec3 noise = getNoise(uv);
+
         float occlusion = 0.0;
         for (uint i = 0u; i < kSphereSampleCount; i++) {
             occlusion += computeAmbientOcclusionSSAO(origin, normal, noise, kSphereSamples[i]);
@@ -185,6 +189,7 @@ fragment {
         float ao = 1.0 - occlusion / float(kSphereSampleCount);
         // simulate user-controled ao^n with n[1, 2]
         ao = mix(ao, ao * ao, materialParams.power);
+
         material.baseColor.r = ao;
     }
 }
