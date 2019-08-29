@@ -3,6 +3,15 @@
 This file contains one line summaries of commits that are worthy of mentioning in release notes.
 A new header is inserted each time a *tag* is created.
 
+## v1.3.2
+
+- Added optional web server for real-time inspection of shader code.
+- Added basic #include support in material files.
+- Fixed potential Metal memory leak.
+- Fixed intermittent memory overflow in wasm builds.
+- Fix bad normal mapping with skinning.
+- Java clients can now call getNativeObject().
+
 ## v1.3.1
 
 - Unified Filament Sceneform and npm releases.

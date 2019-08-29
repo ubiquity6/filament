@@ -488,7 +488,6 @@ class_<View>("View")
     .function("setAntiAliasing", &View::setAntiAliasing)
     .function("getAntiAliasing", &View::getAntiAliasing)
     .function("setClearTargets", &View::setClearTargets)
-    .function("setSampleCount", &View::setSampleCount)
     .function("setRenderTarget", EMBIND_LAMBDA(void, (View* self, RenderTarget* renderTarget), {
         self->setRenderTarget(renderTarget);
     }), allow_raw_pointers());

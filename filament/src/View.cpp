@@ -355,6 +355,7 @@ void FView::prepareLighting(FEngine& engine, FEngine::DriverApi& driver, ArenaSc
         FSkybox const* const skybox = scene->getSkybox();
         const float intensity = skybox ? skybox->getIntensity() : FIndirectLight::DEFAULT_INTENSITY;
         u.setUniform(offsetof(PerViewUib, iblLuminance), intensity * exposure);
+        u.setUniformArray(offsetof(PerViewUib, iblSH), FIndirectLight::getDefaultSH(), 9);
     }
 
     // Directional light (always at index 0)
