@@ -52,81 +52,77 @@ static string arraySizeToString(uint64_t size) {
 
 template<typename T, typename V>
 static void printChunk(ostream& text, const ChunkContainer& container, ChunkType type,
-        const char* title) {
+        const char* title, bool last = false) {
     T value;
     if (read(container, type, reinterpret_cast<V*>(&value))) {
-        text << "    " << setw(alignment) << left << title;
-        text << toString(value) << endl;
+        text << "\"" << title << "\": \"" << toString(value) << (last? "\"" : "\",") << endl;
     }
 }
 
 static void printFloatChunk(ostream& text, const ChunkContainer& container, ChunkType type,
-        const char* title) {
+        const char* title, bool last = false) {
     float value;
     if (read(container, type, &value)) {
-        text << "    " << setw(alignment) << left << title;
-        text << setprecision(2) << value << endl;
+        text << "\"" << title << "\": \"" << setprecision(2) << value << (last? "\"" : "\",") << endl;
     }
 }
 
 static void printUint32Chunk(ostream& text, const ChunkContainer& container,
-        ChunkType type, const char* title) {
+        ChunkType type, const char* title, bool last = false) {
     uint32_t value;
     if (read(container, type, &value)) {
-        text << "\"" << title << "\": " << value << ",\n";
+        text << "\"" << title << "\": \"" << value << (last? "\"" : "\",") << endl;
     }
 }
 
 static void printStringChunk(ostream& text, const ChunkContainer& container,
-        ChunkType type, const char* title) {
+        ChunkType type, const char* title, bool last = false) {
     CString value;
     if (read(container, type, &value)) {
-        text << "\"" << title << "\": \"" << value.c_str() << "\",\n";
+        text << "\"" << title << "\": \"" << value.c_str() << (last? "\"" : "\",") << endl;
     }
 }
 
 static bool printMaterial(ostream& text, const ChunkContainer& container) {
-    text << "Material:" << endl;
+    text << "\"material\": {" << endl;
 
     uint32_t version;
     if (read(container, MaterialVersion, &version)) {
-        text << "    " << setw(alignment) << left << "Version: ";
-        text << version << endl;
+        text << "\"version\": \"" << version << "\"," << endl;
     }
 
-    printUint32Chunk(text, container, PostProcessVersion, "Post process version: ");
+    printUint32Chunk(text, container, PostProcessVersion, "postProcessVersion");
 
     CString name;
     if (read(container, MaterialName, &name)) {
-        text << "    " << setw(alignment) << left << "Name: ";
-        text << name.c_str() << endl;
+        text << "\"name\": \"" << name.c_str() << "\"" << endl;
     }
 
-    text << endl;
+    text << "}," << endl;
 
-    text << "Shading:" << endl;
-    printChunk<Shading, uint8_t>(text, container, MaterialShading, "Model: ");
-    printChunk<VertexDomain, uint8_t>(text, container, MaterialVertexDomain, "Vertex domain: ");
-    printChunk<Interpolation, uint8_t>(text, container, MaterialInterpolation, "Interpolation: ");
-    printChunk<bool, bool>(text, container, MaterialShadowMultiplier, "Shadow multiply: ");
-    printChunk<bool, bool>(text, container, MaterialSpecularAntiAliasing, "Specular anti-aliasing: ");
-    printFloatChunk(text, container, MaterialSpecularAntiAliasingVariance, "    Variance: ");
-    printFloatChunk(text, container, MaterialSpecularAntiAliasingThreshold, "    Threshold: ");
-    printChunk<bool, bool>(text, container, MaterialClearCoatIorChange, "Clear coat IOR change: ");
+    text << "\"shading\": {" << endl;
+    printChunk<Shading, uint8_t>(text, container, MaterialShading, "model");
+    printChunk<VertexDomain, uint8_t>(text, container, MaterialVertexDomain, "vertexDomain");
+    printChunk<Interpolation, uint8_t>(text, container, MaterialInterpolation, "interpolation");
+    printChunk<bool, bool>(text, container, MaterialShadowMultiplier, "shadowMultiply");
+    printChunk<bool, bool>(text, container, MaterialSpecularAntiAliasing, "specularAA");
+    printFloatChunk(text, container, MaterialSpecularAntiAliasingVariance, "variance");
+    printFloatChunk(text, container, MaterialSpecularAntiAliasingThreshold, "threshold");
+    printChunk<bool, bool>(text, container, MaterialClearCoatIorChange, "clearCoatIORChange", true);
 
-    text << endl;
+    text << "}," << endl;
 
-    text << "Raster state:" << endl;
-    printChunk<BlendingMode, uint8_t>(text, container, MaterialBlendingMode, "Blending: ");
-    printFloatChunk(text, container, MaterialMaskThreshold, "Mask threshold: ");
-    printChunk<bool, bool>(text, container, MaterialColorWrite, "Color write: ");
-    printChunk<bool, bool>(text, container, MaterialDepthWrite, "Depth write: ");
-    printChunk<bool, bool>(text, container, MaterialDepthTest, "Depth test: ");
-    printChunk<bool, bool>(text, container, MaterialDoubleSided, "Double sided: ");
-    printChunk<CullingMode, uint8_t>(text, container, MaterialCullingMode, "Culling: ");
-    printChunk<TransparencyMode, uint8_t>(text, container, MaterialTransparencyMode, "Transparency: ");
+    text << "\"rasterState\": {" << endl;
+    printChunk<BlendingMode, uint8_t>(text, container, MaterialBlendingMode, "blending");
+    printFloatChunk(text, container, MaterialMaskThreshold, "maskThreshold");
+    printChunk<bool, bool>(text, container, MaterialColorWrite, "clorWrite");
+    printChunk<bool, bool>(text, container, MaterialDepthWrite, "depthWrite");
+    printChunk<bool, bool>(text, container, MaterialDepthTest, "depthTest");
+    printChunk<bool, bool>(text, container, MaterialDoubleSided, "doubleSided");
+    printChunk<CullingMode, uint8_t>(text, container, MaterialCullingMode, "culling");
+    printChunk<TransparencyMode, uint8_t>(text, container, MaterialTransparencyMode, "transparency", true);
 
-    text << endl;
+    text << "}," << endl;
 
     uint32_t requiredAttributes;
     if (read(container, MaterialRequiredAttributes, &requiredAttributes)) {
@@ -134,13 +130,13 @@ static bool printMaterial(ostream& text, const ChunkContainer& container) {
         bitset.setValue(requiredAttributes);
 
         if (bitset.count() > 0) {
-            text << "Required attributes:" << endl;
-            for (size_t i = 0; i < bitset.size(); i++) {
+            text << "\"attributes\": [" << endl;
+            for (size_t i = 0, j = 0, n = bitset.size(), m = bitset.count(); i < n; i++) {
                 if (bitset.test(i)) {
-                    text << "    " << toString(static_cast<VertexAttribute>(i)) << endl;
+                    text << "\"" << toString(static_cast<VertexAttribute>(i)) << ((++j < m) ? "\"," : "\"") << endl;
                 }
             }
-            text << endl;
+            text << "]" << endl;
         }
     }
 
@@ -183,7 +179,7 @@ static bool printParametersInfo(ostream& text, const ChunkContainer& container) 
         return true;
     }
 
-    text << "Parameters:" << endl;
+    text << ", \"parameters\": [" << endl;
 
     for (uint64_t i = 0; i < uibCount; i++) {
         CString fieldName;
@@ -207,12 +203,12 @@ static bool printParametersInfo(ostream& text, const ChunkContainer& container) 
             return false;
         }
 
-        text << "    "
-                  << setw(alignment) << fieldName.c_str()
-                  << setw(alignment) << toString(UniformType(fieldType))
-                  << arraySizeToString(fieldSize)
-                  << setw(10) << toString(Precision(fieldPrecision))
-                  << endl;
+        text << "{" << endl;
+        text << "\"name\": \"" << fieldName.c_str() << "\"," << endl;
+        text << "\"type\": \"" << toString(UniformType(fieldType)) << "\"," << endl;
+        text << "\"size\": \"" << fieldSize << "\"," << endl;
+        text << "\"precision\": \"" << toString(Precision(fieldPrecision)) << "\"" << endl;
+        text << ((i == uibCount-1 && sibCount == 0) ? "}" : "},") << endl;
     }
 
     for (uint64_t i = 0; i < sibCount; i++) {
@@ -241,15 +237,14 @@ static bool printParametersInfo(ostream& text, const ChunkContainer& container) 
             return false;
         }
 
-        text << "    "
-                << setw(alignment) << fieldName.c_str()
-                << setw(alignment) << toString(SamplerType(fieldType))
-                << setw(10) << toString(Precision(fieldPrecision))
-                << toString(SamplerFormat(fieldFormat))
-                << endl;
+        text << "{" << endl;
+        text << "\"name\": \"" << fieldName.c_str() << "\"," << endl;
+        text << "\"type\": \"" << toString(SamplerType(fieldType)) << "\"," << endl;
+        text << "\"format\": \"" << toString(SamplerFormat(fieldFormat)) << "\"," << endl;
+        text << "\"precision\": \"" << toString(Precision(fieldPrecision)) << "\"" << endl;
+        text << ((i < sibCount-1) ? "}," : "}") << endl;
     }
-
-    text << endl;
+    text << "]" << endl;
 
     return true;
 }
@@ -330,25 +325,28 @@ static bool printMetalInfo(ostream& text, const ChunkContainer& container) {
 
 bool TextWriter::writeMaterialInfo(const filaflat::ChunkContainer& container) {
     ostringstream text;
+    text << "{" << endl;
+
     if (!printMaterial(text, container)) {
         return false;
     }
     if (!printParametersInfo(text, container)) {
         return false;
     }
-    if (!printGlslInfo(text, container)) {
-        return false;
-    }
-    if (!printVkInfo(text, container)) {
-        return false;
-    }
-    if (!printMetalInfo(text, container)) {
-        return false;
-    }
+    // if (!printGlslInfo(text, container)) {
+    //     return false;
+    // }
+    // if (!printVkInfo(text, container)) {
+    //     return false;
+    // }
+    // if (!printMetalInfo(text, container)) {
+    //     return false;
+    // }
 
-    printChunks(text, container);
+    //printChunks(text, container);
 
     text << endl;
+    text << "}" << endl;
 
     mTextString = CString(text.str().c_str());
     return true;
