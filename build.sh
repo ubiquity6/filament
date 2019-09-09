@@ -2,7 +2,7 @@
 set -e
 
 function emsdk_setup() {
-    pushd emsdk
+    pushd third-party/emsdk
     ./u6_build.sh
     popd
 
