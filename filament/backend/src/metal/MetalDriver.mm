@@ -579,9 +579,9 @@ bool MetalDriver::isFrameTimeSupported() {
 
 void MetalDriver::updateVertexBuffer(Handle<HwVertexBuffer> vbh, size_t index,
         BufferDescriptor&& data, uint32_t byteOffset) {
-    assert(vb->buffers[index].size>=byteOffset + data.size);
-
     auto* vb = handle_cast<MetalVertexBuffer>(mHandleMap, vbh);
+    assert(vb->buffers[index].length>=byteOffset + data.size);
+
     uint8_t *ptr = (uint8_t*)vb->buffers[index].contents;
     ptr+=byteOffset;
     memcpy(ptr, data.buffer, data.size);
@@ -589,9 +589,8 @@ void MetalDriver::updateVertexBuffer(Handle<HwVertexBuffer> vbh, size_t index,
 
 void MetalDriver::updateIndexBuffer(Handle<HwIndexBuffer> ibh, BufferDescriptor&& data,
         uint32_t byteOffset) {
-    assert(vb->buffers[index].size>=byteOffset + data.size);
-
     auto* ib = handle_cast<MetalIndexBuffer>(mHandleMap, ibh);
+    assert(ib->buffer.length>=byteOffset + data.size);
     uint8_t *ptr = (uint8_t*)ib->buffer.contents;
     ptr+=byteOffset;
     memcpy(ptr, data.buffer, data.size);
