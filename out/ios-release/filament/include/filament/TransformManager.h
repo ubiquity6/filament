@@ -146,6 +146,14 @@ public:
     void setParent(Instance i, Instance newParent) noexcept;
 
     /**
+     * Unparent the entity.
+     * @param i             The instance of the transform component to re-parent
+     * @attention It is an error to re-parent an entity to a descendant and will cause undefined behaviour.
+     * @see getInstance()
+     */
+    void clearParent(Instance i) noexcept;
+
+    /**
      * Returns the parent of a transform component, or the null entity if it is a root.
      * @param i The instance of the transform component to query.
      */

@@ -779,8 +779,9 @@ class_<TransformManager>("TransformManager")
 
     .function("destroy", &TransformManager::destroy)
     .function("setParent", &TransformManager::setParent)
+    .function("clearParent", &TransformManager::clearParent)
     .function("getParent", &TransformManager::getParent)
-
+ 
     .function("getChidren", EMBIND_LAMBDA(std::vector<utils::Entity>,
             (TransformManager* self, TransformManager::Instance instance), {
         std::vector<utils::Entity> result(self->getChildCount(instance));

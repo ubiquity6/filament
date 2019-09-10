@@ -71,6 +71,21 @@ void FTransformManager::setParent(Instance i, Instance parent) noexcept {
     }
 }
 
+
+void FTransformManager::clearParent(Instance i) noexcept {
+    validateNode(i);
+    if (i) {
+        auto& manager = mManager;
+        Instance oldParent = manager[i].parent;
+        if (oldParent) {
+            // TODO: on debug builds, ensure that the new parent isn't one of our descendant
+            removeNode(i);
+            updateNodeTransform(i);
+        }
+    }
+}
+
+
 Entity FTransformManager::getParent(Instance i) const noexcept {
     i = mManager[i].parent;
     return i ? mManager.getEntity(i) : Entity();
@@ -428,6 +443,10 @@ const mat4f& TransformManager::getWorldTransform(Instance ci) const noexcept {
 
 void TransformManager::setParent(Instance i, Instance newParent) noexcept {
     upcast(this)->setParent(i, newParent);
+}
+
+void TransformManager::clearParent(Instance i) noexcept {
+    upcast(this)->clearParent(i);
 }
 
 utils::Entity TransformManager::getParent(Instance i) const noexcept {
