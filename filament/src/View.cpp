@@ -791,8 +791,16 @@ void View::setScene(Scene* scene) {
     return upcast(this)->setScene(upcast(scene));
 }
 
+void View::clearScene() {
+    return upcast(this)->setScene(nullptr);
+}
+
 Scene* View::getScene() noexcept {
     return upcast(this)->getScene();
+}
+
+void View::clearCamera()  {
+    return upcast(this)->setCamera(nullptr);
 }
 
 
