@@ -921,6 +921,9 @@ class_<MaterialInstance>("MaterialInstance")
     .function("setTextureParameter", EMBIND_LAMBDA(void,
             (MaterialInstance* self, std::string name, Texture* value, TextureSampler sampler), {
         self->setParameter(name.c_str(), value, sampler); }), allow_raw_pointers())
+    .function("clearTextureParameter", EMBIND_LAMBDA(void,
+            (MaterialInstance* self, std::string name), {
+        self->setParameter(name.c_str(), NULL, TextureSampler()); }), allow_raw_pointers())
     .function("setColor3Parameter", EMBIND_LAMBDA(void,
             (MaterialInstance* self, std::string name, RgbType type, filament::math::float3 value), {
         self->setParameter(name.c_str(), type, value); }), allow_raw_pointers())

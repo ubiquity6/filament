@@ -138,7 +138,7 @@ inline void FMaterialInstance::setParameter(const char* name, const T* value, si
 
 void FMaterialInstance::setParameter(const char* name,
         Texture const* texture, TextureSampler const& sampler) noexcept {
-    setParameter(name, upcast(texture)->getHwHandle(), sampler.getSamplerParams());
+    setParameter(name, texture ? upcast(texture)->getHwHandle() : backend::Handle<backend::HwTexture>() , sampler.getSamplerParams());
 }
 
 void FMaterialInstance::setParameter(const char* name,
