@@ -15,6 +15,7 @@ set(PUBLIC_HDRS
         include/backend/PixelBufferDescriptor.h
         include/backend/Platform.h
         include/backend/TargetBufferInfo.h
+	    include/backend/GLUtils.h
 )
 
 set(SRCS
@@ -42,6 +43,8 @@ set(PRIVATE_HDRS
         include/private/backend/DriverApiForward.h
         include/private/backend/Program.h
         include/private/backend/SamplerGroup.h
+        include/private/backend/gl_headers.h
+        include/private/backend/NullGLES.h
         src/CommandStreamDispatcher.h
         src/DataReshaper.h
         src/DriverBase.h
@@ -55,9 +58,7 @@ set(PRIVATE_HDRS
 if (NOT USE_EXTERNAL_GLES3)
     list(APPEND SRCS
             src/opengl/gl_headers.cpp
-            src/opengl/gl_headers.h
             src/opengl/GLUtils.cpp
-            src/opengl/GLUtils.h
             src/opengl/OpenGLBlitter.cpp
             src/opengl/OpenGLBlitter.h
             src/opengl/OpenGLDriver.cpp

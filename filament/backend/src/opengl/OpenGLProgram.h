@@ -26,7 +26,7 @@
 #include <utils/Log.h>
 
 #include "DriverBase.h"
-#include "gl_headers.h"
+#include "private/backend/gl_headers.h"
 #include "OpenGLDriver.h"
 
 #include "private/backend/Driver.h"
