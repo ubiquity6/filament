@@ -27,8 +27,10 @@
 namespace filament {
 namespace GLUtils {
 
+typedef void (*checkGLErrorFnPtrType)(utils::io::ostream& out, const char* function, size_t line);
 void checkGLError(utils::io::ostream& out, const char* function, size_t line) noexcept;
 void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_t line) noexcept;
+checkGLErrorFnPtrType checkGLErrorFnPtr = GLUtils::checkGLError;
 
 #ifdef NDEBUG
 #define CHECK_GL_ERROR(out)
@@ -37,9 +39,13 @@ void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_
 #ifdef _MSC_VER
     #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
-#define CHECK_GL_ERROR(out) { GLUtils::checkGLError(out, __PRETTY_FUNCTION__, __LINE__); }
+#define CHECK_GL_ERROR(out) { GLUtils::checkGLErrorFnPtr(out, __PRETTY_FUNCTION__, __LINE__); }
 #define CHECK_GL_FRAMEBUFFER_STATUS(out) { GLUtils::checkFramebufferStatus(out, __PRETTY_FUNCTION__, __LINE__); }
 #endif
+
+void inline setGLErrorFnPtr(checkGLErrorFnPtrType fn) {
+    GLUtils::checkGLErrorFnPtr = fn;
+}
 
 constexpr inline GLuint getComponentCount(backend::ElementType type) noexcept {
     using ElementType = backend::ElementType;
