@@ -480,8 +480,12 @@ class_<Renderer>("Renderer")
 class_<View>("View")
     .function("setScene", &View::setScene, allow_raw_pointers())
     .function("setCamera", &View::setCamera, allow_raw_pointers())
-    .function("clearScene", &View::clearScene, allow_raw_pointers())
-    .function("clearCamera", &View::clearCamera, allow_raw_pointers())
+    .function("clearScene", EMBIND_LAMBDA(void, (View* self), {
+        self->setScene(nullptr);
+    }), allow_raw_pointers())
+    .function("clearCamera", EMBIND_LAMBDA(void, (View* self), {
+        self->setCamera(nullptr);
+    }), allow_raw_pointers())
     .function("getViewport", &View::getViewport)
     .function("setViewport", &View::setViewport)
     .function("setClearColor", &View::setClearColor)
