@@ -30,7 +30,7 @@ namespace GLUtils {
 typedef void (*checkGLErrorFnPtrType)(utils::io::ostream& out, const char* function, size_t line);
 void checkGLError(utils::io::ostream& out, const char* function, size_t line) noexcept;
 void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_t line) noexcept;
-checkGLErrorFnPtrType checkGLErrorFnPtr = GLUtils::checkGLError;
+static checkGLErrorFnPtrType checkGLErrorFnPtr = GLUtils::checkGLError;
 
 #ifdef NDEBUG
 #define CHECK_GL_ERROR(out)
