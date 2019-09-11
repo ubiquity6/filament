@@ -269,18 +269,6 @@ public:
      */
     void setScene(Scene* scene);
 
-
-    /**
-     * Clear this View instance's Scene.
-     *
-     *
-     * @note
-     *  There is no reference-counting.
-     *  Make sure to dissociate a Scene from all Views before destroying it.
-     */
-    void clearScene();
-
-
     /**
      * Returns the Scene currently associated with this View.
      * @return A pointer to the Scene associated to this View. nullptr if no Scene is set.
@@ -310,18 +298,6 @@ public:
      *  Make sure to dissociate a Camera from all Views before destroying it.
      */
     void setCamera(Camera* camera) noexcept;
-
-
-    /**
-     * Clear this View's Camera.
-     *
-     *
-     * @note
-     *  There is no reference-counting.
-     *  Make sure to dissociate a Camera from all Views before destroying it.
-     */
-    void clearCamera();
-
 
     /**
      * Returns the Camera currently associated with this View.
