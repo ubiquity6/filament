@@ -19,7 +19,7 @@
 
 #include "private/backend/Driver.h"
 #include "DriverBase.h"
-#include "backend/GLUtils.h"
+#include "GLUtils.h"
 
 #include <utils/compiler.h>
 #include <utils/Allocator.h>

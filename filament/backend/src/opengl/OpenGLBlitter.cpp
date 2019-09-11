@@ -16,7 +16,7 @@
 
 #include "OpenGLBlitter.h"
 
-#include "backend/GLUtils.h"
+#include "GLUtils.h"
 
 #include <utils/compiler.h>
 #include <utils/Log.h>

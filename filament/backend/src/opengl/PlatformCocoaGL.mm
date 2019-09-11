@@ -20,7 +20,7 @@
 #include "PlatformCocoaGL.h"
 
 #include "OpenGLDriverFactory.h"
-#include <private/backend/gl_headers.h>
+#include "gl_headers.h"
 
 #include <utils/Panic.h>
 

@@ -17,7 +17,7 @@
 #ifndef FILAMENT_DRIVER_OPENGL_COCOA_TOUCH_EXTERNAL_IMAGE
 #define FILAMENT_DRIVER_OPENGL_COCOA_TOUCH_EXTERNAL_IMAGE
 
-#include <private/backend/gl_headers.h>
+#include "gl_headers.h"
 
 #include <CoreVideo/CoreVideo.h>
 

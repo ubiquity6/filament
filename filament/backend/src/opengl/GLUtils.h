@@ -22,7 +22,7 @@
 
 #include <backend/DriverEnums.h>
 
-#include "private/backend/gl_headers.h"
+#include "gl_headers.h"
 
 namespace filament {
 namespace GLUtils {

@@ -36,7 +36,7 @@
 #include "android/VirtualMachineEnv.h"
 
 #include "OpenGLDriverFactory.h"
-#include "private/backend/gl_headers.h"
+#include "gl_headers.h"
 
 #include <android/api-level.h>
 #include <sys/system_properties.h>

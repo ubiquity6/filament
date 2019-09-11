@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "backend/GLUtils.h"
+#include "GLUtils.h"
 
 #include <ostream>
 
@@ -53,7 +53,7 @@ void checkGLError(io::ostream& out, const char* function, size_t line) noexcept 
     }
     out << "OpenGL error " << io::hex << err << " (" << error << ") in \""
         << function << "\" at line " << io::dec << line << io::endl;
-    std::terminate();
+    // std::terminate();
 }
 
 void checkFramebufferStatus(io::ostream& out, const char* function, size_t line) noexcept {
