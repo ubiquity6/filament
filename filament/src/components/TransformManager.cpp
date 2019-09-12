@@ -71,6 +71,7 @@ void FTransformManager::setParent(Instance i, Instance parent) noexcept {
     }
 }
 
+
 Entity FTransformManager::getParent(Instance i) const noexcept {
     i = mManager[i].parent;
     return i ? mManager.getEntity(i) : Entity();
