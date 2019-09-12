@@ -84,13 +84,6 @@ Java_com_google_android_filament_TransformManager_nSetParent(JNIEnv*, jclass,
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_google_android_filament_TransformManager_nClearParent(JNIEnv*, jclass,
-        jlong nativeTransformManager, jint i) {
-    TransformManager* tm = (TransformManager*) nativeTransformManager;
-    tm->clearParent((TransformManager::Instance) i);
-}
-
-extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_TransformManager_nSetTransform(JNIEnv* env,
         jclass, jlong nativeTransformManager, jint i,
         jfloatArray localTransform_) {

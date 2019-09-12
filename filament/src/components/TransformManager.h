@@ -62,8 +62,6 @@ public:
 
     void setParent(Instance i, Instance newParent) noexcept;
 
-    void clearParent(Instance i) noexcept;
-
     utils::Entity getParent(Instance i) const noexcept;
 
     size_t getChildCount(Instance i) const noexcept;
