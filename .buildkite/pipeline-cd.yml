@@ -1,5 +1,5 @@
 steps:
-- label: 'Deploy ios and android (darwin)'
+- label: 'Deploy ios, android, and webgl (darwin)'
   command:
     - export LANG=en_US.UTF-8
     - export LANGUAGE=en_US.UTF-8
@@ -20,7 +20,7 @@ steps:
     queue: mac_ci_v5
   timeout_in_minutes: 90
 
-- label: 'Deploy android (linux)'
+- label: 'Deploy android and webgl (linux)'
   command:
     - ./build.sh -p android,webgl -a  -s release debug
     - cd out
