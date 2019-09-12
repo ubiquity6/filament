@@ -27,6 +27,10 @@ using namespace utils;
 
 namespace GLUtils {
 
+GLenum glGetErrorPassthrough() {
+    return glGetError();
+}
+
 void checkGLError(io::ostream& out, const char* function, size_t line) noexcept {
     GLenum err = glGetError();
     const char* error = "unknown";
