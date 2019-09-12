@@ -14,7 +14,7 @@ steps:
     - aws s3 cp filament-ios-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
     - tar -czvf filament-android-darwin.tgz android-debug android-release *.aar
     - aws s3 cp filament-android-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
-    - tar -czvf filament-webgl-darwin.tgz cmake-webgl-debug cmake-webgl-release
+    - tar -czvf filament-webgl-darwin.tgz cmake-webgl-debug/web cmake-webgl-release/web
     - aws s3 cp filament-webgl-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: mac_ci_v5
@@ -26,7 +26,7 @@ steps:
     - cd out
     - tar -czvf filament-android-linux.tgz android-debug android-release *.aar
     - aws s3 cp filament-android-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
-    - tar -czvf filament-webgl-linux.tgz cmake-webgl-debug cmake-webgl-release
+    - tar -czvf filament-webgl-linux.tgz cmake-webgl-debug/web cmake-webgl-release/web
     - aws s3 cp filament-webgl-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: android_ci_v5
