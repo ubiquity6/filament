@@ -789,7 +789,6 @@ class_<TransformManager>("TransformManager")
     .function("clearParent", EMBIND_LAMBDA(void,
             (TransformManager* self, TransformManager::Instance instance), {
         self->setParent(instance, 0);
-        return result;
     }), allow_raw_pointers())
     .function("getChidren", EMBIND_LAMBDA(std::vector<utils::Entity>,
             (TransformManager* self, TransformManager::Instance instance), {
