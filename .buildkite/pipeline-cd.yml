@@ -11,11 +11,11 @@ steps:
     - ./build.sh -p ios,android,webgl -i -s release debug
     - cd out
     - tar -czvf filament-ios-darwin.tgz ios-debug ios-release
-    - aws s3 cp out/filament-ios-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+    - aws s3 cp filament-ios-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
     - tar -czvf filament-android-darwin.tgz android-debug android-release *.aar
-    - aws s3 cp out/filament-android-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+    - aws s3 cp filament-android-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
     - tar -czvf filament-webgl-darwin.tgz cmake-webgl-debug cmake-webgl-release
-    - aws s3 cp out/filament-webgl-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+    - aws s3 cp filament-webgl-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: mac_ci_v5
   timeout_in_minutes: 90
@@ -23,10 +23,11 @@ steps:
 - label: 'Deploy android (linux)'
   command:
     - ./build.sh -p android,webgl -a  -s release debug
+    - cd out
     - tar -czvf filament-android-linux.tgz android-debug android-release *.aar
-    - aws s3 cp out/filament-android-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+    - aws s3 cp filament-android-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
     - tar -czvf filament-webgl-linux.tgz cmake-webgl-debug cmake-webgl-release
-    - aws s3 cp out/filament-webgl-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+    - aws s3 cp filament-webgl-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: android_ci_v5
   timeout_in_minutes: 90
