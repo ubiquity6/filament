@@ -795,7 +795,6 @@ Scene* View::getScene() noexcept {
     return upcast(this)->getScene();
 }
 
-
 void View::setCamera(Camera* camera) noexcept {
     upcast(this)->setCameraUser(upcast(camera));
 }

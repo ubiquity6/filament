@@ -480,6 +480,12 @@ class_<Renderer>("Renderer")
 class_<View>("View")
     .function("setScene", &View::setScene, allow_raw_pointers())
     .function("setCamera", &View::setCamera, allow_raw_pointers())
+    .function("clearScene", EMBIND_LAMBDA(void, (View* self), {
+        self->setScene(nullptr);
+    }), allow_raw_pointers())
+    .function("clearCamera", EMBIND_LAMBDA(void, (View* self), {
+        self->setCamera(nullptr);
+    }), allow_raw_pointers())
     .function("getViewport", &View::getViewport)
     .function("setViewport", &View::setViewport)
     .function("setClearColor", &View::setClearColor)
@@ -780,7 +786,10 @@ class_<TransformManager>("TransformManager")
     .function("destroy", &TransformManager::destroy)
     .function("setParent", &TransformManager::setParent)
     .function("getParent", &TransformManager::getParent)
-
+    .function("clearParent", EMBIND_LAMBDA(void,
+            (TransformManager* self, TransformManager::Instance instance), {
+        self->setParent(instance, 0);
+    }), allow_raw_pointers())
     .function("getChidren", EMBIND_LAMBDA(std::vector<utils::Entity>,
             (TransformManager* self, TransformManager::Instance instance), {
         std::vector<utils::Entity> result(self->getChildCount(instance));
@@ -921,6 +930,9 @@ class_<MaterialInstance>("MaterialInstance")
     .function("setTextureParameter", EMBIND_LAMBDA(void,
             (MaterialInstance* self, std::string name, Texture* value, TextureSampler sampler), {
         self->setParameter(name.c_str(), value, sampler); }), allow_raw_pointers())
+    .function("clearTextureParameter", EMBIND_LAMBDA(void,
+            (MaterialInstance* self, std::string name), {
+        self->setParameter(name.c_str(), NULL, TextureSampler()); }), allow_raw_pointers())
     .function("setColor3Parameter", EMBIND_LAMBDA(void,
             (MaterialInstance* self, std::string name, RgbType type, filament::math::float3 value), {
         self->setParameter(name.c_str(), type, value); }), allow_raw_pointers())
