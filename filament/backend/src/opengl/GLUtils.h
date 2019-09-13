@@ -21,13 +21,13 @@
 #include <utils/Log.h>
 
 #include <backend/DriverEnums.h>
+#include <backend/GLUtilsPublic.h>
 
 #include "gl_headers.h"
 
 namespace filament {
 namespace GLUtils {
 
-void checkGLError(utils::io::ostream& out, const char* function, size_t line) noexcept;
 void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_t line) noexcept;
 
 #ifdef NDEBUG
@@ -37,7 +37,6 @@ void checkFramebufferStatus(utils::io::ostream& out, const char* function, size_
 #ifdef _MSC_VER
     #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
-#define CHECK_GL_ERROR(out) { GLUtils::checkGLError(out, __PRETTY_FUNCTION__, __LINE__); }
 #define CHECK_GL_FRAMEBUFFER_STATUS(out) { GLUtils::checkFramebufferStatus(out, __PRETTY_FUNCTION__, __LINE__); }
 #endif
 
