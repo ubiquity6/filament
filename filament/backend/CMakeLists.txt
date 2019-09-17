@@ -15,6 +15,7 @@ set(PUBLIC_HDRS
         include/backend/PixelBufferDescriptor.h
         include/backend/Platform.h
         include/backend/TargetBufferInfo.h
+        include/backend/GLUtilsPublic.h
 )
 
 set(SRCS
