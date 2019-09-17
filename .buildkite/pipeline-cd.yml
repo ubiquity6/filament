@@ -8,7 +8,7 @@ steps:
     - export ANDROID_NDK_HOME=/Users/administrator/Android/ndk-bundle
     - export JAVA_HOME=/Library/Java/JavaVirtualMachines/adoptopenjdk-8.jdk/Contents/Home
     - source ~/.bash_profile
-    - ./build.sh -p ios,android,webgl -i -s release debug
+    - ./build.sh -c -p ios,android,webgl -i -s release debug
     - cd out
 
     - tar -czvf filament-ios-release-darwin.tgz ios-release
@@ -31,7 +31,7 @@ steps:
 
 - label: 'Deploy android and webgl (linux)'
   command:
-    - ./build.sh -p android,webgl -i -s release debug
+    - ./build.sh -c -p android,webgl -i -s release debug
     - cd out
 
     - tar -czvf filament-android-release-linux.tgz android-release filament-android-release.aar
