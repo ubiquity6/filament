@@ -341,7 +341,7 @@ private:
     uint8_t mVisibleLayers = 0x1;
     uint8_t mSampleCount = 1;
     AntiAliasing mAntiAliasing = AntiAliasing::FXAA;
-    ToneMapping mToneMapping = ToneMapping::ACES;
+    ToneMapping mToneMapping = ToneMapping::LINEAR; //AR - default to LINEAR to match ThreeJS
     Dithering mDithering = Dithering::TEMPORAL;
     bool mShadowingEnabled = true;
     bool mHasPostProcessPass = true;
