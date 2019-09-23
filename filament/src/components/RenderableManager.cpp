@@ -299,6 +299,7 @@ void FRenderableManager::create(
             // renderables. In the future we could try addressing this by implementing a paging
             // system such that multiple skinned renderables will share regions within a single
             // large block of bones.
+            assert(count<=CONFIG_MAX_BONE_COUNT);
             bones = std::unique_ptr<Bones>(new Bones{
                     driver.createUniformBuffer(CONFIG_MAX_BONE_COUNT * sizeof(PerRenderableUibBone),
                             backend::BufferUsage::DYNAMIC),
