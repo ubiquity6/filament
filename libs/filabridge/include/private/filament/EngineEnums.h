@@ -59,7 +59,8 @@ constexpr size_t CONFIG_MAX_LIGHT_INDEX = CONFIG_MAX_LIGHT_COUNT - 1;
 
 // This value is also limited by UBO size, ES3.0 only guarantees 16 KiB.
 // We store 64 bytes per bone.
-constexpr size_t CONFIG_MAX_BONE_COUNT = 256;
+// On some webGL platforms we only have 256 vec4s (defined by GL_MAX_VERTEX_UNIFORM_VECTORS) not 16Kib, so has to be smaller still
+constexpr size_t CONFIG_MAX_BONE_COUNT = 56;
 
 } // namespace filament
 
