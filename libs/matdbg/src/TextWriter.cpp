@@ -59,11 +59,19 @@ static void printChunk(ostream& text, const ChunkContainer& container, ChunkType
     }
 }
 
+static void printBoolChunk(ostream& text, const ChunkContainer& container, ChunkType type,
+        const char* title, bool last = false) {
+    bool value;
+    if (read(container, type, &value)) {
+        text << "\"" << title << "\": " << (value? "true" : "false") << (last? "" : ",") << endl;
+    }
+}
+
 static void printFloatChunk(ostream& text, const ChunkContainer& container, ChunkType type,
         const char* title, bool last = false) {
     float value;
     if (read(container, type, &value)) {
-        text << "\"" << title << "\": \"" << setprecision(2) << value << (last? "\"" : "\",") << endl;
+        text << "\"" << title << "\": " << setprecision(2) << value << (last? "" : ",") << endl;
     }
 }
 
@@ -104,21 +112,21 @@ static bool printMaterial(ostream& text, const ChunkContainer& container) {
     printChunk<Shading, uint8_t>(text, container, MaterialShading, "model");
     printChunk<VertexDomain, uint8_t>(text, container, MaterialVertexDomain, "vertexDomain");
     printChunk<Interpolation, uint8_t>(text, container, MaterialInterpolation, "interpolation");
-    printChunk<bool, bool>(text, container, MaterialShadowMultiplier, "shadowMultiply");
-    printChunk<bool, bool>(text, container, MaterialSpecularAntiAliasing, "specularAA");
+    printBoolChunk(text, container, MaterialShadowMultiplier, "shadowMultiply");
+    printBoolChunk(text, container, MaterialSpecularAntiAliasing, "specularAA");
     printFloatChunk(text, container, MaterialSpecularAntiAliasingVariance, "variance");
     printFloatChunk(text, container, MaterialSpecularAntiAliasingThreshold, "threshold");
-    printChunk<bool, bool>(text, container, MaterialClearCoatIorChange, "clearCoatIORChange", true);
+    printBoolChunk(text, container, MaterialClearCoatIorChange, "clearCoatIORChange", true);
 
     text << "}," << endl;
 
     text << "\"rasterState\": {" << endl;
     printChunk<BlendingMode, uint8_t>(text, container, MaterialBlendingMode, "blending");
     printFloatChunk(text, container, MaterialMaskThreshold, "maskThreshold");
-    printChunk<bool, bool>(text, container, MaterialColorWrite, "clorWrite");
-    printChunk<bool, bool>(text, container, MaterialDepthWrite, "depthWrite");
-    printChunk<bool, bool>(text, container, MaterialDepthTest, "depthTest");
-    printChunk<bool, bool>(text, container, MaterialDoubleSided, "doubleSided");
+    printBoolChunk(text, container, MaterialColorWrite, "clorWrite");
+    printBoolChunk(text, container, MaterialDepthWrite, "depthWrite");
+    printBoolChunk(text, container, MaterialDepthTest, "depthTest");
+    printBoolChunk(text, container, MaterialDoubleSided, "doubleSided");
     printChunk<CullingMode, uint8_t>(text, container, MaterialCullingMode, "culling");
     printChunk<TransparencyMode, uint8_t>(text, container, MaterialTransparencyMode, "transparency", true);
 
