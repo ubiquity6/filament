@@ -123,7 +123,7 @@ static bool printMaterial(ostream& text, const ChunkContainer& container) {
     text << "\"rasterState\": {" << endl;
     printChunk<BlendingMode, uint8_t>(text, container, MaterialBlendingMode, "blending");
     printFloatChunk(text, container, MaterialMaskThreshold, "maskThreshold");
-    printBoolChunk(text, container, MaterialColorWrite, "clorWrite");
+    printBoolChunk(text, container, MaterialColorWrite, "colorWrite");
     printBoolChunk(text, container, MaterialDepthWrite, "depthWrite");
     printBoolChunk(text, container, MaterialDepthTest, "depthTest");
     printBoolChunk(text, container, MaterialDoubleSided, "doubleSided");
