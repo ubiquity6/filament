@@ -211,12 +211,16 @@ static bool printParametersInfo(ostream& text, const ChunkContainer& container) 
             return false;
         }
 
-        text << "{" << endl;
-        text << "\"name\": \"" << fieldName.c_str() << "\"," << endl;
-        text << "\"type\": \"" << toString(UniformType(fieldType)) << "\"," << endl;
-        text << "\"size\": \"" << fieldSize << "\"," << endl;
-        text << "\"precision\": \"" << toString(Precision(fieldPrecision)) << "\"" << endl;
-        text << ((i == uibCount-1 && sibCount == 0) ? "}" : "},") << endl;
+        //skip 'injected' parameters
+
+        if (fieldName.c_str()[0] != '_') {
+            text << ((i > 0) ? ",{" : "{") << endl;
+            text << "\"name\": \"" << fieldName.c_str() << "\"," << endl;
+            text << "\"type\": \"" << toString(UniformType(fieldType)) << "\"," << endl;
+            text << "\"size\": \"" << fieldSize << "\"," << endl;
+            text << "\"precision\": \"" << toString(Precision(fieldPrecision)) << "\"" << endl;
+            text << "}" << endl;
+        }
     }
 
     for (uint64_t i = 0; i < sibCount; i++) {
@@ -245,12 +249,12 @@ static bool printParametersInfo(ostream& text, const ChunkContainer& container) 
             return false;
         }
 
-        text << "{" << endl;
+        text << ((uibCount > 0 || i > 0) ? ",{" : "{") << endl;
         text << "\"name\": \"" << fieldName.c_str() << "\"," << endl;
         text << "\"type\": \"" << toString(SamplerType(fieldType)) << "\"," << endl;
         text << "\"format\": \"" << toString(SamplerFormat(fieldFormat)) << "\"," << endl;
         text << "\"precision\": \"" << toString(Precision(fieldPrecision)) << "\"" << endl;
-        text << ((i < sibCount-1) ? "}," : "}") << endl;
+        text << "}" << endl;
     }
     text << "]" << endl;
 
