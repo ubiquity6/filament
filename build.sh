@@ -1,15 +1,6 @@
 #!/bin/bash
 set -e
 
-function emsdk_setup() {
-    pushd third-party/emsdk
-    ./u6_build.sh
-    popd
-
-    # u6 customizations:
-    EMSDK="`pwd`/third-party/emsdk"
-}
-
 # Host tools required by Android, WebGL, and iOS builds
 MOBILE_HOST_TOOLS="matc matinfo resgen cmgen"
 WEB_HOST_TOOLS="${MOBILE_HOST_TOOLS} mipgen filamesh"
@@ -758,11 +749,6 @@ for arg; do
         BUILD_CUSTOM_TARGETS="$BUILD_CUSTOM_TARGETS $arg"
     fi
 done
-
-# added by u6
-if [[ "$ISSUE_WEBGL_BUILD" == "true" ]]; then
-    emsdk_setup
-fi
 
 validate_build_command
 
