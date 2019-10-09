@@ -112,6 +112,10 @@ enum_<RenderableManager::PrimitiveType>("RenderableManager$PrimitiveType")
     .value("TRIANGLES", RenderableManager::PrimitiveType::TRIANGLES)
     .value("NONE", RenderableManager::PrimitiveType::NONE);
 
+enum_<View::ToneMapping>("View$ToneMapping")
+    .value("LINEAR", View::ToneMapping::LINEAR)
+    .value("ACES", View::ToneMapping::ACES);
+
 enum_<View::AntiAliasing>("View$AntiAliasing")
     .value("NONE", View::AntiAliasing::NONE)
     .value("FXAA", View::AntiAliasing::FXAA);

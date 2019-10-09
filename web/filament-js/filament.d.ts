@@ -279,6 +279,7 @@ export class View {
     public setScene(scene: Scene);
     public setViewport(viewport: float4);
     public setRenderTarget(renderTarget: RenderTarget);
+    public setToneMapping(toneMapping: View$ToneMapping);
 }
 
 export class TransformManager {
@@ -651,6 +652,11 @@ export enum VertexBuffer$AttributeType {
     HALF2,
     HALF3,
     HALF4,
+}
+
+export enum View$ToneMapping {
+    LINEAR,
+    ACES,
 }
 
 export enum View$AntiAliasing {
