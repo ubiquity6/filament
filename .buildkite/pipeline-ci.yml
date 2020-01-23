@@ -1,21 +1,15 @@
 steps:
 - label: 'Build ios, android, and webgl (darwin)'
   command:
-    - export LANG=en_US.UTF-8
-    - export LANGUAGE=en_US.UTF-8
-    - export LC_ALL=en_US.UTF-8
-    - export ANDROID_HOME=/Users/administrator/Android
-    - export ANDROID_NDK_HOME=/Users/administrator/Android/ndk-bundle
-    - export JAVA_HOME=/Library/Java/JavaVirtualMachines/adoptopenjdk-8.jdk/Contents/Home
     - source ~/.bash_profile
     - ./build.sh -p ios,android,webgl -i -s release debug
   agents:
-    queue: mac_ci_v5
+    queue: mac_ci_v9
   timeout_in_minutes: 90
 
 - label: 'Build android (linux)'
   command:
     - ./build.sh -p android,webgl -i -s release debug
   agents:
-    queue: android_ci_v5
+    queue: android_ci_v9
   timeout_in_minutes: 90
