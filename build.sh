@@ -200,7 +200,6 @@ function build_webgl_with_target {
         # Apply the emscripten environment within a subshell.
         (
         source ${EMSDK}/emsdk_env.sh
-        env
         cmake \
             -G "$BUILD_GENERATOR" \
             -DIMPORT_EXECUTABLES_DIR=out \
