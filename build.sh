@@ -2,7 +2,7 @@
 set -e
 
 function emsdk_setup() {
-    if [ ! -d emsdk ]
+    if [ ! -f "emsdk/emsdk" ]
     then
         # Install emsdk from github. The version here doesn't really matter. It
         # is just used to bootstrap the exact version of emsdk we will use for
@@ -10,6 +10,7 @@ function emsdk_setup() {
         emsdk_hash="997b0a19ff6fdfe0be8b966e1fed05bf5ebf85e4"
         curl -L -O "https://github.com/emscripten-core/emsdk/archive/${emsdk_hash}.zip"
         unzip "${emsdk_hash}.zip"
+        rm -rf emsdk
         mv "emsdk-${emsdk_hash}" emsdk
         rm "${emsdk_hash}.zip"
     fi
