@@ -1,12 +1,6 @@
 steps:
 - label: 'Deploy ios, android, and webgl (darwin)'
   command:
-    - export LANG=en_US.UTF-8
-    - export LANGUAGE=en_US.UTF-8
-    - export LC_ALL=en_US.UTF-8
-    - export ANDROID_HOME=/Users/administrator/Android
-    - export ANDROID_NDK_HOME=/Users/administrator/Android/ndk-bundle
-    - export JAVA_HOME=/Library/Java/JavaVirtualMachines/adoptopenjdk-8.jdk/Contents/Home
     - source ~/.bash_profile
     - ./build.sh -c -p ios,android,webgl -i -s release debug
     - cd out
@@ -26,7 +20,7 @@ steps:
     - tar -czvf filament-webgl-debug-darwin.tgz cmake-webgl-debug/web
     - aws s3 cp filament-webgl-debug-darwin.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
-    queue: mac_ci_v5
+    queue: mac_ci_v9
   timeout_in_minutes: 90
 
 - label: 'Deploy android and webgl (linux)'
@@ -44,5 +38,5 @@ steps:
     - tar -czvf filament-webgl-debug-linux.tgz cmake-webgl-debug/web
     - aws s3 cp filament-webgl-debug-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
-    queue: android_ci_v5
+    queue: android_ci_v9
   timeout_in_minutes: 90
