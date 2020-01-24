@@ -2,12 +2,26 @@
 set -e
 
 function emsdk_setup() {
-    pushd third-party/emsdk
-    ./u6_build.sh
-    popd
+    if [ ! -d emsdk ]
+    then
+        # Install emsdk from github. The version here doesn't really matter. It
+        # is just used to bootstrap the exact version of emsdk we will use for
+        # the build, which is specified below in `emsdk install ...`.
+        emsdk_hash="997b0a19ff6fdfe0be8b966e1fed05bf5ebf85e4"
+        curl -L -O "https://github.com/emscripten-core/emsdk/archive/${emsdk_hash}.zip"
+        unzip "${emsdk_hash}.zip"
+        mv "emsdk-${emsdk_hash}" emsdk
+        rm "${emsdk_hash}.zip"
+    fi
+
+    cd emsdk
+    ./emsdk update
+    ./emsdk install sdk-fastcomp-1.38.30-64bit
+    ./emsdk activate sdk-fastcomp-1.38.30-64bit
+    cd ..
 
     # u6 customizations:
-    EMSDK="`pwd`/third-party/emsdk"
+    EMSDK="`pwd`/emsdk"
 }
 
 # Host tools required by Android, WebGL, and iOS builds
