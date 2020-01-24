@@ -1,13 +1,13 @@
 steps:
-- label: 'Build ios, android, and webgl (darwin)'
+- label: 'Build ios and mac desktop'
   command:
     - source ~/.bash_profile
-    - ./build.sh -p ios,android,webgl -i -s release debug
+    - ./build.sh -p ios,desktop -i -s release debug
   agents:
     queue: mac_ci_v9
   timeout_in_minutes: 90
 
-- label: 'Build android (linux)'
+- label: 'Build android and webgl'
   command:
     - ./build.sh -p android,webgl -i -s release debug
   agents:
