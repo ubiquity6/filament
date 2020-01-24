@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <filament/TransformManager.h>
-
 #include "components/TransformManager.h"
 
 using namespace utils;
@@ -67,6 +65,10 @@ void FTransformManager::setParent(Instance i, Instance parent) noexcept {
             removeNode(i);
             insertNode(i, parent);
             updateNodeTransform(i);
+            // Note: setParent() doesn't reorder the child after the parent in the array,
+            // but that's not a problem because TransformManager doesn't rely on that.
+            // Also note that commitLocalTransformTransaction() does reorder all children after
+            // their parent, as an optimization to calculate the world transform.
         }
     }
 }
@@ -139,22 +141,13 @@ void FTransformManager::setTransform(Instance ci, const mat4f& model) noexcept {
 }
 
 void FTransformManager::updateNodeTransform(Instance i) noexcept {
+    if (UTILS_UNLIKELY(mLocalTransformTransactionOpen)) {
+        return;
+    }
+
     validateNode(i);
     auto& manager = mManager;
     assert(i);
-
-    if (UTILS_UNLIKELY(mLocalTransformTransactionOpen)) {
-        // don't update the world transform until commitLocalTransformTransaction() is called
-        Instance ci = manager[i].firstChild;
-        while (ci) {
-            Instance child = manager[ci].firstChild;
-            ci = manager[ci].next;
-            if (child) {
-                updateNodeTransform(child);
-            }
-        }
-        return;
-    }
 
     // find our parent's world transform, if any
     // note: by using the raw_array() we don't need to check that parent is valid.
@@ -187,7 +180,7 @@ void FTransformManager::commitLocalTransformTransaction() noexcept {
         mat4f const* const UTILS_RESTRICT world = manager.raw_array<WORLD>();
         for (Instance i = manager.begin(), e = manager.end(); i != e; ++i) {
             // Ensure that children are always sorted after their parent.
-            if (UTILS_UNLIKELY(Instance(manager[i].parent) > i)) {
+            while (UTILS_UNLIKELY(Instance(manager[i].parent) > i)) {
                 swapNode(i, manager[i].parent);
             }
             Instance parent = manager[i].parent;

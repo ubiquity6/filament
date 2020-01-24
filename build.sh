@@ -68,12 +68,15 @@ function print_help {
     echo "    Desktop matc target, release build:"
     echo "        \$ ./$self_name release matc"
     echo ""
+    echo "    Build gltf_viewer then immediately run it with no arguments:"
+    echo "        \$ ./$self_name release run_gltf_viewer"
+    echo ""
  }
 
 # Requirements
 CMAKE_MAJOR=3
 CMAKE_MINOR=10
-ANDROID_NDK_VERSION=19
+ANDROID_NDK_VERSION=20
 
 # Internal variables
 TARGET=release
@@ -121,8 +124,13 @@ function build_clean {
     echo "Cleaning build directories..."
     rm -Rf out
     rm -Rf android/filament-android/build android/filament-android/.externalNativeBuild
+    rm -Rf android/filament-android/build android/filament-android/.cxx
     rm -Rf android/filamat-android/build android/filamat-android/.externalNativeBuild
+    rm -Rf android/filamat-android/build android/filamat-android/.cxx
     rm -Rf android/gltfio-android/build android/gltfio-android/.externalNativeBuild
+    rm -Rf android/gltfio-android/build android/gltfio-android/.cxx
+    rm -Rf android/filament-utils-android/build android/filament-utils-android/.externalNativeBuild
+    rm -Rf android/filament-utils-android/build android/filament-utils-android/.cxx
 }
 
 function build_desktop_target {
@@ -194,7 +202,7 @@ function build_webgl_with_target {
         cmake \
             -G "$BUILD_GENERATOR" \
             -DIMPORT_EXECUTABLES_DIR=out \
-            -DCMAKE_TOOLCHAIN_FILE=${EMSCRIPTEN}/cmake/Modules/Platform/Emscripten.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=${EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \
             -DCMAKE_BUILD_TYPE=$1 \
             -DCMAKE_INSTALL_PREFIX=../webgl-${lc_target}/filament \
             -DWEBGL=1 \
@@ -313,30 +321,15 @@ function ensure_android_build {
         exit 1
     fi
 
-    local ndk_type=0 # 0 = No SDK, 1 = ndk-bundle, 2 = ndk side-by-side
-
-    local ndk_properties="$ANDROID_HOME/ndk-bundle/source.properties"
-    if [[ -f $ndk_properties ]]; then
-        ndk_type=1
-        local ndk_version=`sed -En -e "s/^Pkg.Revision *= *([0-9a-f]+).+/\1/p" ${ndk_properties}`
-        if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then
-            echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, found exiting"
+    local ndk_side_by_side="${ANDROID_HOME}/ndk/"
+    if [[ -d $ndk_side_by_side ]]; then
+        local ndk_version=`ls ${ndk_side_by_side} | sort -V | tail -n 1 | cut -f 1 -d "."`
+        if [[ ${ndk_version} -lt ${ANDROID_NDK_VERSION} ]]; then
+            echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
             exit 1
         fi
     else
-        local ndk_side_by_side="$ANDROID_HOME/ndk/"
-        if [[ -d $ndk_side_by_side ]]; then
-            ndk_type=2
-            local ndk_version=`ls ${ndk_side_by_side} | sort -V | tail -n 1`
-            if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then
-                echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
-                exit 1
-            fi
-        fi
-    fi
-
-    if [[ ${ndk_type} == 0 ]]; then
-        echo "Error: The Android NDK must be properly installed, exiting"
+        echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
         exit 1
     fi
 
@@ -375,79 +368,64 @@ function build_android {
         archive_android "Release"
     fi
 
-    cd android/filament-android
+    cd android
 
     if [[ "$ISSUE_DEBUG_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-debug/filament assembleDebug \
-            -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
+        ./gradlew \
+            -Pfilament_dist_dir=../out/android-debug/filament \
+            -Pextra_cmake_args=${VULKAN_ANDROID_OPTION} \
+            :filament-android:assembleDebug \
+            :gltfio-android:assembleDebug \
+            :filament-utils-android:assembleDebug
 
-        if [[ "$INSTALL_COMMAND" ]]; then
-            echo "Installing out/filament-android-debug.aar..."
-            cp build/outputs/aar/filament-android-debug.aar ../../out/
-        fi
-    fi
-
-    if [[ "$ISSUE_RELEASE_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-release/filament assembleRelease \
-            -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
-
-        if [[ "$INSTALL_COMMAND" ]]; then
-            echo "Installing out/filament-android-release.aar..."
-            cp build/outputs/aar/filament-android-release.aar ../../out/
-        fi
-    fi
-
-    cd ../..
-
-
-    cd android/filamat-android
-
-    if [[ "$ISSUE_DEBUG_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-debug/filament assembleDebug
+        ./gradlew \
+            -Pfilament_dist_dir=../out/android-debug/filament \
+            :filamat-android:assembleDebug
 
         if [[ "$INSTALL_COMMAND" ]]; then
             echo "Installing out/filamat-android-debug.aar..."
-            cp build/outputs/aar/filamat-android-full-debug.aar ../../out/
-            cp build/outputs/aar/filamat-android-lite-debug.aar ../../out/
+            cp filamat-android/build/outputs/aar/filamat-android-full-debug.aar ../out/
+            cp filamat-android/build/outputs/aar/filamat-android-lite-debug.aar ../out/
+
+            echo "Installing out/filament-android-debug.aar..."
+            cp filament-android/build/outputs/aar/filament-android-debug.aar ../out/
+
+            echo "Installing out/gltfio-android-debug.aar..."
+            cp gltfio-android/build/outputs/aar/gltfio-android-debug.aar ../out/
+
+            echo "Installing out/filament-utils-android-debug.aar..."
+            cp filament-utils-android/build/outputs/aar/filament-utils-android-debug.aar ../out/
         fi
     fi
 
     if [[ "$ISSUE_RELEASE_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-release/filament assembleRelease
+        ./gradlew \
+            -Pfilament_dist_dir=../out/android-release/filament \
+            :filament-android:assembleRelease \
+            :gltfio-android:assembleRelease \
+            :filament-utils-android:assembleRelease
+
+        ./gradlew \
+            -Pfilament_dist_dir=../out/android-release/filament \
+            :filamat-android:assembleRelease
 
         if [[ "$INSTALL_COMMAND" ]]; then
             echo "Installing out/filamat-android-release.aar..."
-            cp build/outputs/aar/filamat-android-full-release.aar ../../out/
-            cp build/outputs/aar/filamat-android-lite-release.aar ../../out/
-        fi
-    fi
+            cp filamat-android/build/outputs/aar/filamat-android-full-release.aar ../out/
+            cp filamat-android/build/outputs/aar/filamat-android-lite-release.aar ../out/
 
-    cd ../..
+            echo "Installing out/filament-android-release.aar..."
+            cp filament-android/build/outputs/aar/filament-android-release.aar ../out/
 
-
-    cd android/gltfio-android
-
-    if [[ "$ISSUE_DEBUG_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-debug/filament assembleDebug \
-                    -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
-
-        if [[ "$INSTALL_COMMAND" ]]; then
-            echo "Installing out/gltfio-android-debug.aar..."
-            cp build/outputs/aar/gltfio-android-debug.aar ../../out/
-        fi
-    fi
-
-    if [[ "$ISSUE_RELEASE_BUILD" == "true" ]]; then
-        ./gradlew -Pfilament_dist_dir=../../out/android-release/filament assembleRelease \
-                -Pextra_cmake_args=${VULKAN_ANDROID_OPTION}
-
-        if [[ "$INSTALL_COMMAND" ]]; then
             echo "Installing out/gltfio-android-release.aar..."
-            cp build/outputs/aar/gltfio-android-release.aar ../../out/
+            cp gltfio-android/build/outputs/aar/gltfio-android-release.aar ../out/
+
+            echo "Installing out/filament-utils-android-debug.aar..."
+            cp filament-utils-android/build/outputs/aar/filament-utils-android-release.aar ../out/
         fi
     fi
 
-    cd ../..
+    cd ..
 }
 
 function ensure_ios_toolchain {
@@ -460,8 +438,13 @@ function ensure_ios_toolchain {
     echo
     echo "iOS toolchain file does not exist."
     echo "It will automatically be downloaded from http://opensource.apple.com."
-    read -p "Continue? (y/n) " -n 1 -r
-    echo
+
+    if [[ "$GITHUB_WORKFLOW" ]]; then
+        REPLY=y
+    else
+        read -p "Continue? (y/n) " -n 1 -r
+        echo
+    fi
 
     if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
         echo "Toolchain file must be downloaded to continue."
@@ -479,10 +462,17 @@ function ensure_ios_toolchain {
     local REPLACE='SET(PLATFORM_NAME "iphoneos" CACHE STRING "iOS platform to build for")'
     sed -i '' "s/${FIND}/${REPLACE}/g" ./${toolchain_path}
 
-    # Append Filament-specific settings.
-    cat build/toolchain-mac-ios.filament.cmake >> ${toolchain_path}
+    # Apple's toolchain specifies isysroot based on an environment variable, which we don't set.
+    # The toolchain doesn't need to do this, however, as isysroot is implicitly set in the toolchain
+    # via CMAKE_OSX_SYSROOT.
+    local FIND='SET(IOS_COMMON_FLAGS "-isysroot $ENV{SDKROOT} '
+    local REPLACE='SET(IOS_COMMON_FLAGS "'
+    sed -i '' "s/${FIND}/${REPLACE}/g" ./${toolchain_path}
 
-    echo "Successfully downloaded iOS toolchain file and appended Filament-specific settings."
+    # Prepend Filament-specific settings.
+    (cat build/toolchain-mac-ios.filament.cmake; cat ${toolchain_path}) > tmp && mv tmp ${toolchain_path}
+
+    echo "Successfully downloaded iOS toolchain file and prepended Filament-specific settings."
 }
 
 function build_ios_target {
@@ -503,12 +493,18 @@ function build_ios_target {
             -DCMAKE_INSTALL_PREFIX=../ios-${lc_target}/filament \
             -DIOS_ARCH=${arch} \
             -DPLATFORM_NAME=${platform} \
+            -DIOS_MIN_TARGET=12.0 \
             -DIOS=1 \
             -DCMAKE_TOOLCHAIN_FILE=../../build/toolchain-mac-ios.cmake \
             ../..
     fi
 
-    ${BUILD_COMMAND} install
+    ${BUILD_COMMAND}
+
+    if [[ "$INSTALL_COMMAND" ]]; then
+        echo "Installing ${lc_target} in out/${lc_target}/filament..."
+        ${BUILD_COMMAND} ${INSTALL_COMMAND}
+    fi
 
     if [[ -d "../ios-${lc_target}/filament" ]]; then
         if [[ "$ISSUE_ARCHIVES" == "true" ]]; then

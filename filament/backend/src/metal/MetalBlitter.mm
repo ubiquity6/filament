@@ -118,14 +118,14 @@ MetalBlitter::MetalBlitter(MetalContext& context) noexcept : mContext(context) {
 
 #define MTLSizeEqual(a, b) (a.width == b.width && a.height == b.height && a.depth == b.depth)
 
-void MetalBlitter::blit(const BlitArgs& args) {
+void MetalBlitter::blit(id<MTLCommandBuffer> cmdBuffer, const BlitArgs& args) {
     bool blitColor = args.source.color != nil && args.destination.color != nil;
     bool blitDepth = args.source.depth != nil && args.destination.depth != nil;
 
     // Determine if the blit for color or depth are eligible to use a MTLBlitCommandEncoder.
     // blitColor and / or blitDepth are set to false upon success, to indicate that no more work is
     // necessary for that attachment.
-    blitFastPath(blitColor, blitDepth, args);
+    blitFastPath(cmdBuffer, blitColor, blitDepth, args);
 
     // If the destination is MSAA and we weren't able to use the fast path, report an error, as
     // blitting to a MSAA texture isn't supported through the "slow path" yet.
@@ -147,8 +147,7 @@ void MetalBlitter::blit(const BlitArgs& args) {
         setupDepthAttachment(args, descriptor);
     }
 
-    id<MTLRenderCommandEncoder> encoder =
-            [mContext.currentCommandBuffer renderCommandEncoderWithDescriptor:descriptor];
+    id<MTLRenderCommandEncoder> encoder = [cmdBuffer renderCommandEncoderWithDescriptor:descriptor];
     encoder.label = @"Blit";
 
     BlitFunctionKey key;
@@ -180,9 +179,10 @@ void MetalBlitter::blit(const BlitArgs& args) {
         [encoder setFragmentTexture:args.source.depth atIndex:1];
     }
 
-    SamplerParams samplerState;
-    samplerState.filterMin = static_cast<SamplerMinFilter>(args.filter);
-    samplerState.filterMag = args.filter;
+    SamplerParams samplerState{
+            .filterMag = args.filter,
+            .filterMin = static_cast<SamplerMinFilter>(args.filter)
+    };
     id<MTLSamplerState> sampler = mContext.samplerStateCache.getOrCreateState(samplerState);
     [encoder setFragmentSamplerState:sampler atIndex:0];
 
@@ -243,13 +243,14 @@ void MetalBlitter::blit(const BlitArgs& args) {
     [encoder endEncoding];
 }
 
-void MetalBlitter::blitFastPath(bool& blitColor, bool& blitDepth, const BlitArgs& args) {
+void MetalBlitter::blitFastPath(id<MTLCommandBuffer> cmdBuffer, bool& blitColor, bool& blitDepth,
+        const BlitArgs& args) {
     if (blitColor) {
         if (args.source.color.sampleCount == args.destination.color.sampleCount &&
             args.source.color.pixelFormat == args.destination.color.pixelFormat &&
             MTLSizeEqual(args.source.region.size, args.destination.region.size)) {
 
-            id<MTLBlitCommandEncoder> blitEncoder = [mContext.currentCommandBuffer blitCommandEncoder];
+            id<MTLBlitCommandEncoder> blitEncoder = [cmdBuffer blitCommandEncoder];
             [blitEncoder copyFromTexture:args.source.color
                              sourceSlice:0
                              sourceLevel:args.source.level
@@ -270,7 +271,7 @@ void MetalBlitter::blitFastPath(bool& blitColor, bool& blitDepth, const BlitArgs
             args.source.depth.pixelFormat == args.destination.depth.pixelFormat &&
             MTLSizeEqual(args.source.region.size, args.destination.region.size)) {
 
-            id<MTLBlitCommandEncoder> blitEncoder = [mContext.currentCommandBuffer blitCommandEncoder];
+            id<MTLBlitCommandEncoder> blitEncoder = [cmdBuffer blitCommandEncoder];
             [blitEncoder copyFromTexture:args.source.depth
                              sourceSlice:0
                              sourceLevel:args.source.level
@@ -288,11 +289,7 @@ void MetalBlitter::blitFastPath(bool& blitColor, bool& blitDepth, const BlitArgs
 }
 
 void MetalBlitter::shutdown() noexcept {
-    for (auto it = mBlitFunctions.begin(); it != mBlitFunctions.end(); ++it) {
-        [it.value() release];
-    }
     mBlitFunctions.clear();
-    [mVertexFunction release];
     mVertexFunction = nil;
 }
 
@@ -347,8 +344,6 @@ id<MTLFunction> MetalBlitter::compileFragmentFunction(BlitFunctionKey key) {
                                                               error:&error];
     id<MTLFunction> function = [library newFunctionWithName:@"blitterFrag"];
     NSERROR_CHECK("Unable to compile shading library for MetalBlitter.");
-    [options release];
-    [library release];
 
     return function;
 }
@@ -366,7 +361,6 @@ id<MTLFunction> MetalBlitter::getBlitVertexFunction() {
                                                              error:&error];
     id<MTLFunction> function = [library newFunctionWithName:@"blitterVertex"];
     NSERROR_CHECK("Unable to compile shading library for MetalBlitter.");
-    [library release];
 
     mVertexFunction = function;
 

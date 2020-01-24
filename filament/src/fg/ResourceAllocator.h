@@ -32,30 +32,57 @@
 namespace filament {
 namespace fg {
 
-class ResourceAllocator {
+// The only reason we use an interface here is for unit-tests, so we can mock this allocator.
+// This is not too time-critical, so that's okay.
+class ResourceAllocatorInterface {
 public:
-    explicit ResourceAllocator(backend::DriverApi& driverApi) noexcept;
-    ~ResourceAllocator() noexcept;
-
-    void terminate() noexcept;
-
-    backend::RenderTargetHandle createRenderTarget(
+    virtual backend::RenderTargetHandle createRenderTarget(const char* name,
             backend::TargetBufferFlags targetBufferFlags,
             uint32_t width,
             uint32_t height,
             uint8_t samples,
             backend::TargetBufferInfo color,
             backend::TargetBufferInfo depth,
-            backend::TargetBufferInfo stencil) noexcept;
+            backend::TargetBufferInfo stencil) noexcept = 0;
 
-    void destroyRenderTarget(backend::RenderTargetHandle h) noexcept;
+    virtual void destroyRenderTarget(backend::RenderTargetHandle h) noexcept = 0;
+
+    virtual backend::TextureHandle createTexture(const char* name, backend::SamplerType target,
+            uint8_t levels,
+            backend::TextureFormat format, uint8_t samples, uint32_t width, uint32_t height,
+            uint32_t depth, backend::TextureUsage usage) noexcept = 0;
+
+    virtual void destroyTexture(backend::TextureHandle h) noexcept = 0;
+
+protected:
+    virtual ~ResourceAllocatorInterface();
+};
+
+
+class ResourceAllocator final : public ResourceAllocatorInterface {
+public:
+    explicit ResourceAllocator(backend::DriverApi& driverApi) noexcept;
+    ~ResourceAllocator() noexcept override;
+
+    void terminate() noexcept;
+
+    backend::RenderTargetHandle createRenderTarget(const char* name,
+            backend::TargetBufferFlags targetBufferFlags,
+            uint32_t width,
+            uint32_t height,
+            uint8_t samples,
+            backend::TargetBufferInfo color,
+            backend::TargetBufferInfo depth,
+            backend::TargetBufferInfo stencil) noexcept override;
+
+    void destroyRenderTarget(backend::RenderTargetHandle h) noexcept override;
 
     backend::TextureHandle createTexture(const char* name, backend::SamplerType target,
             uint8_t levels,
             backend::TextureFormat format, uint8_t samples, uint32_t width, uint32_t height,
-            uint32_t depth, backend::TextureUsage usage) noexcept;
+            uint32_t depth, backend::TextureUsage usage) noexcept override;
 
-    void destroyTexture(backend::TextureHandle h) noexcept;
+    void destroyTexture(backend::TextureHandle h) noexcept override;
 
     void gc() noexcept;
 

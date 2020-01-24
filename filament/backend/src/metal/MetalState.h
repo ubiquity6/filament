@@ -128,9 +128,7 @@ static_assert(sizeof(BlendState) == 56, "BlendState is unexpected size.");
 
 // StateCache caches Metal state objects using StateType as a key.
 // MetalType is the corresponding Metal API type.
-// StateCreator is a functor that creates a new state of type MetalType. It is assumed that this
-// type is created with a positive reference count (i.e., a new* method, per Apple convention), and
-// thus each cached object is released in StateCache's destructor.
+// StateCreator is a functor that creates a new state of type MetalType.
 template<typename StateType,
          typename MetalType,
          typename StateCreator>
@@ -142,12 +140,6 @@ public:
 
     StateCache(const StateCache&) = delete;
     StateCache& operator=(const StateCache&) = delete;
-
-    ~StateCache() {
-        for (auto it = mStateCache.begin(); it != mStateCache.end(); ++it) {
-            [it.value() release];
-        }
-    }
 
     void setDevice(id<MTLDevice> device) noexcept { mDevice = device; }
 
@@ -228,6 +220,8 @@ struct PipelineState {
     MTLPixelFormat depthAttachmentPixelFormat = MTLPixelFormatInvalid;  // 8 bytes
     NSUInteger sampleCount = 1;                                         // 8 bytes
     BlendState blendState;                                              // 56 bytes
+    bool colorWrite = true;                                             // 1 byte
+    char padding[7] = { 0 };                                            // 7 bytes
 
     bool operator==(const PipelineState& rhs) const noexcept {
         return (
@@ -248,7 +242,7 @@ struct PipelineState {
 
 // This assert checks that the struct is the size we expect without any "hidden" padding bytes
 // inserted by the compiler.
-static_assert(sizeof(PipelineState) == 624, "PipelineState unexpected size.");
+static_assert(sizeof(PipelineState) == 632, "PipelineState unexpected size.");
 
 struct PipelineStateCreator {
     id<MTLRenderPipelineState> operator()(id<MTLDevice> device, const PipelineState& state)
