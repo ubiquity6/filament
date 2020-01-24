@@ -20,9 +20,12 @@ binaryen
 tmp
 gnu
 emscripten-nightlies.txt
+emscripten-releases-tot.txt
 llvm-nightlies-32bit.txt
 llvm-nightlies-64bit.txt
 llvm-tags-32bit.txt
 llvm-tags-64bit.txt
 upstream
+fastcomp
+releases
 !upstream/lkgr.json
