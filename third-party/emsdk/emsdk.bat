@@ -33,7 +33,7 @@
 @SET EMSDK_PY=python
 
 :end
-@call %EMSDK_PY% "%~dp0\emsdk.py" %*
+@call %EMSDK_PY% "%~dp0\emsdk" %*
 
 @set EMSDK_PY=
 

@@ -14,17 +14,16 @@
 #     ./emsdk_env.sh
 #
 # which won't have any effect.
+
 SRC="$BASH_SOURCE"
 if [ "$SRC" = "" ]; then
   SRC="$0"
 fi
-CURDIR="$(pwd)"
-cd "$(dirname "$SRC")"
+CURDIR=$(pwd)
+cd $(dirname "$SRC")
 unset SRC
 
-tmpfile=`mktemp` || exit 1
-./emsdk construct_env $tmpfile
-. $tmpfile
-rm -f $tmpfile
+./emsdk construct_env "$@"
+. ./emsdk_set_env.sh
 
-cd "$CURDIR"
+cd $CURDIR
