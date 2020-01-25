@@ -2,12 +2,27 @@
 set -e
 
 function emsdk_setup() {
-    pushd third-party/emsdk
-    ./u6_build.sh
-    popd
+    if [ ! -f "emsdk/emsdk" ]
+    then
+        # Install emsdk from github. The version here doesn't really matter. It
+        # is just used to bootstrap the exact version of emsdk we will use for
+        # the build, which is specified below in `emsdk install ...`.
+        emsdk_hash="997b0a19ff6fdfe0be8b966e1fed05bf5ebf85e4"
+        curl -L -O "https://github.com/emscripten-core/emsdk/archive/${emsdk_hash}.zip"
+        unzip "${emsdk_hash}.zip"
+        rm -rf emsdk
+        mv "emsdk-${emsdk_hash}" emsdk
+        rm "${emsdk_hash}.zip"
+    fi
+
+    cd emsdk
+    ./emsdk update
+    ./emsdk install sdk-fastcomp-1.38.30-64bit
+    ./emsdk activate sdk-fastcomp-1.38.30-64bit
+    cd ..
 
     # u6 customizations:
-    EMSDK="`pwd`/third-party/emsdk"
+    EMSDK="`pwd`/emsdk"
 }
 
 # Host tools required by Android, WebGL, and iOS builds
@@ -203,7 +218,7 @@ function build_webgl_with_target {
         cmake \
             -G "$BUILD_GENERATOR" \
             -DIMPORT_EXECUTABLES_DIR=out \
-            -DCMAKE_TOOLCHAIN_FILE=${EMSDK}/fastcomp/emscripten/cmake/Modules/Platform/Emscripten.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=${EMSCRIPTEN}/cmake/Modules/Platform/Emscripten.cmake \
             -DCMAKE_BUILD_TYPE=$1 \
             -DCMAKE_INSTALL_PREFIX=../webgl-${lc_target}/filament \
             -DWEBGL=1 \
