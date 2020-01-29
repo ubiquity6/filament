@@ -32,18 +32,6 @@ using namespace utils;
 extern void registerCallbackUtils(JNIEnv*);
 extern void registerNioUtils(JNIEnv*);
 
-jint JNI_OnLoad(JavaVM* vm, void* reserved) {
-    JNIEnv* env;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        return -1;
-    }
-
-    registerCallbackUtils(env);
-    registerNioUtils(env);
-
-    return JNI_VERSION_1_6;
-}
-
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_google_android_filament_gltfio_AssetLoader_nCreateAssetLoader(JNIEnv*, jclass,
         jlong nativeEngine, jlong nativeProvider, jlong nativeEntities) {
@@ -66,6 +54,15 @@ Java_com_google_android_filament_gltfio_AssetLoader_nCreateAssetFromBinary(JNIEn
     AssetLoader* loader = (AssetLoader*) nativeLoader;
     AutoBuffer buffer(env, javaBuffer, remaining);
     return (jlong) loader->createAssetFromBinary((const uint8_t *) buffer.getData(),
+            buffer.getSize());
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_google_android_filament_gltfio_AssetLoader_nCreateAssetFromJson(JNIEnv* env, jclass,
+        jlong nativeLoader, jobject javaBuffer, jint remaining) {
+    AssetLoader* loader = (AssetLoader*) nativeLoader;
+    AutoBuffer buffer(env, javaBuffer, remaining);
+    return (jlong) loader->createAssetFromJson((const uint8_t *) buffer.getData(),
             buffer.getSize());
 }
 

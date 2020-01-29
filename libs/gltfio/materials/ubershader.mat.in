@@ -4,8 +4,9 @@ material {
     shadingModel : ${SHADINGMODEL},
     blending : ${BLENDING},
     depthWrite : true,
-    doubleSided : false,
+    doubleSided : ${DOUBLESIDED},
     flipUV : false,
+    specularAmbientOcclusion: true,
     parameters : [
 
         { type : float3, name : specularFactor },

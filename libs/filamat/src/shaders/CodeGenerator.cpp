@@ -79,13 +79,6 @@ io::sstream& CodeGenerator::generateProlog(io::sstream& out, ShaderType type,
     out << "precision " << precision << " float;\n";
     out << "precision " << precision << " int;\n";
 
-    // The version of the Metal Shading Language (MSL) we use does not have the invariant qualifier.
-    // New versions of MSL (> 2.1) have it, but we want to support older devices.
-    if (type == ShaderType::VERTEX && mTargetApi != TargetApi::METAL) {
-        out << "\n";
-        out << "invariant gl_Position;\n";
-    }
-
     out << SHADERS_COMMON_TYPES_FS_DATA;
 
     out << "\n";
@@ -124,28 +117,6 @@ io::sstream& CodeGenerator::generateShaderMain(io::sstream& out, ShaderType type
         out << SHADERS_MAIN_VS_DATA;
     } else if (type == ShaderType::FRAGMENT) {
         out << SHADERS_MAIN_FS_DATA;
-    }
-    return out;
-}
-
-io::sstream& CodeGenerator::generatePostProcessMainOld(io::sstream& out,
-        ShaderType type, filament::PostProcessStage variant) const {
-    if (type == ShaderType::VERTEX) {
-        out << SHADERS_POST_PROCESS_OLD_VS_DATA;
-    } else if (type == ShaderType::FRAGMENT) {
-        switch (variant) {
-            case PostProcessStage::TONE_MAPPING_OPAQUE:
-            case PostProcessStage::TONE_MAPPING_TRANSLUCENT:
-                out << SHADERS_TONE_MAPPING_FS_DATA;
-                out << SHADERS_CONVERSION_FUNCTIONS_FS_DATA;
-                out << SHADERS_DITHERING_FS_DATA;
-                break;
-            case PostProcessStage::ANTI_ALIASING_OPAQUE:
-            case PostProcessStage::ANTI_ALIASING_TRANSLUCENT:
-                out << SHADERS_FXAA_FS_DATA;
-                break;
-        }
-        out << SHADERS_POST_PROCESS_OLD_FS_DATA;
     }
     return out;
 }
@@ -453,15 +424,21 @@ io::sstream& CodeGenerator::generateCommonMaterial(io::sstream& out, ShaderType 
     return out;
 }
 
-io::sstream& CodeGenerator::generateCommonPostProcess(io::sstream& out, ShaderType type) const {
-    if (type == ShaderType::FRAGMENT) {
-        out << SHADERS_COMMON_POST_PROCESS_FS_DATA;
+io::sstream& CodeGenerator::generatePostProcessInputs(io::sstream& out, ShaderType type) const {
+    if (type == ShaderType::VERTEX) {
+        out << SHADERS_POST_PROCESS_INPUTS_VS_DATA;
+    } else if (type == ShaderType::FRAGMENT) {
+        out << SHADERS_POST_PROCESS_INPUTS_FS_DATA;
     }
     return out;
 }
 
-utils::io::sstream& CodeGenerator::generateCommonGetters(utils::io::sstream& out) const {
+utils::io::sstream& CodeGenerator::generatePostProcessGetters(utils::io::sstream& out,
+        ShaderType type) const {
     out << SHADERS_COMMON_GETTERS_FS_DATA;
+    if (type == ShaderType::VERTEX) {
+        out << SHADERS_POST_PROCESS_GETTERS_VS_DATA;
+    }
     return out;
 }
 
@@ -562,6 +539,11 @@ char const* CodeGenerator::getConstantName(MaterialBuilder::Property property) n
         case Property::EMISSIVE:             return "EMISSIVE";
         case Property::NORMAL:               return "NORMAL";
         case Property::POST_LIGHTING_COLOR:  return "POST_LIGHTING_COLOR";
+        case Property::CLIP_SPACE_TRANSFORM: return "CLIP_SPACE_TRANSFORM";
+        case Property::ABSORPTION:           return "ABSORPTION";
+        case Property::TRANSMISSION:         return "TRANSMISSION";
+        case Property::IOR:                  return "IOR";
+        case Property::MICRO_THICKNESS:      return "MICRO_THICKNESS";
     }
 }
 

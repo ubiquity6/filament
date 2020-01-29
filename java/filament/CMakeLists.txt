@@ -51,6 +51,7 @@ set(JNI_SOURCE_FILES
         ${FILAMENT_DIR}/src/main/cpp/LightManager.cpp
         ${FILAMENT_DIR}/src/main/cpp/Material.cpp
         ${FILAMENT_DIR}/src/main/cpp/MaterialInstance.cpp
+        ${FILAMENT_DIR}/src/main/cpp/MathUtils.cpp
         ${FILAMENT_DIR}/src/main/cpp/NativeSurface.cpp
         ${FILAMENT_DIR}/src/main/cpp/RenderableManager.cpp
         ${FILAMENT_DIR}/src/main/cpp/Renderer.cpp
@@ -127,6 +128,7 @@ set(JAVA_SOURCE_FILES
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/LightManager.java
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/Material.java
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/MaterialInstance.java
+        ${FILAMENT_JAVA_DIR}/com/google/android/filament/MathUtils.java
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/NativeSurface.java
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/NioUtils.java
         ${FILAMENT_JAVA_DIR}/com/google/android/filament/Platform.java
@@ -154,6 +156,6 @@ set(JAVA_SOURCE_FILES
 
 add_jar(${TARGET}
         SOURCES ${JAVA_SOURCE_FILES}
-        INCLUDE_JARS ../lib/support-annotations.jar)
+        INCLUDE_JARS ../lib/annotation-1.0.0.jar)
 
 install_jar(${TARGET} lib)

@@ -18,7 +18,7 @@
 #define TNT_FILAMENT_FG_PASSNODE_H
 
 #include "fg/FrameGraph.h"
-#include "TextureResource.h"
+
 #include "ResourceNode.h"
 #include "VirtualResource.h"
 
@@ -37,6 +37,7 @@ struct PassNode { // 200
             : name(name), id(id), base(base, fg),
               reads(fg.getArena()),
               writes(fg.getArena()),
+              samples(fg.getArena()),
               renderTargets(fg.getArena()),
               devirtualize(fg.getArena()),
               destroy(fg.getArena()) {
@@ -49,41 +50,52 @@ struct PassNode { // 200
 
     // for Builder
     void declareRenderTarget(fg::RenderTarget& renderTarget) noexcept {
-        renderTargets.push_back(&renderTarget);
+        renderTargets.push_back(renderTarget.index);
     }
 
-    FrameGraphResource read(FrameGraph& fg, FrameGraphResource const& handle, bool isRenderTarget = false) {
-        ResourceNode const& node = fg.getResource(handle);
-
-        if (!isRenderTarget) {
-            node.resource->usage |= backend::TextureUsage::SAMPLEABLE;
-        }
-
+    FrameGraphHandle read(FrameGraph& fg, FrameGraphHandle handle) {
         // don't allow multiple reads of the same resource -- it's just redundant.
         auto pos = std::find_if(reads.begin(), reads.end(),
-                [&handle](FrameGraphResource cur) { return handle.index == cur.index; });
-        if (pos != reads.end()) {
-            return *pos;
+                [&handle](FrameGraphHandle cur) { return handle.index == cur.index; });
+        if (pos == reads.end()) {
+            // just record that we're reading from this resource (at the given version)
+            reads.push_back(handle);
         }
-
-        // just record that we're reading from this resource (at the given version)
-        FrameGraphResource r{ handle.index };
-        reads.push_back(r);
-        return r;
+        return handle;
     }
 
-    bool isReadingFrom(FrameGraphResource resource) const noexcept {
+    FrameGraphId<FrameGraphTexture> sample(FrameGraph& fg, FrameGraphId<FrameGraphTexture> handle) {
+        // sample implies a read
+        read(fg, handle);
+
+        // don't allow multiple reads of the same resource -- it's just redundant.
+        auto pos = std::find_if(samples.begin(), samples.end(),
+                [&handle](FrameGraphHandle cur) { return handle.index == cur.index; });
+        if (pos == samples.end()) {
+            // just record that we're reading from this resource (at the given version)
+            samples.push_back(handle);
+        }
+        return handle;
+    }
+
+    bool isReadingFrom(FrameGraphHandle resource) const noexcept {
         auto pos = std::find_if(reads.begin(), reads.end(),
-                [resource](FrameGraphResource cur) { return resource.index == cur.index; });
+                [resource](FrameGraphHandle cur) { return resource.index == cur.index; });
         return (pos != reads.end());
     }
 
-    FrameGraphResource write(FrameGraph& fg, const FrameGraphResource& handle) {
-        ResourceNode const& node = fg.getResource(handle);
+    bool isSamplingFrom(FrameGraphHandle resource) const noexcept {
+        auto pos = std::find_if(samples.begin(), samples.end(),
+                [resource](FrameGraphHandle cur) { return resource.index == cur.index; });
+        return (pos != samples.end());
+    }
+
+    FrameGraphHandle write(FrameGraph& fg, const FrameGraphHandle& handle) {
+        ResourceNode const& node = fg.getResourceNode(handle);
 
         // don't allow multiple writes of the same resource -- it's just redundant.
         auto pos = std::find_if(writes.begin(), writes.end(),
-                [&handle](FrameGraphResource cur) { return handle.index == cur.index; });
+                [&handle](FrameGraphHandle cur) { return handle.index == cur.index; });
         if (pos != writes.end()) {
             return *pos;
         }
@@ -109,10 +121,10 @@ struct PassNode { // 200
             hasSideEffect = true;
         }
 
-        FrameGraphResource r = fg.createResourceNode(node.resource);
+        FrameGraphHandle r = fg.createResourceNode(node.resource);
 
         // record the write
-        //FrameGraphResource r{ resource->index, resource->version };
+        //FrameGraphHandle r{ resource->index, resource->version };
         writes.push_back(r);
         return r;
     }
@@ -123,9 +135,10 @@ struct PassNode { // 200
     FrameGraph::UniquePtr<FrameGraphPassExecutor> base; // type eraser for calling execute()
 
     // set by the builder
-    Vector<FrameGraphResource> reads;               // resources we're reading from
-    Vector<FrameGraphResource> writes;              // resources we're writing to
-    Vector<fg::RenderTarget*> renderTargets;
+    Vector<FrameGraphHandle> reads;                     // resources we're reading from
+    Vector<FrameGraphHandle> writes;                    // resources we're writing to
+    Vector<FrameGraphId<FrameGraphTexture>> samples;    // resources we're sampling from
+    Vector<uint16_t> renderTargets;
 
     // computed during compile()
     Vector<VirtualResource*> devirtualize;         // resources we need to create before executing

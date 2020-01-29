@@ -13,13 +13,12 @@ endif()
 # ==================================================================================================
 
 set(MATERIAL_NAMES
-    helmet
     parquet
     sandbox
     textured
     nonlit)
 
-set(MATC_FLAGS -a opengl -m material -p mobile)
+set(MATC_FLAGS -a opengl -p mobile)
 if (NOT CMAKE_BUILD_TYPE MATCHES Release)
     set(MATC_FLAGS -g ${MATC_FLAGS})
 endif()
@@ -52,7 +51,7 @@ function(add_ktxfiles SOURCE TARGET EXTRA_ARGS)
     set(target_textures ${target_textures} ${target_path} PARENT_SCOPE)
     add_custom_command(
         OUTPUT ${target_path}
-        COMMAND mipgen --strip-alpha ${EXTRA_ARGS} ${source_path} ${target_path}
+        COMMAND mipgen --quiet --strip-alpha ${EXTRA_ARGS} ${source_path} ${target_path}
         MAIN_DEPENDENCY ${source_path}
         DEPENDS mipgen)
 endfunction()
@@ -64,7 +63,7 @@ function(add_rawfile SOURCE TARGET)
     set(target_textures ${target_textures} ${target_path} PARENT_SCOPE)
     add_custom_command(
         OUTPUT ${target_path}
-        COMMAND cmake -E copy ${source_path} ${target_path}
+        COMMAND ${CMAKE_COMMAND} -E copy ${source_path} ${target_path}
         MAIN_DEPENDENCY ${source_path})
 endfunction()
 
@@ -101,7 +100,13 @@ add_rawfile("third_party/models/FlightHelmet/FlightHelmet_occlusionRoughnessMeta
 add_rawfile("third_party/models/FlightHelmet/FlightHelmet_occlusionRoughnessMetallic3.png" "FlightHelmet_occlusionRoughnessMetallic3.png")
 add_rawfile("third_party/models/FlightHelmet/FlightHelmet_occlusionRoughnessMetallic4.png" "FlightHelmet_occlusionRoughnessMetallic4.png")
 add_rawfile("third_party/models/FlightHelmet/FlightHelmet.bin" "FlightHelmet.bin")
-add_rawfile("third_party/models/FlightHelmet/FlightHelmet.gltf" "helmet.gltf")
+add_rawfile("third_party/models/FlightHelmet/FlightHelmet.gltf" "FlightHelmet.gltf")
+
+add_rawfile("third_party/models/AnimatedTriangle/SimpleTriangle.bin" "SimpleTriangle.bin")
+add_rawfile("third_party/models/AnimatedTriangle/animation.bin" "animation.bin")
+add_rawfile("third_party/models/AnimatedTriangle/AnimatedTriangle.gltf" "AnimatedTriangle.gltf")
+
+add_rawfile("third_party/models/AnimatedMorphCube/AnimatedMorphCube.glb" "AnimatedMorphCube.glb")
 
 # Convert OBJ files into filamesh files.
 function(add_mesh SOURCE TARGET)
@@ -119,8 +124,8 @@ add_mesh("assets/models/monkey/monkey.obj" "suzanne.filamesh")
 add_mesh("third_party/models/shader_ball/shader_ball.obj" "shader_ball.filamesh")
 
 # Generate IBL and skybox images using cmgen.
-set(CMGEN_ARGS --quiet -x . --format=ktx --size=256 --extract-blur=0.1)
-set(CMGEN_ARGS_TINY --quiet -x . --format=ktx --size=64 --extract-blur=0.1)
+set(CMGEN_ARGS --quiet --format=ktx --size=256 --extract-blur=0.1)
+set(CMGEN_ARGS_TINY --quiet --format=ktx --size=64 --extract-blur=0.1)
 function(add_envmap SOURCE TARGET)
     set(source_envmap "${ROOT_DIR}/${SOURCE}")
 
@@ -137,12 +142,11 @@ function(add_envmap SOURCE TARGET)
 
     add_custom_command(OUTPUT ${target_skybox} ${target_skybox_tiny} ${target_envmap}
 
-        # Create a low-resolution skybox, then rename it.
-        COMMAND cmgen ${CMGEN_ARGS_TINY} ${source_envmap}
-        COMMAND mv ${target_skybox} ${target_skybox_tiny}
+        # Create a low-resolution skybox.
+        COMMAND cmgen -x ${TARGET}_skybox_tiny ${CMGEN_ARGS_TINY} ${source_envmap}
 
         # Finally, create KTX files for the uncompressed envmap.
-        COMMAND cmgen ${CMGEN_ARGS} ${source_envmap}
+        COMMAND cmgen -x ${TARGET} ${CMGEN_ARGS} ${source_envmap}
 
         MAIN_DEPENDENCY ${source_envmap}
         DEPENDS cmgen)
@@ -164,12 +168,12 @@ add_custom_target(sample_assets DEPENDS
 add_custom_command(
     OUTPUT ${SERVER_DIR}/filament.js
     DEPENDS filament-js
-    COMMAND cmake -E copy ${PROJECT_BINARY_DIR}/../filament-js/filament.js ${SERVER_DIR})
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/../filament-js/filament.js ${SERVER_DIR})
 
 add_custom_command(
     OUTPUT ${SERVER_DIR}/filament.wasm
     DEPENDS filament-js
-    COMMAND cmake -E copy ${PROJECT_BINARY_DIR}/../filament-js/filament.wasm ${SERVER_DIR})
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/../filament-js/filament.wasm ${SERVER_DIR})
 
 add_custom_target(filamentjs_public DEPENDS ${SERVER_DIR}/filament.js ${SERVER_DIR}/filament.wasm)
 
@@ -178,8 +182,9 @@ add_custom_target(filamentjs_public DEPENDS ${SERVER_DIR}/filament.js ${SERVER_D
 # ==================================================================================================
 
 set(HTML_FILES
+    animation.html
     helmet.html
-    leaks.html
+    morphing.html
     parquet.html
     skinning.html
     suzanne.html
@@ -189,23 +194,23 @@ set(DEMO_ASSETS)
 foreach (NAME ${HTML_FILES})
     add_custom_command(
         OUTPUT ${SERVER_DIR}/${NAME}
-        COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} ${SERVER_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} ${SERVER_DIR}
         MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${NAME})
     list(APPEND DEMO_ASSETS ${SERVER_DIR}/${NAME})
 endforeach()
 
-set(TEXTURE_FILES floor_ao_roughness_metallic.png floor_basecolor.png floor_normal.png)
+set(TEXTURE_FILES floor_ao_roughness_metallic.png floor_basecolor.jpg floor_normal.png)
 foreach (NAME ${TEXTURE_FILES})
     add_custom_command(
         OUTPUT ${SERVER_DIR}/${NAME}
-        COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/textures/${NAME} ${SERVER_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/textures/${NAME} ${SERVER_DIR}
         MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/textures/${NAME})
     list(APPEND DEMO_ASSETS ${SERVER_DIR}/${NAME})
 endforeach()
 
 add_custom_command(
     OUTPUT ${SERVER_DIR}/gl-matrix-min.js
-    COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/gl-matrix/gl-matrix-min.js ${SERVER_DIR}/gl-matrix-min.js
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/gl-matrix/gl-matrix-min.js ${SERVER_DIR}/gl-matrix-min.js
     MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/gl-matrix/gl-matrix-min.js)
 list(APPEND DEMO_ASSETS ${SERVER_DIR}/gl-matrix-min.js)
 

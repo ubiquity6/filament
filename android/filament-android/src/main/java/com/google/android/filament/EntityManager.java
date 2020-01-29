@@ -16,10 +16,10 @@
 
 package com.google.android.filament;
 
-import com.google.android.filament.proguard.UsedByReflection;
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
 
-import android.support.annotation.IntRange;
-import android.support.annotation.NonNull;
+import com.google.android.filament.proguard.UsedByReflection;
 
 public class EntityManager {
     private long mNativeObject = nGetEntityManager();

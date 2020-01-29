@@ -28,6 +28,7 @@
 #include <math/mat3.h>
 #include <math/scalar.h>
 
+#include <random>
 #include <vector>
 
 using namespace filament::math;
@@ -47,7 +48,7 @@ static float pow6(float x) {
 }
 
 static float3 hemisphereImportanceSampleDggx(float2 u, float a) { // pdf = D(a) * cosTheta
-    const float phi = 2.0f * (float) M_PI * u.x;
+    const float phi = 2.0f * (float) F_PI * u.x;
     // NOTE: (aa-1) == (a-1)(a+1) produces better fp accuracy
     const float cosTheta2 = (1 - u.y) / (1 + (a + 1) * ((a - 1) * u.y));
     const float cosTheta = std::sqrt(cosTheta2);
@@ -55,16 +56,16 @@ static float3 hemisphereImportanceSampleDggx(float2 u, float a) { // pdf = D(a) 
     return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
 }
 
-static float3 UTILS_UNUSED hemisphereCosSample(float2 u) {  // pdf = cosTheta / M_PI;
-    const float phi = 2.0f * (float) M_PI * u.x;
+static float3 UTILS_UNUSED hemisphereCosSample(float2 u) {  // pdf = cosTheta / F_PI;
+    const float phi = 2.0f * (float) F_PI * u.x;
     const float cosTheta2 = 1 - u.y;
     const float cosTheta = std::sqrt(cosTheta2);
     const float sinTheta = std::sqrt(1 - cosTheta2);
     return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
 }
 
-static float3 UTILS_UNUSED hemisphereUniformSample(float2 u) { // pdf = 1.0 / (2.0 * M_PI);
-    const float phi = 2.0f * (float) M_PI * u.x;
+static float3 UTILS_UNUSED hemisphereUniformSample(float2 u) { // pdf = 1.0 / (2.0 * F_PI);
+    const float phi = 2.0f * (float) F_PI * u.x;
     const float cosTheta = 1 - u.y;
     const float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
     return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
@@ -128,7 +129,7 @@ static float3 UTILS_UNUSED hemisphereUniformSample(float2 u) { // pdf = 1.0 / (2
  *  +--------------------------------------------+
  */
 static float3 UTILS_UNUSED hemisphereImportanceSampleDCharlie(float2 u, float a) { // pdf = DistributionCharlie() * cosTheta
-    const float phi = 2.0f * (float) M_PI * u.x;
+    const float phi = 2.0f * (float) F_PI * u.x;
 
     const float sinTheta = std::pow(u.y, a / (2 * a + 1));
     const float cosTheta = std::sqrt(1 - sinTheta * sinTheta);
@@ -140,7 +141,7 @@ static float DistributionGGX(float NoH, float linearRoughness) {
     // NOTE: (aa-1) == (a-1)(a+1) produces better fp accuracy
     float a = linearRoughness;
     float f = (a - 1) * ((a + 1) * (NoH * NoH)) + 1;
-    return (a * a) / ((float) M_PI * f * f);
+    return (a * a) / ((float) F_PI * f * f);
 }
 
 static float UTILS_UNUSED DistributionAshikhmin(float NoH, float linearRoughness) {
@@ -149,7 +150,7 @@ static float UTILS_UNUSED DistributionAshikhmin(float NoH, float linearRoughness
     float cos2h = NoH * NoH;
     float sin2h = 1 - cos2h;
     float sin4h = sin2h * sin2h;
-    return 1.0f / ((float) M_PI * (1 + 4 * a2)) * (sin4h + 4 * std::exp(-cos2h / (a2 * sin2h)));
+    return 1.0f / ((float) F_PI * (1 + 4 * a2)) * (sin4h + 4 * std::exp(-cos2h / (a2 * sin2h)));
 }
 
 static float UTILS_UNUSED DistributionCharlie(float NoH, float linearRoughness) {
@@ -158,7 +159,7 @@ static float UTILS_UNUSED DistributionCharlie(float NoH, float linearRoughness) 
     float invAlpha = 1 / a;
     float cos2h = NoH * NoH;
     float sin2h = 1 - cos2h;
-    return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * (float) M_PI);
+    return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * (float) F_PI);
 }
 
 static float Fresnel(float f0, float f90, float LoH) {
@@ -302,7 +303,7 @@ void CubemapIBL::roughnessFilter(
     const float maxLevelf = maxLevel;
     const Cubemap& base(levels[0]);
     const size_t dim0 = base.getDimensions();
-    const float omegaP = (4.0f * (float) M_PI) / float(6 * dim0 * dim0);
+    const float omegaP = (4.0f * (float) F_PI) / float(6 * dim0 * dim0);
     std::atomic_uint progress = {0};
 
     if (linearRoughness == 0) {
@@ -405,7 +406,14 @@ void CubemapIBL::roughnessFilter(
         return lhs.brdf_NoL < rhs.brdf_NoL;
     });
 
-    auto scanline = [&](CubemapUtils::EmptyState&, size_t y,
+
+    struct State {
+        // maybe blue-noise instead would look even better
+        std::default_random_engine gen;
+        std::uniform_real_distribution<float> distribution{ -F_PI, F_PI };
+    };
+
+    auto scanline = [&](State& state, size_t y,
             Cubemap::Face f, Cubemap::Texel* data, size_t dim) {
         if (UTILS_UNLIKELY(updater)) {
             size_t p = progress.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -423,6 +431,8 @@ void CubemapIBL::roughnessFilter(
             R[1] = cross(N, R[0]);
             R[2] = N;
 
+            R *= mat3f::rotation(state.distribution(state.gen), float3{0,0,1});
+
             float3 Li = 0;
             for (size_t sample = 0; sample < numSamples; sample++) {
                 const CacheEntry& e = cache[sample];
@@ -439,9 +449,9 @@ void CubemapIBL::roughnessFilter(
     // don't use the jobsystem unless we have enough work per scanline -- or the overhead of
     // launching jobs will prevail.
     if (dst.getDimensions() * maxNumSamples <= 256) {
-        CubemapUtils::processSingleThreaded<CubemapUtils::EmptyState>(dst, js, std::ref(scanline));
+        CubemapUtils::processSingleThreaded<State>(dst, js, std::ref(scanline));
     } else {
-        CubemapUtils::process<CubemapUtils::EmptyState>(dst, js, std::ref(scanline));
+        CubemapUtils::process<State>(dst, js, std::ref(scanline));
     }
 }
 
@@ -540,7 +550,7 @@ void CubemapIBL::diffuseIrradiance(JobSystem& js, Cubemap& dst, const std::vecto
     const float maxLevelf = maxLevel;
     const Cubemap& base(levels[0]);
     const size_t dim0 = base.getDimensions();
-    const float omegaP = (4.0f * (float) M_PI) / float(6 * dim0 * dim0);
+    const float omegaP = (4.0f * (float) F_PI) / float(6 * dim0 * dim0);
 
     std::atomic_uint progress = {0};
 
@@ -563,7 +573,7 @@ void CubemapIBL::diffuseIrradiance(JobSystem& js, Cubemap& dst, const std::vecto
         const float NoL = dot(N, L);
 
         if (NoL > 0) {
-            float pdf = NoL * (float) M_1_PI;
+            float pdf = NoL * (float) F_1_PI;
 
             constexpr float K = 4;
             const float omegaS = 1.0f / (numSamples * pdf);
@@ -628,7 +638,7 @@ static float2 UTILS_UNUSED DFV_NoIS(float NoV, float roughness, size_t numSample
         if (NoL > 0) {
             // Note: remember VoH == LoH  (H is half vector)
             const float J = 1.0f / (4.0f * VoH);
-            const float pdf = NoH / (float) M_PI;
+            const float pdf = NoH / (float) F_PI;
             const float d = DistributionGGX(NoH, linearRoughness) * NoL / (pdf * J);
             const float Fc = pow5(1 - VoH);
             const float v = Visibility(NoV, NoL, linearRoughness);
@@ -814,7 +824,7 @@ static float2 DFV_Multiscatter(float NoV, float linearRoughness, size_t numSampl
 
 static float UTILS_UNUSED DFV_LazanyiTerm(float NoV, float linearRoughness, size_t numSamples) {
     float r = 0;
-    const float cosThetaMax = (float) std::cos(81.7 * M_PI / 180.0);
+    const float cosThetaMax = (float) std::cos(81.7 * F_PI / 180.0);
     const float q = 1.0f / (cosThetaMax * pow6(1.0f - cosThetaMax));
     const float3 V(std::sqrt(1 - NoV * NoV), 0, NoV);
     for (size_t i = 0; i < numSamples; i++) {
@@ -850,7 +860,7 @@ static float DFV_Charlie_Uniform(float NoV, float linearRoughness, size_t numSam
         }
     }
     // uniform sampling, the PDF is 1/2pi, 4 comes from the Jacobian
-    return r * (4.0f * 2.0f * (float) M_PI / numSamples);
+    return r * (4.0f * 2.0f * (float) F_PI / numSamples);
 }
 
 /*
