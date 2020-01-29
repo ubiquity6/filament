@@ -503,7 +503,6 @@ void MetalDriver::getCapabilities(backend::RenderCapabilities& capabilities) con
 #endif
 }
 
-Handle<HwStream> MetalDriver::createStream(void* stream) {
 Handle<HwStream> MetalDriver::createStreamNative(void* stream) {
     return {};
 }
@@ -610,26 +609,30 @@ bool MetalDriver::isFrameTimeSupported() {
 void MetalDriver::updateVertexBuffer(Handle<HwVertexBuffer> vbh, size_t index,
         BufferDescriptor&& data, uint32_t byteOffset) {
     auto* vb = handle_cast<MetalVertexBuffer>(mHandleMap, vbh);
-    assert(vb->buffers[index].length>=byteOffset + data.size);
 
-    uint8_t *ptr = (uint8_t*)vb->buffers[index].contents;
-    ptr+=byteOffset;
-    memcpy(ptr, data.buffer, data.size);
+    //TODO: arivela - bring back support for partial buffer updates:
+    //assert(vb->buffers[index].length>=byteOffset + data.size);
+
+    //uint8_t *ptr = (uint8_t*)vb->buffers[index].contents;
+    //ptr+=byteOffset;
+    //memcpy(ptr, data.buffer, data.size);
     
-    //NEW:
-    //vb->buffers[index]->copyIntoBuffer(data.buffer, data.size);
+    //Lateset Filament:
+    vb->buffers[index]->copyIntoBuffer(data.buffer, data.size);
 }
 
 void MetalDriver::updateIndexBuffer(Handle<HwIndexBuffer> ibh, BufferDescriptor&& data,
         uint32_t byteOffset) {
     auto* ib = handle_cast<MetalIndexBuffer>(mHandleMap, ibh);
-    assert(ib->buffer.length>=byteOffset + data.size);
-    uint8_t *ptr = (uint8_t*)ib->buffer.contents;
-    ptr+=byteOffset;
-    memcpy(ptr, data.buffer, data.size);
-    
-    //NEW:
-    //ib->buffer.copyIntoBuffer(data.buffer, data.size);
+
+    //TODO: arivela - bring back support for partial buffer updates:
+    //assert(ib->buffer.length>=byteOffset + data.size);
+    //uint8_t *ptr = (uint8_t*)ib->buffer.contents;
+    //ptr+=byteOffset;
+    //memcpy(ptr, data.buffer, data.size);
+
+    //Lateset Filament:
+    ib->buffer.copyIntoBuffer(data.buffer, data.size);
 }
 
 void MetalDriver::update2DImage(Handle<HwTexture> th, uint32_t level, uint32_t xoffset,
