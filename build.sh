@@ -100,7 +100,7 @@ function print_help {
 # Requirements
 CMAKE_MAJOR=3
 CMAKE_MINOR=10
-ANDROID_NDK_VERSION=19
+ANDROID_NDK_VERSION=20
 
 # Internal variables
 TARGET=release
@@ -352,7 +352,7 @@ function ensure_android_build {
     if [[ -f $ndk_properties ]]; then
         ndk_type=1	
         local ndk_version=`sed -En -e "s/^Pkg.Revision *= *([0-9a-f]+).+/\1/p" ${ndk_properties}`	
-        if [[ ${ndk_version} < ${ANDROID_NDK_VERSION} ]]; then	
+        if [[ ${ndk_version} -lt ${ANDROID_NDK_VERSION} ]]; then	
             echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, found exiting"
             exit 1
         fi
