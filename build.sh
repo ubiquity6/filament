@@ -17,8 +17,8 @@ function emsdk_setup() {
 
     cd emsdk
     ./emsdk update
-    ./emsdk install sdk-fastcomp-1.38.30-64bit
-    ./emsdk activate sdk-fastcomp-1.38.30-64bit
+    ./emsdk install 1.39.6
+    ./emsdk activate 1.39.6
     cd ..
 
     # u6 customizations:
