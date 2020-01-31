@@ -9,6 +9,7 @@ steps:
 
 - label: 'Build webgl'
   command:
+    - source ~/.bash_profile
     - ./build.sh -p webgl -i release debug
   agents:
     queue: mac_ci_v9

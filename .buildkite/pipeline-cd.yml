@@ -55,6 +55,7 @@ steps:
 
 - label: 'Deploy webgl release'
   command:
+    - source ~/.bash_profile
     - ./build.sh -c -p webgl -i release
     - cd out
 
@@ -66,6 +67,7 @@ steps:
 
 - label: 'Deploy webgl debug'
   command:
+    - source ~/.bash_profile
     - ./build.sh -c -p webgl -i debug
     - cd out
 
