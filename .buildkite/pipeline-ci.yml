@@ -9,7 +9,7 @@ steps:
 
 - label: 'Build android and webgl'
   command:
-    - ./build.sh -c -p android,webgl -i release debug
+    - ./build.sh -p android,webgl -i release debug
   agents:
     queue: android_ci_v9
   timeout_in_minutes: 90
