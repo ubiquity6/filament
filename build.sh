@@ -366,7 +366,7 @@ function ensure_android_build {
                 exit 1
             fi
         fi    
-    #fi
+    fi
 
     if [[ ${ndk_type} == 0 ]]; then	
         echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
