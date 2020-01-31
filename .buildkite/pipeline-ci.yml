@@ -16,7 +16,7 @@ steps:
 
 - label: 'Build android and webgl'
   command:
-    - ./build.sh -p android,webgl -i release debug
+    - ./build.sh -p android -i release debug
   agents:
     queue: android_ci_v1-slam
   timeout_in_minutes: 90
