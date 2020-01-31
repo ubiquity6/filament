@@ -26,7 +26,7 @@ function emsdk_setup() {
 }
 
 # Host tools required by Android, WebGL, and iOS builds
-MOBILE_HOST_TOOLS="matc matinfo resgen cmgen"
+MOBILE_HOST_TOOLS="matc resgen cmgen"
 WEB_HOST_TOOLS="${MOBILE_HOST_TOOLS} mipgen filamesh"
 IOS_TOOLCHAIN_URL="https://opensource.apple.com/source/clang/clang-800.0.38/src/cmake/platforms/iOS.cmake"
 
@@ -226,7 +226,7 @@ function build_webgl_with_target {
         cmake \
             -G "$BUILD_GENERATOR" \
             -DIMPORT_EXECUTABLES_DIR=out \
-            -DCMAKE_TOOLCHAIN_FILE=${EMSCRIPTEN}/cmake/Modules/Platform/Emscripten.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=${EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \
             -DCMAKE_BUILD_TYPE=$1 \
             -DCMAKE_INSTALL_PREFIX=../webgl-${lc_target}/filament \
             -DWEBGL=1 \
@@ -345,30 +345,14 @@ function ensure_android_build {
         exit 1
     fi
 
-
-    local ndk_type=0 # 0 = No SDK, 1 = ndk-bundle, 2 = ndk side-by-side
-
-    #local ndk_properties="$ANDROID_HOME/ndk-bundle/source.properties"
-    #if [[ -f $ndk_properties ]]; then
-    #    ndk_type=1	
-    #    local ndk_version=`sed -En -e "s/^Pkg.Revision *= *([0-9a-f]+).+/\1/p" ${ndk_properties}`	
-    #    if [[ ${ndk_version} -lt ${ANDROID_NDK_VERSION} ]]; then	
-    #        echo "Error: Android NDK version ${ANDROID_NDK_VERSION} or higher must be installed, found exiting"
-    #        exit 1
-    #    fi
-    #else
-        local ndk_side_by_side="${ANDROID_HOME}/ndk/"
-        if [[ -d $ndk_side_by_side ]]; then
-            ndk_type=2	
-            local ndk_version=`ls ${ndk_side_by_side} | sort -V | tail -n 1 | cut -f 1 -d "."`
-            if [[ ${ndk_version} -lt ${ANDROID_NDK_VERSION} ]]; then
-                echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
-                exit 1
-            fi
-        fi    
-    #fi
-
-    if [[ ${ndk_type} == 0 ]]; then	
+    local ndk_side_by_side="${ANDROID_HOME}/ndk/"
+    if [[ -d $ndk_side_by_side ]]; then
+        local ndk_version=`ls ${ndk_side_by_side} | sort -V | tail -n 1 | cut -f 1 -d "."`
+        if [[ ${ndk_version} -lt ${ANDROID_NDK_VERSION} ]]; then
+            echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
+            exit 1
+        fi
+    else
         echo "Error: Android NDK side-by-side version ${ANDROID_NDK_VERSION} or higher must be installed, exiting"
         exit 1
     fi
