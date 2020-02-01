@@ -19,5 +19,5 @@ steps:
   command:
     - ./build.sh -p android -i release debug
   agents:
-    queue: android_ci_v1-slam
+    queue: android_ci_v9
   timeout_in_minutes: 90
