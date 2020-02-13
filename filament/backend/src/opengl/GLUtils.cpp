@@ -16,7 +16,7 @@
 
 #include "GLUtils.h"
 
-#include <ostream>
+#include <utils/trap.h>
 
 #include "private/backend/Driver.h"
 
@@ -57,7 +57,7 @@ void checkGLError(io::ostream& out, const char* function, size_t line) noexcept 
     }
     out << "OpenGL error " << io::hex << err << " (" << error << ") in \""
         << function << "\" at line " << io::dec << line << io::endl;
-    // std::terminate();
+    debug_trap();
 }
 
 void checkFramebufferStatus(io::ostream& out, const char* function, size_t line) noexcept {
@@ -88,7 +88,7 @@ void checkFramebufferStatus(io::ostream& out, const char* function, size_t line)
     }
     out << "OpenGL framebuffer error " << io::hex << status << " (" << error << ") in \""
         << function << "\" at line " << io::dec << line << io::endl;
-    std::terminate();
+    debug_trap();
 }
 
 } // namespace GLUtils

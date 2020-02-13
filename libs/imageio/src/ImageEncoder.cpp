@@ -22,7 +22,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <ostream>
+#include <iostream> // for cerr
 
 #if defined(WIN32)
     #include <Winsock2.h>
@@ -372,6 +372,8 @@ bool PNGEncoder::encode(const LinearImage& image) {
                     data = fromLinearToRGBM<uint8_t>(image);
                     break;
                 case PixelFormat::sRGB:
+                    data = fromLinearTosRGB<uint8_t>(image);
+                    break;
                 case PixelFormat::LINEAR_RGB:
                     data = fromLinearToRGB<uint8_t>(image);
                     break;

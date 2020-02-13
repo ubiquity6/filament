@@ -21,11 +21,10 @@
 
 #include "FilamentAPI-impl.h"
 
-#include <utils/Panic.h>
-
 #include <backend/DriverEnums.h>
 #include <filament/IndirectLight.h>
-#include <utils/Log.h>
+
+#include <utils/Panic.h>
 
 #include <math/scalar.h>
 
@@ -44,9 +43,9 @@ using namespace details;
 struct IndirectLight::BuilderDetails {
     Texture const* mReflectionsMap = nullptr;
     Texture const* mIrradianceMap = nullptr;
-    float3 mIrradianceCoefs[9] = {};
+    float3 mIrradianceCoefs[9] = { 65504.0 }; // magic value (max fp16) to indicate sh are not set
     mat3f mRotation = {};
-    float mIntensity = 30000.0f;
+    float mIntensity = FIndirectLight::DEFAULT_INTENSITY;
 };
 
 using BuilderType = IndirectLight;
@@ -72,21 +71,63 @@ IndirectLight::Builder& IndirectLight::Builder::irradiance(uint8_t bands, float3
 }
 
 IndirectLight::Builder& IndirectLight::Builder::radiance(uint8_t bands, float3 const* sh) noexcept {
-    float3 irradiance[9];
-    if (bands >= 1) {
-        irradiance[0] = sh[0] * 0.282095f;
-        if (bands >= 2) {
-            irradiance[1] = sh[1] * -0.325735f;
-            irradiance[2] = sh[2] *  0.325735f;
-            irradiance[3] = sh[3] * -0.325735f;
-            if (bands >= 3) {
-                irradiance[4] = sh[4] *  0.273137f;
-                irradiance[5] = sh[5] * -0.273137f;
-                irradiance[6] = sh[6] *  0.078848f;
-                irradiance[7] = sh[7] * -0.273137f;
-                irradiance[8] = sh[8] *  0.136569f;
-            }
+    // Coefficient for the polynomial form of the SH functions -- these were taken from
+    // "Stupid Spherical Harmonics (SH)" by Peter-Pike Sloan
+    // They simply come for expanding the computation of each SH function.
+    //
+    // To render spherical harmonics we can use the polynomial form, like this:
+    //          c += sh[0] * A[0];
+    //          c += sh[1] * A[1] * s.y;
+    //          c += sh[2] * A[2] * s.z;
+    //          c += sh[3] * A[3] * s.x;
+    //          c += sh[4] * A[4] * s.y * s.x;
+    //          c += sh[5] * A[5] * s.y * s.z;
+    //          c += sh[6] * A[6] * (3 * s.z * s.z - 1);
+    //          c += sh[7] * A[7] * s.z * s.x;
+    //          c += sh[8] * A[8] * (s.x * s.x - s.y * s.y);
+    //
+    // To save math in the shader, we pre-multiply our SH coefficient by the A[i] factors.
+    // Additionally, we include the lambertian diffuse BRDF 1/pi and truncated cos.
+
+    constexpr float F_SQRT_PI = 1.7724538509f;
+    constexpr float F_SQRT_3  = 1.7320508076f;
+    constexpr float F_SQRT_5  = 2.2360679775f;
+    constexpr float F_SQRT_15 = 3.8729833462f;
+    constexpr float C[] = { F_PI, 2.0943951f, 0.785398f }; // <cos>
+    constexpr float A[] = {
+                  1.0f / (2.0f * F_SQRT_PI) * C[0] * F_1_PI,    // 0  0
+            -F_SQRT_3  / (2.0f * F_SQRT_PI) * C[1] * F_1_PI,    // 1 -1
+             F_SQRT_3  / (2.0f * F_SQRT_PI) * C[1] * F_1_PI,    // 1  0
+            -F_SQRT_3  / (2.0f * F_SQRT_PI) * C[1] * F_1_PI,    // 1  1
+             F_SQRT_15 / (2.0f * F_SQRT_PI) * C[2] * F_1_PI,    // 2 -2
+            -F_SQRT_15 / (2.0f * F_SQRT_PI) * C[2] * F_1_PI,    // 3 -1
+             F_SQRT_5  / (4.0f * F_SQRT_PI) * C[2] * F_1_PI,    // 3  0
+            -F_SQRT_15 / (2.0f * F_SQRT_PI) * C[2] * F_1_PI,    // 3  1
+             F_SQRT_15 / (4.0f * F_SQRT_PI) * C[2] * F_1_PI     // 3  2
+    };
+
+    // this is a way to "document" the actual value of these coefficients and at the same
+    // time make sure the expression and values are always in sync.
+    struct Debug {
+        static constexpr bool almost(float a, float b) {
+            constexpr float e = 1e-6f;
+            return (a > b - e) && (a < b + e);
         }
+    };
+    static_assert(Debug::almost(A[0],  0.282095f), "coefficient mismatch");
+    static_assert(Debug::almost(A[1], -0.325735f), "coefficient mismatch");
+    static_assert(Debug::almost(A[2],  0.325735f), "coefficient mismatch");
+    static_assert(Debug::almost(A[3], -0.325735f), "coefficient mismatch");
+    static_assert(Debug::almost(A[4],  0.273137f), "coefficient mismatch");
+    static_assert(Debug::almost(A[5], -0.273137f), "coefficient mismatch");
+    static_assert(Debug::almost(A[6],  0.078848f), "coefficient mismatch");
+    static_assert(Debug::almost(A[7], -0.273137f), "coefficient mismatch");
+    static_assert(Debug::almost(A[8],  0.136569f), "coefficient mismatch");
+
+    float3 irradiance[9];
+    bands = std::min(bands, uint8_t(3));
+    for (size_t i = 0, c = bands * bands; i<c; ++i) {
+        irradiance[i] = sh[i] * A[i];
     }
     return this->irradiance(bands, irradiance);
 }
@@ -107,6 +148,7 @@ IndirectLight::Builder& IndirectLight::Builder::rotation(mat3f const& rotation) 
 }
 
 IndirectLight* IndirectLight::Builder::build(Engine& engine) {
+    FEngine::assertValid(engine, __PRETTY_FUNCTION__);
     if (mImpl->mReflectionsMap) {
         if (!ASSERT_POSTCONDITION_NON_FATAL(
                 mImpl->mReflectionsMap->getTarget() == Texture::Sampler::SAMPLER_CUBEMAP,
@@ -114,12 +156,6 @@ IndirectLight* IndirectLight::Builder::build(Engine& engine) {
             return nullptr;
         }
 
-        if (!ASSERT_POSTCONDITION_NON_FATAL(mImpl->mReflectionsMap->getLevels() ==
-                upcast(mImpl->mReflectionsMap)->getMaxLevelCount(),
-                "reflection map must have %u mipmap levels",
-                upcast(mImpl->mReflectionsMap)->getMaxLevelCount())) {
-            return nullptr;
-        }
         if (IBL_INTEGRATION == IBL_INTEGRATION_IMPORTANCE_SAMPLING) {
             mImpl->mReflectionsMap->generateMipmaps(engine);
         }
@@ -169,8 +205,8 @@ void FIndirectLight::terminate(FEngine& engine) {
     }
 }
 
-math::float3 FIndirectLight::getDirectionEstimate() const noexcept {
-    auto const& f = mIrradianceCoefs;
+
+math::float3 FIndirectLight::getDirectionEstimate(math::float3 const* f) noexcept {
     // The linear direction is found as normalize(-sh[3], -sh[1], sh[2]), but the coefficients
     // we store are already pre-normalized, so the negative sign disappears.
     // Note: we normalize the directions only after blending, this matches code used elsewhere --
@@ -182,16 +218,15 @@ math::float3 FIndirectLight::getDirectionEstimate() const noexcept {
     return -normalize(r * 0.2126f + g * 0.7152f + b * 0.0722f);
 }
 
-float4 FIndirectLight::getColorEstimate(float3 direction) const noexcept {
+math::float4 FIndirectLight::getColorEstimate(math::float3 const* Le, math::float3 direction) noexcept {
     // See: https://www.gamasutra.com/view/news/129689/Indepth_Extracting_dominant_light_from_Spherical_Harmonics.php
+
+    // note Le is our pre-convolved, pre-scaled SH coefficients for the environment
 
     // first get the direction
     const float3 s = -direction;
 
     // The light intensity on one channel is given by: dot(Ld, Le) / dot(Ld, Ld)
-
-    // our pre-convolved, pre-scaled SH coefficients for the environment
-    auto const& Le = mIrradianceCoefs;
 
     // SH coefficients of the directional light pre-scaled by 1/A[i]
     // (we pre-scale by 1/A[i] to undo Le's pre-scaling by A[i]
@@ -209,12 +244,12 @@ float4 FIndirectLight::getColorEstimate(float3 direction) const noexcept {
 
     // The scale factor below is explained in the gamasutra article above, however it seems
     // to cause the intensity of the light to be too low.
-    //      constexpr float c = (16.0f * M_PI / 17.0f);
-    //      constexpr float LdSquared = (9.0f / (4.0f * M_PI)) * c * c;
+    //      constexpr float c = (16.0f * F_PI / 17.0f);
+    //      constexpr float LdSquared = (9.0f / (4.0f * F_PI)) * c * c;
     //      LdDotLe *= c / LdSquared; // Note the final coefficient is 17/36
 
     // We multiply by PI because our SH coefficients contain the 1/PI lambertian BRDF.
-    LdDotLe *= M_PI;
+    LdDotLe *= F_PI;
 
     // Make sure we don't have negative intensities
     LdDotLe = max(LdDotLe, float3{0});
@@ -223,14 +258,19 @@ float4 FIndirectLight::getColorEstimate(float3 direction) const noexcept {
     return { LdDotLe / intensity, intensity };
 }
 
-std::array<math::float3, 9> FIndirectLight::sDefaultIrradianceCoefs = {};
+math::float3 FIndirectLight::getDirectionEstimate() const noexcept {
+    return getDirectionEstimate(mIrradianceCoefs.data());
+}
+
+float4 FIndirectLight::getColorEstimate(float3 direction) const noexcept {
+   return getColorEstimate(mIrradianceCoefs.data(), direction);
+}
 
 } // namespace details
 
 // ------------------------------------------------------------------------------------------------
 // Trampoline calling into private implementation
 // ------------------------------------------------------------------------------------------------
-
 
 void IndirectLight::setIntensity(float intensity) noexcept {
     upcast(this)->setIntensity(intensity);
@@ -254,6 +294,14 @@ math::float3 IndirectLight::getDirectionEstimate() const noexcept {
 
 math::float4 IndirectLight::getColorEstimate(math::float3 direction) const noexcept {
     return upcast(this)->getColorEstimate(direction);
+}
+
+math::float3 IndirectLight::getDirectionEstimate(const math::float3* sh) noexcept {
+    return FIndirectLight::getDirectionEstimate(sh);
+}
+
+math::float4 IndirectLight::getColorEstimate(const math::float3* sh, math::float3 direction) noexcept {
+    return FIndirectLight::getColorEstimate(sh, direction);
 }
 
 } // namespace filament

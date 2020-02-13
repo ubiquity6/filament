@@ -34,9 +34,10 @@
 #include <utils/NameComponentManager.h>
 
 #include <fstream>
+#include <iostream>
 #include <string>
 
-#include "generated/resources/gltf.h"
+#include "generated/resources/gltf_viewer.h"
 
 using namespace filament;
 using namespace gltfio;
@@ -134,7 +135,7 @@ int main(int argc, char** argv) {
     App app;
 
     app.config.title = "Filament";
-    app.config.iblDirectory = FilamentApp::getRootPath() + DEFAULT_IBL;
+    app.config.iblDirectory = FilamentApp::getRootAssetsPath() + DEFAULT_IBL;
 
     int option_index = handleCommandLineArguments(argc, argv, &app);
     utils::Path filename;
@@ -193,12 +194,12 @@ int main(int argc, char** argv) {
 
     auto loadResources = [&app] (utils::Path filename) {
         // Load external textures and buffers.
-        gltfio::ResourceLoader({
-            .engine = app.engine,
-            .gltfPath = filename.getAbsolutePath(),
-            .normalizeSkinningWeights = true,
-            .recomputeBoundingBoxes = false
-        }).loadResources(app.asset);
+        ResourceConfiguration configuration;
+        configuration.engine = app.engine;
+        configuration.gltfPath = filename.getAbsolutePath();
+        configuration.normalizeSkinningWeights = true;
+        configuration.recomputeBoundingBoxes = false;
+        gltfio::ResourceLoader(configuration).loadResources(app.asset);
 
         // Load animation data then free the source hierarchy.
         app.asset->getAnimator();
@@ -209,7 +210,7 @@ int main(int argc, char** argv) {
 
         auto ibl = FilamentApp::get().getIBL();
         if (ibl) {
-            app.viewer->setIndirectLight(ibl->getIndirectLight());
+            app.viewer->setIndirectLight(ibl->getIndirectLight(), ibl->getSphericalHarmonics());
         }
     };
 
@@ -221,8 +222,8 @@ int main(int argc, char** argv) {
                 createMaterialGenerator(engine) : createUbershaderLoader(engine);
         app.loader = AssetLoader::create({engine, app.materials, app.names });
         if (filename.isEmpty()) {
-            app.asset = app.loader->createAssetFromBinary(GLTF_DAMAGEDHELMET_DATA,
-                    GLTF_DAMAGEDHELMET_SIZE);
+            app.asset = app.loader->createAssetFromBinary(GLTF_VIEWER_DAMAGEDHELMET_DATA,
+                    GLTF_VIEWER_DAMAGEDHELMET_SIZE);
         } else {
             loadAsset(filename);
         }
@@ -243,7 +244,6 @@ int main(int argc, char** argv) {
     };
 
     auto cleanup = [&app](Engine* engine, View*, Scene*) {
-        Fence::waitAndDestroy(engine->createFence());
         delete app.viewer;
         app.loader->destroyAsset(app.asset);
         app.materials->destroyMaterials();

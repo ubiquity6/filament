@@ -7,9 +7,17 @@ steps:
     queue: mac_ci_v9
   timeout_in_minutes: 90
 
-- label: 'Build android and webgl'
+- label: 'Build webgl'
   command:
-    - ./build.sh -p android,webgl -i release debug
+    - source ~/.bash_profile
+    - ./build.sh -p webgl -i release debug
+  agents:
+    queue: mac_ci_v9
+  timeout_in_minutes: 90
+
+- label: 'Build android'
+  command:
+    - ./build.sh -p android -i release debug
   agents:
     queue: android_ci_v9
   timeout_in_minutes: 90

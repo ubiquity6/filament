@@ -39,7 +39,7 @@ Filament.loadClassExtensions = function() {
             majorVersion: 2,
             minorVersion: 0,
             antialias: false,
-            depth: false,
+            depth: true,
             alpha: false
         };
         options = Object.assign(defaults, options);
@@ -109,21 +109,20 @@ Filament.loadClassExtensions = function() {
     /// ::retval:: [Texture]
     Filament.Engine.prototype.createTextureFromPng = function(buffer, options) {
         buffer = getBufferDescriptor(buffer);
-        const result = Filament._createTextureFromPng(buffer, this, options);
+        const result = Filament._createTextureFromImageFile(buffer, this, options);
         buffer.delete();
         return result;
     };
 
-    /// createTextureFromJpeg ::method:: Creates a 2D [Texture] from a JPEG image.
-    /// image ::argument:: asset string or DOM Image that has already been loaded
+    /// createTextureFromJpeg ::method:: Creates a 2D [Texture] from the contents of a JPEG file.
+    /// buffer ::argument:: asset string, or Uint8Array, or [Buffer] with JPEG file contents
     /// options ::argument:: JavaScript object with optional `srgb` and `nomips` keys.
     /// ::retval:: [Texture]
-    Filament.Engine.prototype.createTextureFromJpeg = function(image, options) {
-        options = options || {};
-        if ('string' == typeof image || image instanceof String) {
-            image = Filament.assets[image];
-        }
-        return Filament._createTextureFromJpeg(image, this, options);
+    Filament.Engine.prototype.createTextureFromJpeg = function(buffer, options) {
+        buffer = getBufferDescriptor(buffer);
+        const result = Filament._createTextureFromImageFile(buffer, this, options);
+        buffer.delete();
+        return result;
     };
 
     /// loadFilamesh ::method:: Consumes the contents of a filamesh file and creates a renderable.
@@ -268,7 +267,7 @@ Filament.loadClassExtensions = function() {
     Filament.gltfio$FilamentAsset.prototype.loadResources = function(onDone, onFetched, basePath) {
         const asset = this;
         const engine = this.getEngine();
-        const names = this.getResourceUrls();
+        const names = this.getResourceUris();
         const urlset = new Set();
         const urlToName = {};
 

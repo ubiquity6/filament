@@ -55,22 +55,24 @@ steps:
 
 - label: 'Deploy webgl release'
   command:
+    - source ~/.bash_profile
     - ./build.sh -c -p webgl -i release
     - cd out
 
     - tar -czvf filament-webgl-release-linux.tgz cmake-webgl-release/web
     - aws s3 cp filament-webgl-release-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
-    queue: android_ci_v9
+    queue: mac_ci_v9
   timeout_in_minutes: 90
 
 - label: 'Deploy webgl debug'
   command:
+    - source ~/.bash_profile
     - ./build.sh -c -p webgl -i debug
     - cd out
 
     - tar -czvf filament-webgl-debug-linux.tgz cmake-webgl-debug/web
     - aws s3 cp filament-webgl-debug-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
-    queue: android_ci_v9
+    queue: mac_ci_v9
   timeout_in_minutes: 90

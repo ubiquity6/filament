@@ -17,7 +17,7 @@
 #ifndef UTILS_PATH_H_
 #define UTILS_PATH_H_
 
-#include <ostream>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -238,6 +238,11 @@ public:
      * @return a path representing the current executable
      */
     static Path getCurrentExecutable();
+
+    /**
+     * @return a path representing a directory where temporary files can be stored
+     */
+    static Path getTemporaryDirectory();
 
     /**
      * Creates a directory denoted by the given path.
