@@ -17,7 +17,7 @@ steps:
 
 - label: 'Build android'
   command:
-    - ./build.sh -p android,desktop -i release debug
+    - ./build.sh -p android,desktop -j -i release debug
   agents:
     queue: android_ci_v9
   timeout_in_minutes: 90

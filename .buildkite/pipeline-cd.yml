@@ -33,7 +33,7 @@ steps:
 
 - label: 'Deploy android and linux release build'
   command:
-    - ./build.sh -c -p android,desktop -i release
+    - ./build.sh -c -p android,desktop -j -i release
     - cd out
 
     - tar -czvf filament-android-release-linux.tgz android-release filament-android-release.aar
@@ -47,7 +47,7 @@ steps:
 
 - label: 'Deploy android and linux debug build'
   command:
-    - ./build.sh -c -p android -i debug
+    - ./build.sh -c -p android,desktop -j -i debug
     - cd out
 
     - tar -czvf filament-android-debug-linux.tgz android-debug filament-android-debug.aar
