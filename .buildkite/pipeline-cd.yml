@@ -31,24 +31,30 @@ steps:
     queue: mac_ci_v9
   timeout_in_minutes: 90
 
-- label: 'Deploy android release build'
+- label: 'Deploy android and linux release build'
   command:
-    - ./build.sh -c -p android -i release
+    - ./build.sh -c -p android,desktop -i release
     - cd out
 
     - tar -czvf filament-android-release-linux.tgz android-release filament-android-release.aar
     - aws s3 cp filament-android-release-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+
+    - tar -czvf filament-linux-release-linux.tgz release
+    - aws s3 cp filament-linux-release-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: android_ci_v9
   timeout_in_minutes: 90
 
-- label: 'Deploy android debug build'
+- label: 'Deploy android and linux debug build'
   command:
     - ./build.sh -c -p android -i debug
     - cd out
 
     - tar -czvf filament-android-debug-linux.tgz android-debug filament-android-debug.aar
     - aws s3 cp filament-android-debug-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
+
+    - tar -czvf filament-linux-debug-linux.tgz debug
+    - aws s3 cp filament-linux-debug-linux.tgz s3://ubiquity6-build/filament/$BUILDKITE_COMMIT/
   agents:
     queue: android_ci_v9
   timeout_in_minutes: 90
